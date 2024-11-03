@@ -9,6 +9,11 @@ import sympy
 import inv
 from typing import List
 import utils
+import time
+import cProfile
+import pstats
+
+
 def add_constraints_exclude_null_space(base, exclude_null_space_of):
     if exclude_null_space_of is None:
         return base
@@ -88,27 +93,24 @@ def add_constraints_positive_first_nonzero(set_):
 
     return new_set
 
-second_array=False
-call_find_base_times = 0
-def find_base(n_dim, dim_sizes, min_reuse_factor, hyperplanes, exclude_null_space_of):
-    global second_array
-    global call_find_base_times
-    call_find_base_times += 1
+cache_for_find_base = {}
+def _find_base_cache(n_dim, dim_sizes, min_reuse_factor, hyperplanes):
+    global cache_for_find_base
+    key = (n_dim, dim_sizes, min_reuse_factor, hyperplanes)
+    if key in cache_for_find_base:
+        return cache_for_find_base[key]
+    
     dims = [f"j{i}" for i in range(n_dim)]
     dims_str = ",".join(dims)
     base = isl.Set(f"{{ [{dims_str}] }}")
     
     for hyperplane in hyperplanes:
-        assert type(hyperplane)==list, f"{hyperplane=}"
+        assert type(hyperplane)==tuple, f"{hyperplane=}"
         assert len(hyperplane)==n_dim, f"{len(hyperplane)=}"
         cons = isl.Constraint.equality_alloc(base.get_space())
         for i,coef in enumerate(hyperplane):
             cons = cons.set_coefficient_val(isl.dim_type.set, i, coef)
         base = base.add_constraint(cons)
-
-    # if second_array:
-    #     import pdb; pdb.set_trace()
-    
 
     for i in range(n_dim):
         bound = dim_sizes[i] // min_reuse_factor
@@ -123,15 +125,19 @@ def find_base(n_dim, dim_sizes, min_reuse_factor, hyperplanes, exclude_null_spac
         cons_ub = cons_ub.set_constant_val(isl.Val(bound))
         base = base.add_constraint(cons_ub)
     
-    base = add_constraints_exclude_null_space(base, exclude_null_space_of)
     base = add_constraints_positive_first_nonzero(base)
-    # import pdb; pdb.set_trace()
+    cache_for_find_base[key] = base
+    return base
 
-    # only use half space
-    # cons_half = isl.Constraint.inequality_alloc(base.get_space())
-    # cons_half = cons_half.set_coefficient_val(isl.dim_type.set, 0, 1)
-    # cons_half = cons_half.set_constant_val(isl.Val(0))
-    # base = base.add_constraint(cons_half)
+second_array=False
+call_find_base_times = 0
+def find_base(n_dim, dim_sizes, min_reuse_factor, hyperplanes, exclude_null_space_of):
+    global second_array
+    global call_find_base_times
+    call_find_base_times += 1
+
+    base = _find_base_cache(n_dim, dim_sizes, min_reuse_factor, hyperplanes)
+    base = add_constraints_exclude_null_space(base, exclude_null_space_of)
 
     return base
 
@@ -235,11 +241,11 @@ def concat_bases(ma_search_status):
 
 def find_bases_for_multi_array_reuse(n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays):
     global second_array
-    assert type(max_reuse_factor_for_arrays)==list
+    assert type(max_reuse_factor_for_arrays)==tuple
     assert len(max_reuse_factor_for_arrays)==n_array
-    assert type(hyperplanes_for_arrays)==list
+    assert type(hyperplanes_for_arrays)==tuple
     assert len(hyperplanes_for_arrays)==n_array
-    assert type(dim_sizes)==list
+    assert type(dim_sizes)==tuple
     assert len(dim_sizes)==n_dim
 
     ma_result = []
@@ -328,7 +334,7 @@ def matrix_to_schedule(coor_transform_matrix):
 
 def base_to_coor_transform_schedule(bases_matrix):
     # assert bases_matrix.rows==len(iter_names), f"{bases_matrix.rows=}, {len(iter_names)=}"
-    print(f"{bases_matrix=}")
+    # print(f"{bases_matrix=}")
     coor_transform_matrix = base_to_coor_transform_matrix(bases_matrix)
     schedule = matrix_to_schedule(coor_transform_matrix)
     return schedule
@@ -385,9 +391,9 @@ def parse_operator(domain, access_relations, max_reuse_factor_for_arrays):
             coef = []
             for i in range(aff.dim(isl.dim_type.in_)):
                 coef.append(int(str(aff.get_coefficient_val(isl.dim_type.in_, i))))
-            hyperplanes.append(coef)
-        hyperplanes_for_arrays.append(hyperplanes)
-    return n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays
+            hyperplanes.append(tuple(coef))
+        hyperplanes_for_arrays.append(tuple(hyperplanes))
+    return n_dim, n_array, tuple(dim_sizes), tuple(max_reuse_factor_for_arrays), tuple(hyperplanes_for_arrays)
 
 def find_schedules_for_operator(domain, access_relations, max_reuse_factor_for_arrays):
     n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays = parse_operator(
@@ -404,33 +410,36 @@ def find_schedules_for_operator(domain, access_relations, max_reuse_factor_for_a
     )
     return schedules
 
-if __name__=="__main__":
+def main():
 
     # conv2d
     domain = isl.BasicSet("{ S[oh,ow,kh,kw]: 0<=oh<64 and 0<=ow<64 and 0<=kh<3 and 0<=kw<3 }")
     access_I = isl.BasicMap("{ S[oh,ow,kh,kw] -> I[oh + kh, ow + kw] }")
     access_O = isl.BasicMap("{ S[oh,ow,kh,kw] -> O[oh, ow] }")
-    tile_transform = isl.BasicMap("{ S[oh,ow,kh,kw] -> S[floor(oh/2),floor(ow/2), oh%2, ow%2,kh,kw] }")
+    tile_transform = isl.BasicMap("{ S[oh,ow,kh,kw] -> S[floor(oh/2),oh%2,ow, kh,kw] }")
     domain = tile_transform.intersect_domain(domain).range()
-    access_I = tile_transform.reverse().apply_range(access_I)
-    access_O = tile_transform.reverse().apply_range(access_O)
+    access_I = tile_transform.reverse().apply_range(access_I)#.intersect_domain(domain)
+    access_O = tile_transform.reverse().apply_range(access_O)#.intersect_domain(domain)
     access_I = utils.simplify_basic_map(access_I)
     access_O = utils.simplify_basic_map(access_O)
-    access_I = isl.BasicMap("{ S[i0, i1, i2, i3, i4, i5] -> I[o0, o1] : o0 = 2i0 + i2 + i4 and o1 = 2i1 + i3 + i5 }")
-    access_O = isl.BasicMap("{ S[i0, i1, i2, i3, i4, i5] -> O[o0, o1] : o0 = 2i0 + i2 and o1 = 2i1 + i3 }")
+    access_I = isl.BasicMap("{ S[i0, i1, i2, i3, i4] -> I[o0, o1] : o0 = 2i0 + i1 + i3 and o1 = i2 + i4}")
+    access_O = isl.BasicMap("{ S[i0, i1, i2, i3, i4] -> O[o0, o1] : o0 = 2i0 + i1 and o1 = i2}")
     # print(f"{domain=}")
     # print(f"{access_I=}")
     # print(f"{access_O=}")
     # print(f"{access_O.universe(access_O.get_space())=}")
     # exit()
-
+    begin_time = time.time()
     schedules = find_schedules_for_operator(
         domain=domain,
         access_relations=[access_I, access_O],
-        max_reuse_factor_for_arrays=[8, 8]
+        max_reuse_factor_for_arrays=(8, 8)
     )
+    end_time = time.time()
     print(f"{len(schedules)=}")
-    exit()
+    print(f"Duration: {end_time-begin_time} s")
+    print(f"{call_find_base_times=}")
+    return
 
     # result = find_bases_for_multi_array_reuse(
     #     n_dim=4,
@@ -516,9 +525,7 @@ if __name__=="__main__":
     print("-------------------")
     base2.foreach_point(print)
     
-    # print("-----------------")
-    # base.foreach_point(print)
-    # print("-----------------")
-    # print(f"{base=}")
-    # print(f"{reuse=}")
-    # print(f"{base.count_val()=}")
+
+
+if __name__ == "__main__":
+    main()
