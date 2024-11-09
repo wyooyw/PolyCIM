@@ -8,6 +8,8 @@ from utils import (
 import utils
 from base_operator import BasicOperator, DataMovementOperator, DataMovement
 from tqdm import tqdm
+from functools import reduce
+import itertools
 
 def find_domain_iters_exist_in_range(aff, return_name=True):
 
@@ -127,6 +129,33 @@ def get_dominate_iters_of_pw_aff(pw_aff):
             if not coef==0:
                 dominate_dim.add(dim_names[i])
     return dominate_dim
+
+def get_pieces_from_pw_multi_aff(pw_multi_aff):
+    record = []
+    pw_multi_aff.foreach_piece(lambda x,y: record.append((x,y)))
+    return record
+
+def get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name=True):
+    """
+    {[i0,i1,..,ik] -> [f(i1,i2)]}
+    return {i1,i2}
+    """
+    dim_names = [pw_multi_aff.get_dim_name(isl.dim_type.in_, i) for i in range(pw_multi_aff.dim(isl.dim_type.in_))]
+    n_dim_range = pw_multi_aff.dim(isl.dim_type.out)
+
+    dominate_dims = []
+    for i in range(n_dim_range):
+        dominate_dims.append(set())
+
+    for cond, multi_aff in get_pieces_from_pw_multi_aff(pw_multi_aff):
+        for dim in range(n_dim_range):
+            aff = multi_aff.get_at(dim)
+            for i in range(aff.dim(isl.dim_type.in_)):
+                coef = aff.get_coefficient_val(isl.dim_type.in_, i) 
+                if not coef==0:
+                    dominate_dims[dim].add(dim_names[i] if return_name else i)
+        
+    return dominate_dims
 
 def get_local_buffer_axis_mapping(domain, acc_rel, level):
     """
@@ -489,7 +518,8 @@ def insert_single_buffer_multi_level(
         access_O = accesses["O"],
         access_W = accesses["W"],
         history_domains=op.history_domains, 
-        history_schedules=op.history_schedules
+        history_schedules=op.history_schedules,
+        data_movement=op.data_movement if hasattr(op,"data_movement") else None
     )
 
     print(f"domain: {op.domain}\n")
@@ -519,8 +549,95 @@ def insert_single_buffer_multi_level_pass(op_list, buffer_name, buffer_levels):
 """
 Buffer Searching
 """
-def buffer_level_serching():
-    pass
+
+def get_valid_buffer_positions(acc_rel):
+    dominate_iters_per_dim = get_dominate_iters_of_pw_multi_aff(acc_rel.as_pw_multi_aff(), return_name=False)
+    dominate_iters = reduce(lambda x,y: x.union(y), dominate_iters_per_dim)
+    assert type(dominate_iters)==set
+    dominate_iters = sorted(list(dominate_iters))
+    valid_buffer_positions = [i+1 for i in dominate_iters]
+    return valid_buffer_positions
+
+def buffer_level_serching(
+    op, 
+    buffer_name,
+    num_buffer_level, 
+    level_min=None,
+    level_max=None,
+    ):
+    """
+    num_buffer_level = 1
+    names_of_buffer_level = ["__MACRO__"]
+    level_min = None
+    level_max = None
+
+    num_buffer_level = 2
+    names_of_buffer_level = ["__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"]
+    level_min = 1
+    level_max = -5
+
+    return buffer_level_list
+    """
+    if level_min is None:
+        level_min = 1
+    if level_max is None:
+        level_max = -1
+
+    level_min,level_max = parse_buffer_levels(op, (level_min, level_max))
+
+    acc_rel = op.get_access_by_name(buffer_name)
+
+    # find dominate iters
+    valid_buffer_positions = get_valid_buffer_positions(acc_rel)
+    valid_buffer_positions = [i for i in valid_buffer_positions if i>=level_min and i<=level_max]
+
+    assert num_buffer_level <= len(valid_buffer_positions), f"{num_buffer_level=}, {len(valid_buffer_positions)=}"
+    buffer_level_combinations = list(itertools.combinations(valid_buffer_positions, num_buffer_level))
+
+    return buffer_level_combinations
+
+def get_macro_level(
+    op, 
+    buffer_name,
+    buffer_compute_level
+):
+    acc_rel = op.get_access_by_name(buffer_name)
+    valid_buffer_positions = get_valid_buffer_positions(acc_rel)
+    buffer_compute_level = parse_buffer_levels(op, (buffer_compute_level,))[0]
+    # find biggest level in valid_buffer_positions smaller or equal with buffer_compute_level
+    max_level = None
+    for idx,level in enumerate(valid_buffer_positions):
+        if level <= buffer_compute_level:
+            max_level = level
+        else:
+            break
+    assert max_level is not None
+    assert max_level in valid_buffer_positions and max_level <= buffer_compute_level, f"{max_level=}, {valid_buffer_positions=}, {buffer_compute_level=}"
+
+    return max_level
+
+def multi_level_buffer_insersion_pass(
+    op_list, 
+    macro_compute_level
+    ):
+
+    new_ops = []
+    for op in tqdm(op_list):
+        input_buffer_level_combinations = buffer_level_serching(
+            op, 
+            "I",
+            num_buffer_level=2, 
+            level_min=1,
+            level_max=macro_compute_level
+        )
+        weight_buffer_level = get_macro_level(op, "W", macro_compute_level)
+        for buffer_levels in input_buffer_level_combinations:
+            new_op = insert_single_buffer_multi_level(op, "I", buffer_levels)
+            new_op = insert_single_buffer_multi_level(new_op, "W", [weight_buffer_level])
+            new_ops.append(new_op)
+    return new_ops
+
+    
 
 if __name__=="__main__":
 
