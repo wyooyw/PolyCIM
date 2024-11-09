@@ -171,7 +171,12 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
     iter_names = domain.get_var_names(isl.dim_type.set)
     prefix_acc_rel = acc_rel.project_out_except(iter_names[:level], [isl.dim_type.in_])
     used_global_buffer_dynamic_shape = utils.get_dynamic_shape_from_dynamic_map(prefix_acc_rel) #[level:]
-    local_buffer_dynamic_shape = [used_global_buffer_dynamic_shape[i] for i in range(len(local_to_global_buf_axis_mapping))]
+    local_buffer_dynamic_shape = [
+        used_global_buffer_dynamic_shape[
+            local_to_global_buf_axis_mapping[i]
+        ] 
+        for i in range(len(local_to_global_buf_axis_mapping))
+    ]
     # print(f"{local_buffer_dynamic_shape = }")
     # check prefix_acc_rel is continous on given dim
     
