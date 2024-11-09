@@ -283,7 +283,10 @@ class CodeGenerator:
         assert cond.get_type()==isl._isl.ast_expr_type.op, f"{cond.get_type()=}"
         assert cond.get_op_type()==isl._isl.ast_expr_op_type.le, f"{cond.get_op_type()=}"
         assert cond.get_op_n_arg()==2, f"{cond.get_op_n_arg()=}"
-        return self.codegen_expression(cond.get_op_arg(1), depth)
+        ub_codes, ub_var = self.codegen_expression(cond.get_op_arg(1), depth)
+        add_codes, add_var = self._codegen_expr_add([ub_var, 1], depth)
+
+        return ub_codes + add_codes, add_var
 
     def codegen_for(self, node, depth):
         body = node.for_get_body()
@@ -495,7 +498,14 @@ class CodeGenerator:
         return code_str
 
 def get_name_and_shape(access):
-    shape = utils.get_box_hull_shape(access.offsets.range())
+    sizes = access.sizes.range()
+    sizes = [sizes.dim_max_val(i) for i in range(sizes.dim(isl.dim_type.set)) ]
+
+    offsets = access.offsets.range()
+    offsets = [offsets.dim_max_val(i) for i in range(offsets.dim(isl.dim_type.set)) ]
+
+    shape = [sizes + offsets for sizes, offsets in zip(sizes, offsets)]
+
     name = access.offsets.get_tuple_name(isl.dim_type.out)
     return name, shape
 
@@ -513,7 +523,7 @@ def extract_buffer_defines(op):
             assert len(old_shape)==len(shape), f"{old_shape=}, {shape=}"
             max_shape = [max(old_shape[i], shape[i]) for i in range(len(shape))]
             buffer_to_size[name] = max_shape
-
+    
     I_name, I_shape = get_name_and_shape(op.access_I) # this maybe incorrect.
     W_name, W_shape = get_name_and_shape(op.access_W)
     O_name, O_shape = get_name_and_shape(op.access_O)
