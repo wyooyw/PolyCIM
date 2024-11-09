@@ -113,28 +113,82 @@ def make_pw_affs_to_aff_list(pw_affs):
         pw_aff_list = pw_aff_list.add(pw_aff)
     return pw_aff_list
 
+def get_dominate_iters_of_pw_aff(pw_aff):
+    """
+    {[i0,i1,..,ik] -> [f(i1,i2)]}
+    return {i1,i2}
+    """
+    dim_names = [pw_aff.get_dim_name(isl.dim_type.in_, i) for i in range(pw_aff.dim(isl.dim_type.in_))]
+
+    dominate_dim = set()
+    for cond, aff in pw_aff.get_pieces():
+        for i in range(aff.dim(isl.dim_type.in_)):
+            coef = aff.get_coefficient_val(isl.dim_type.in_, i) 
+            if not coef==0:
+                dominate_dim.add(dim_names[i])
+    return dominate_dim
+
+def get_local_buffer_axis_mapping(domain, acc_rel, level):
+    """
+    local_to_global_buf_axis_mapping = [1,2] means local buffer axis [0,1] map to global buffer axis [1,2]
+    """
+    
+    # step 1: get dominate iter of each dim in acc_rel's range
+    # dominate: iter exist in dim's lowerbound / upperbound affine function
+
+    n_buf_dim = acc_rel.dim(isl.dim_type.out)
+    n_iter_dim = acc_rel.dim(isl.dim_type.in_)
+
+    lb_per_dim = [acc_rel.dim_min(i) for i in range(n_buf_dim)]
+    ub_per_dim = [acc_rel.dim_max(i) for i in range(n_buf_dim)]
+
+    dominate_iters_per_buffer_axis = []
+    for buf_axix,(lb,ub) in enumerate(zip(lb_per_dim, ub_per_dim)):
+        lb_dominate_iters = get_dominate_iters_of_pw_aff(lb)
+        ub_dominate_iters = get_dominate_iters_of_pw_aff(ub)
+        dominate_iters = lb_dominate_iters.union(ub_dominate_iters)
+        dominate_iters_per_buffer_axis.append(dominate_iters)
+
+    # step 2: get inner level iter names
+    iter_names = acc_rel.get_var_names(isl.dim_type.in_)
+    inner_iter_names = iter_names[level:]
+
+    # step 3: find buffer axis that contain inner level iter
+    local_to_global_buf_axis_mapping = []
+    for buffer_axis, dominate_iters in enumerate(dominate_iters_per_buffer_axis):
+        if dominate_iters.intersection(inner_iter_names):
+            local_to_global_buf_axis_mapping.append(buffer_axis)
+
+    return local_to_global_buf_axis_mapping
+
 def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level):
+    local_to_global_buf_axis_mapping = get_local_buffer_axis_mapping(domain, acc_rel, level)
+    
     n_buf_dim = acc_rel.dim(isl.dim_type.out)
     n_iter_dim = acc_rel.dim(isl.dim_type.in_)
     # assert n_buf_dim==n_iter_dim, f"{n_buf_dim=}, {n_iter_dim=}"
 
     iter_names = domain.get_var_names(isl.dim_type.set)
     prefix_acc_rel = acc_rel.project_out_except(iter_names[:level], [isl.dim_type.in_])
-    local_buffer_dynamic_shape = utils.get_dynamic_shape_from_dynamic_map(prefix_acc_rel) #[level:]
+    used_global_buffer_dynamic_shape = utils.get_dynamic_shape_from_dynamic_map(prefix_acc_rel) #[level:]
+    local_buffer_dynamic_shape = [used_global_buffer_dynamic_shape[i] for i in range(len(local_to_global_buf_axis_mapping))]
     # print(f"{local_buffer_dynamic_shape = }")
     # check prefix_acc_rel is continous on given dim
     
     lower_bound_per_dim = [prefix_acc_rel.dim_min(i) for i in range(n_buf_dim)]
     lb_aff_per_dim = lower_bound_per_dim
     
-    n_local_buf_dim = n_buf_dim # - level
+    n_local_buf_dim = len(local_to_global_buf_axis_mapping) # - level
 
     param_names = acc_rel.get_var_names(isl.dim_type.param)
     domain_names = acc_rel.get_var_names(isl.dim_type.in_)
     range_names = acc_rel.get_var_names(isl.dim_type.out)
 
     local_buffer_iters = [utils.get_unique_name() for i in range(n_local_buf_dim)]
-    # insert local buffer dim for lb_aff_per_dim
+
+    # insert local buffer dim into lb_aff_per_dim's domain
+    # For example: {[i0,i1] -> Buffer[j0,j1,j2]}  -> {[i0,i1,a_,b_] -> Buffer[j0,j1,j2]}
+    # a_,b_ is local buffer dim
     for i in range(len(lb_aff_per_dim)):
         
         lb_aff = lb_aff_per_dim[i]
@@ -149,14 +203,16 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
     aff_domain_def = ','.join(aff_domain_iters)
     for i in range(n_buf_dim):
         affs.append(lb_aff_per_dim[i])
-        
+    
     
     assert n_local_buf_dim <= n_buf_dim, f"{n_local_buf_dim=}, {n_buf_dim=}"
     for i in range(n_local_buf_dim):
-        aff_lb = affs[n_buf_dim - n_local_buf_dim + i]
+        # i is local buffer dim, use local_to_global_buf_axis_mapping to get global buffer dim
+        global_buffer_axis = local_to_global_buf_axis_mapping[i]
+        aff_lb = affs[global_buffer_axis]
         aff_i = isl.Aff(f"{{ [{aff_domain_def}] -> [({local_buffer_iters[i]})] }}")
         aff = aff_lb.add(aff_i)
-        affs[n_buf_dim - n_local_buf_dim + i] = aff
+        affs[global_buffer_axis] = aff
     
     pw_aff_list = utils.make_pw_affs_to_aff_list(affs)
     
@@ -195,7 +251,7 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
     assign_buffer_acc_rel = assign_buffer_acc_rel.set_tuple_name(isl.dim_type.out, buffer_name)
     local_buffer_acc_rel = local_buffer_acc_rel.set_tuple_name(isl.dim_type.out, f"{buffer_name}_{level}")
 
-    
+
     return assign_domain, local_buffer_acc_rel, assign_buffer_acc_rel
 
 def apply_skew(domain, acc_rel):
