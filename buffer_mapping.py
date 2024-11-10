@@ -6,11 +6,11 @@ from utils import (
     rename_out_dims_for_basic_map
 )
 import utils
-from base_operator import BasicOperator, DataMovementOperator, DataMovement
+from base_operator import BasicOperator, DataMovementOperator, DataMovement, AccessRelation
 from tqdm import tqdm
 from functools import reduce
 import itertools
-
+import numpy as np
 def find_domain_iters_exist_in_range(aff, return_name=True):
 
     n_iters_domain = aff.dim(isl.dim_type.in_)
@@ -483,7 +483,7 @@ def parse_buffer_levels(op, buffer_levels):
     return new_buffer_levels
 
 def insert_single_buffer_multi_level(
-    op, buffer_name, buffer_levels
+    op, buffer_name, buffer_levels, memory_types
 ):
     buffer_levels = parse_buffer_levels(op, buffer_levels)
 
@@ -494,14 +494,24 @@ def insert_single_buffer_multi_level(
 
     compute_acc_rel = aligned_acc_rel
     data_movement_list = []
+
+    assert len(memory_types)==len(buffer_levels)
+    memory_types = [*memory_types]
+    memory_types.insert(0, "__GLOBAL__")
     
-    for buffer_level in buffer_levels:
+    for idx,buffer_level in enumerate(buffer_levels):
         assign_domain, assign_local_buffer_acc_rel, assign_global_buffer_acc_rel = map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(op.domain, compute_acc_rel, buffer_level)
         compute_acc_rel = map_access_to_buffer(compute_acc_rel, assign_global_buffer_acc_rel, assign_local_buffer_acc_rel, buffer_level)
         datamove = DataMovement(
             domain = assign_domain,
-            access_I = assign_global_buffer_acc_rel.intersect_domain(assign_domain),
-            access_O = assign_local_buffer_acc_rel.intersect_domain(assign_domain),
+            access_I = AccessRelation(
+                assign_global_buffer_acc_rel.intersect_domain(assign_domain), 
+                memory_types[idx]
+            ),
+            access_O = AccessRelation(
+                assign_local_buffer_acc_rel.intersect_domain(assign_domain), 
+                memory_types[idx + 1]
+            ),
             level = buffer_level
         )
         data_movement_list.append(datamove)
@@ -511,7 +521,10 @@ def insert_single_buffer_multi_level(
         "O": op.access_O,
         "W": op.access_W
     }
-    accesses[buffer_name] = compute_acc_rel
+    accesses[buffer_name] = AccessRelation(
+        compute_acc_rel,
+        memory_types[-1]
+    )
     new_op = DataMovementOperator(
         domain = op.domain,
         access_I = accesses["I"],
@@ -611,6 +624,7 @@ def get_macro_level(
             max_level = level
         else:
             break
+
     assert max_level is not None
     assert max_level in valid_buffer_positions and max_level <= buffer_compute_level, f"{max_level=}, {valid_buffer_positions=}, {buffer_compute_level=}"
 
@@ -620,6 +634,9 @@ def multi_level_buffer_insersion_pass(
     op_list, 
     macro_compute_level
     ):
+    num_input_buffer_level = 2
+    input_memory_names = ["__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"]
+    weight_memory_names = ["__MACRO__"]
 
     new_ops = []
     for op in tqdm(op_list):

@@ -75,12 +75,12 @@ class CodeGenerator:
         return special_regs_setting
 
     def codegen_buffer_define(self, depth):
-        buffer_name_and_shapes = extract_buffer_defines(self.op)
+        buffer_name_to_info = extract_buffer_defines(self.op)
         code_list = []
-        for name, shape in buffer_name_and_shapes.items():
-            shape_str = ",".join([str(s) for s in shape])
+        for name, info in buffer_name_to_info.items():
+            shape_str = ",".join([str(s) for s in info.shape])
             code = CodeStmt(
-                code=f"{name} = Buffer(<{shape_str}>, int8, __GLOBAL__);",
+                code=f"{name} = Buffer(<{shape_str}>, int8, {info.memory_type});",
                 depth=depth
             )
             code_list.append(code)
@@ -509,11 +509,17 @@ def get_name_and_shape(access):
     name = access.offsets.get_tuple_name(isl.dim_type.out)
     return name, shape
 
+@dataclass
+class BufferInfo:
+    name: str
+    shape: list
+    memory_type: str
 
 
 def extract_buffer_defines(op):
     
     buffer_to_size = dict()
+    buffer_to_memory_type = dict()
     
     def _update_shape(name, shape):
         if name not in buffer_to_size:
@@ -524,6 +530,12 @@ def extract_buffer_defines(op):
             max_shape = [max(old_shape[i], shape[i]) for i in range(len(shape))]
             buffer_to_size[name] = max_shape
     
+    def _update_memory_type(name, memory_type):
+        if name not in buffer_to_memory_type:
+            buffer_to_memory_type[name] = memory_type
+        else:
+            assert buffer_to_memory_type[name]==memory_type, f"{buffer_to_memory_type[name]=}, {memory_type=}"
+    
     I_name, I_shape = get_name_and_shape(op.access_I) # this maybe incorrect.
     W_name, W_shape = get_name_and_shape(op.access_W)
     O_name, O_shape = get_name_and_shape(op.access_O)
@@ -532,17 +544,28 @@ def extract_buffer_defines(op):
     _update_shape(W_name, W_shape)
     _update_shape(O_name, O_shape)
 
+    _update_memory_type(I_name, op.access_I.memory_type)
+    _update_memory_type(W_name, op.access_W.memory_type)
+    _update_memory_type(O_name, op.access_O.memory_type)
+
     for buffer in ["I", "W"]:
         for data_movement in op.data_movement[buffer]:
             assert type(data_movement)==DataMovement
 
             name, shape = get_name_and_shape(data_movement.access_I)
             _update_shape(name, shape)
+            _update_memory_type(name, data_movement.access_I.memory_type)
 
             name, shape = get_name_and_shape(data_movement.access_O)
             _update_shape(name, shape)
+            _update_memory_type(name, data_movement.access_O.memory_type)
 
-    return buffer_to_size
+    buffer_name_to_info = dict()
+    for name in buffer_to_size.keys():
+        shape = buffer_to_size[name]
+        memory_type = buffer_to_memory_type[name]
+        buffer_name_to_info[name] = BufferInfo(name=name, shape=shape, memory_type=memory_type)
+    return buffer_name_to_info
 
 
 
