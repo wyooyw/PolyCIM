@@ -616,6 +616,8 @@ def get_macro_level(
 ):
     acc_rel = op.get_access_by_name(buffer_name)
     valid_buffer_positions = get_valid_buffer_positions(acc_rel)
+    valid_buffer_positions = [0] + valid_buffer_positions
+
     buffer_compute_level = parse_buffer_levels(op, (buffer_compute_level,))[0]
     # find biggest level in valid_buffer_positions smaller or equal with buffer_compute_level
     max_level = None
@@ -649,12 +651,51 @@ def multi_level_buffer_insersion_pass(
         )
         weight_buffer_level = get_macro_level(op, "W", macro_compute_level)
         for buffer_levels in input_buffer_level_combinations:
-            new_op = insert_single_buffer_multi_level(op, "I", buffer_levels)
-            new_op = insert_single_buffer_multi_level(new_op, "W", [weight_buffer_level])
+            new_op = insert_single_buffer_multi_level(op, "I", buffer_levels, input_memory_names)
+            new_op = insert_single_buffer_multi_level(new_op, "W", [weight_buffer_level], weight_memory_names)
             new_ops.append(new_op)
     return new_ops
 
+def memory_access_cost(op):
+    bandwidth_factor = {
+        ("__GLOBAL__", "__INPUT_MEMORY__"): 4,
+        ("__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"): 1,
+        ("__PIM_INPUT_REG_BUFFER__"): 1,
+        ("__GLOBAL__", "__MACRO__"): 4
+    }
+    total_cost = 0
+    # cost of moving I and W
+    for buffer_name in ["I", "W"]:
+        for datamove in op.data_movement[buffer_name]:
+            # TODO: consider data type, int8 / int32
+            data_volumn = datamove.domain.count_val()
+            src_memory_type = datamove.access_I.memory_type
+            dst_memory_type = datamove.access_O.memory_type
+            bandwidth = bandwidth_factor[(src_memory_type, dst_memory_type)]
+            cost = data_volumn * bandwidth
+            total_cost += cost
+
+    # TODO: cost of moving O
+
+    return total_cost
+
+def filter_op_by_memory_access_cost_pass(op_list):
+    memory_access_cost_list = [memory_access_cost(op) for op in op_list]
+
+    memory_access_cost_list = np.array(memory_access_cost_list)
+    sorted_indices = np.argsort(memory_access_cost_list)
     
+    new_op_list = []
+    new_op_list_memory_access = []
+    min_value = memory_access_cost_list[sorted_indices[0]]
+    num_ops = len(op_list)
+    for i,index in enumerate(sorted_indices):
+        if i < 10 or memory_access_cost_list[index] == min_value:
+            new_op_list.append(op_list[index])
+            new_op_list_memory_access.append(memory_access_cost_list[index])
+        print(f"{i}. {memory_access_cost_list[index]=}")
+
+    return new_op_list
 
 if __name__=="__main__":
 
