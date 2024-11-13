@@ -602,7 +602,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
     print(f"{sorted_levels=}")
 
     # insert dims
-    for idx,level in enumerate(levels):
+    for idx,level in enumerate(sorted_levels):
         assign_schedules_at_level = level_to_assign_schedule[level]
 
         # insert constant dims for assign schedules at current level
@@ -611,7 +611,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
         
         # insert dims for other schedule
         const = len(assign_schedules_at_level)
-        for other_level in levels:
+        for other_level in sorted_levels:
             if other_level<=level:
                 continue
             assign_schedules_at_other_level = level_to_assign_schedule[other_level]
@@ -626,7 +626,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
 
     # padding schedule at end
     max_range_size = compute_schedule.dim(isl.dim_type.out)
-    for level in levels:
+    for level in sorted_levels:
         assign_schedules_at_level = level_to_assign_schedule[level]
         for assign_schedule in assign_schedules_at_level:
             range_size = assign_schedule.dim(isl.dim_type.out)
@@ -634,7 +634,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
 
     cur_range_size = compute_schedule.dim(isl.dim_type.out)
     compute_schedule = insert_many_const_dim_in_range(compute_schedule, cur_range_size, max_range_size - cur_range_size, 0)
-    for level in levels:
+    for level in sorted_levels:
         assign_schedules_at_level = level_to_assign_schedule[level]
         for i in range(len(assign_schedules_at_level)):
             assign_schedule = assign_schedules_at_level[i]
@@ -643,7 +643,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
             assign_schedules_at_level[i] = assign_schedule
     
     union_schedule = compute_schedule
-    for level in levels:
+    for level in sorted_levels:
         assign_schedules_at_level = level_to_assign_schedule[level]
         for assign_schedule in assign_schedules_at_level:
             union_schedule = union_schedule.add_map(assign_schedule)
