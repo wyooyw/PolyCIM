@@ -3,6 +3,11 @@ import benchmark
 import os
 import json
 from functools import reduce
+from config import get_config, get_memory_base
+import tempfile
+import os
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from dataclasses import dataclass
 
 def get_final_code(result):
     final_code = os.path.join(result.save_path, "final_code.json")
@@ -196,10 +201,10 @@ def get_code_read_global(attr):
     else:
         assert False, attr["tensor_type"]
         
-    return get_code_trans_by_memory_type("global_memory", dst_memory_type, reduce(lambda x,y:x*y, attr["shape"]))
+    return get_code_trans_by_memory_type("global", dst_memory_type, reduce(lambda x,y:x*y, attr["shape"]))
 
 def get_code_write_global(attr):
-    return get_code_trans_by_memory_type("output_memory", "global_memory", reduce(lambda x,y:x*y, attr["shape"]))
+    return get_code_trans_by_memory_type("output_memory", "global", reduce(lambda x,y:x*y, attr["shape"]))
 
 def get_code_add(attr):
     """
@@ -261,10 +266,14 @@ def get_code_add(attr):
     
     # exit()
 
+cache_conv2d_result = dict()
 def get_code_conv2d(attr):
+    global cache_conv2d_result
     """
     'X_shape': [1, 32, 224, 224], 'W_shape': [32, 3, 3, 3], 'padding': [1, 1, 1, 1], 'strides': [2, 2]
     """
+    print(attr)
+    # import pdb; pdb.set_trace()
     batch, in_channel, in_height, in_width = attr["X_shape"]
     out_channel, in_channel, kernel_height, kernel_width = attr["W_shape"]
     padding = attr["padding"][0]
@@ -273,17 +282,92 @@ def get_code_conv2d(attr):
     out_h = (in_height + 2*padding - kernel_height) // stride + 1
     out_w = (in_width + 2*padding - kernel_width) // stride + 1
 
-    operator = benchmark.get_op_conv2d(b=batch, oc=out_channel, ic=in_channel, oh=out_h, ow=out_w, kh=kernel_height, kw=kernel_width, stride=stride, virtual_axis=True)
-    result = run_pipeline(operator, skew=False)
-    print(f"conv2d.attr: {attr}")
+    cache_key = (batch, out_channel, in_channel, out_h, out_w, kernel_height, kernel_width, padding, stride)
+    if cache_key in cache_conv2d_result:
+        result = cache_conv2d_result[cache_key]
+    else:
+        temp_dir = tempfile.mkdtemp()
+        operator = benchmark.get_op_conv2d(b=batch, oc=out_channel, ic=in_channel, oh=out_h, ow=out_w, kh=kernel_height, kw=kernel_width, stride=stride, virtual_axis=True)
+        result = run_pipeline(operator, skew=False, cim_cfg=get_config(), save_dir=temp_dir)
+        assert len(result) > 0, f"Fail when generating conv2d code. {attr=}"
+        cache_conv2d_result[cache_key] = result
+        
+    # read code from result
+    final_code = get_final_code(result[0])
+    assert final_code is not None, f"Fail when generating conv2d code. {attr=}"
     
-    return []
+    return final_code
 
+def fill_template(src_path, dst_path, context):
+    
+
+    src_folder, src_file = os.path.split(src_path)
+
+    # 创建 Jinja2 环境和加载器
+    env = Environment(
+        loader=FileSystemLoader(src_folder), undefined=StrictUndefined
+    )
+
+    # 加载模板
+    template = env.get_template(src_file)
+
+    # 渲染模板
+    output = template.render(context)
+
+    with open(dst_path, "w") as f:
+        f.write(output)
+
+@dataclass
+class ProfileResult:
+    stats: str
+    save_path: int
+
+cache_dwconv2d_result = dict()
 def get_dwcode_conv2d(attr):
-    return []
+    global cache_dwconv2d_result
 
-def get_memory_base(memory_type):
-    return 0
+    template_path = "/home/wangyiou/Desktop/pim_compiler/playground/template/depthwise_conv.cim"
+    temp_dir = tempfile.mkdtemp()
+    code_path = os.path.join(temp_dir, "depthwise_conv.cim")
+    
+
+    batch, _, in_height, in_width = attr["X_shape"]
+    in_channel, _, kernel_height, kernel_width = attr["W_shape"]
+    
+    padding = 1
+    stride = 1
+
+    out_h = (in_height + 2*padding - kernel_height) // stride + 1
+    out_w = (in_width + 2*padding - kernel_width) // stride + 1
+
+    cache_key = (batch, in_channel, out_h, out_w, kernel_height, kernel_width, padding, stride)
+    if cache_key in cache_dwconv2d_result:
+        result = cache_dwconv2d_result[cache_key]
+    else:
+        context = {
+            "INPUT_ROW": in_height,
+            "INPUT_COL": in_width,
+            "INPUT_CHANNEL": in_channel,
+            "OUTPUT_ROW": out_h,
+            "OUTPUT_COL": out_w,
+            "OUTPUT_CHANNEL": in_channel,
+            "KERNEL_SIZE": kernel_height,
+            "STRIDE": stride,
+            "BATCH": batch
+        }
+
+        fill_template(template_path, code_path, context)
+
+        backend_compile_cmd = f"input_file={code_path} output_path={temp_dir} bash run.sh "
+        os.system(backend_compile_cmd)
+        
+        result = ProfileResult(stats=None, save_path=temp_dir)
+        cache_dwconv2d_result[cache_key] = result
+
+    final_code = get_final_code(result)
+    assert final_code is not None
+    # import pdb; pdb.set_trace()
+    return final_code
 
 
 def get_core_row_and_col_from_core_name(core_name):
@@ -400,10 +484,11 @@ def parse_noc_tasks(json_path, code_save_path):
             print(f"    {stage_id=}")
             code = parse_instructions(stage["instructions"])
             code_list.extend(code)
+        # import pdb; pdb.set_trace()
             
-        # core_code_save_path = os.path.join(code_save_path, f"{core_name}.json")
-        # with open(core_code_save_path, "w") as f:
-        #     json.dump(code_list, f, indent=0)
+        core_code_save_path = os.path.join(code_save_path, f"{core_name}.json")
+        with open(core_code_save_path, "w") as f:
+            json.dump(code_list, f, indent=2)
 
             
     core_names = tasks.keys()
