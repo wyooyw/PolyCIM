@@ -251,6 +251,71 @@ def macro_4d_hardware_tiling(op, all_schedule, cim_cfg):
         new_schedules.append((schedule, tile_schedule, merge_group_schedule))
     return new_schedules
 
+def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
+    """
+    OrderedDict([('h0', [0, 1, 1]), ('h1', [1, 0, 1]), ('h2', [1, 1, 0])])
+
+    macros = Buffer(<N_ROW, N_COMP, N_GROUP, N_GROUP_VCOL>, int8, __MACRO__)
+    """
+    n_software_dim = software_schedule.range().as_set().n_dim()
+    n_hardware_dim = 3
+
+    new_domain = op.apply_schedule(software_schedule, skip_simplify=True).domain
+    sizes = utils.get_box_hull_shape(new_domain)
+    n_h0 = sizes[-3]
+    n_igroup = math.ceil(
+        math.ceil(n_h0 / cim_cfg.n_comp)
+        / cim_cfg.n_row
+    )
+    n_ogroup = cim_cfg.n_group // n_igroup
+
+    keep_iters = []
+    for i in range(n_software_dim - n_hardware_dim):
+        keep_iters.append(f"s{i}")
+    
+    # tiling
+    tile_domain_iters = keep_iters + ["h0","h1","h2"]
+    tile_range_iters = keep_iters + [
+        f"floor(floor(h0/{cim_cfg.n_comp}) / {cim_cfg.n_row})",
+        f"floor(h0/{cim_cfg.n_comp}) % {cim_cfg.n_row}", 
+        f"h0 % {cim_cfg.n_comp}",
+        f"h1",
+        f"floor(h2 / {n_ogroup})",
+        f"h2 % {n_ogroup}",
+    ]
+    tile_domain_iters_def = ", ".join(tile_domain_iters)
+    tile_range_iters_def = ", ".join(tile_range_iters)
+    tile_def = f"{{ [{tile_domain_iters_def}] -> [{tile_range_iters_def}] }}"
+    print(f"{tile_def=}")
+    tile_schedule = isl.BasicMap(tile_def)
+
+    # merge inner-group and outer-group
+    # merge_domain_iters = keep_iters + ["igroup","row","comp","col","time","ogroup"]
+    # merge_range_iters = keep_iters + ["time", "row", "comp", f"ogroup * {n_igroup} + igroup", "col"]
+    # merge_domain_iters_def = ", ".join(merge_domain_iters)
+    # merge_range_iters_def = ", ".join(merge_range_iters)
+    # merge_group_def = f"{{ [{merge_domain_iters_def}] -> [{merge_range_iters_def}] }}"
+    # merge_group_schedule = isl.BasicMap(merge_group_def)
+
+    # reorder dims
+    reorder_domain_iters = keep_iters + ["igroup","row","comp","col","time","ogroup"]
+    reorder_range_iters = keep_iters + ["time", "row", "comp", "ogroup", "igroup", "col"]
+    reorder_domain_iters_def = ", ".join(reorder_domain_iters)
+    reorder_range_iters_def = ", ".join(reorder_range_iters)
+    reorder_def = f"{{ [{reorder_domain_iters_def}] -> [{reorder_range_iters_def}] }}"
+    reorder_schedule = isl.BasicMap(reorder_def)
+
+
+    return tile_schedule, reorder_schedule
+
+def macro_5d_hardware_tiling(op, all_schedule, cim_cfg):
+    new_schedules = []
+    for schedule in all_schedule:
+        tile_schedule, reorder_schedule = get_macro_5d_hardware_tiling_schedule(op, schedule, cim_cfg)
+        # schedule = schedule.apply_range(hardware_tiling_schedule)
+        new_schedules.append((schedule, tile_schedule, reorder_schedule))
+    return new_schedules
+
 def hardware_merge_tiling(op, cim_cfg):
     # n_rows = macro_row
     # n_cols = macro_col
@@ -267,7 +332,8 @@ def hardware_merge_tiling(op, cim_cfg):
     for schedule in all_schedules:
         assert schedule.intersect_domain(op.domain).reverse().is_single_valued(), f"{schedule} should not be single valued!"
     
-    all_schedules = macro_4d_hardware_tiling(op, all_schedules, cim_cfg)
+    # all_schedules = macro_4d_hardware_tiling(op, all_schedules, cim_cfg)
+    all_schedules = macro_5d_hardware_tiling(op, all_schedules, cim_cfg)
     # for schedule in all_schedules:
     #     assert schedule.intersect_domain(op.domain).reverse().is_single_valued(), f"{schedule} should be single valued!"
     # exit()
@@ -354,9 +420,9 @@ def hardware_merge_tiling_pass(op_list, cim_cfg=None):
             # check domain not exceed macro's size
             # N_ROW, N_COMP, N_GROUP, N_GROUP_VCOL
             sizes = utils.get_box_hull_shape(new_op.domain)
-            assert sizes[-4] <= cim_cfg.n_row, f"{sizes=}. {sizes[-4]=} should be less than {cim_cfg.n_row=}"
-            assert sizes[-3] <= cim_cfg.n_comp, f"{sizes=}. {sizes[-3]=} should be less than {cim_cfg.n_comp=}"
-            assert sizes[-2] <= cim_cfg.n_group, f"{sizes=}. {sizes[-2]=} should be less than {cim_cfg.n_group=}"
+            assert sizes[-5] <= cim_cfg.n_row, f"{sizes=}. {sizes[-4]=} should be less than {cim_cfg.n_row=}"
+            assert sizes[-4] <= cim_cfg.n_comp, f"{sizes=}. {sizes[-3]=} should be less than {cim_cfg.n_comp=}"
+            assert sizes[-3] * sizes[-2] <= cim_cfg.n_group, f"{sizes=}. {sizes[-2]=} should be less than {cim_cfg.n_group=}"
             assert sizes[-1] <= cim_cfg.n_group_vcol, f"{sizes=}. {sizes[-1]=} should be less than {cim_cfg.n_group_vcol=}"
 
             new_op_list.append(new_op)

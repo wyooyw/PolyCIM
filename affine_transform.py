@@ -147,6 +147,13 @@ def find_base(n_dim, dim_sizes, min_reuse_factor, hyperplanes, exclude_null_spac
 def empty_or_zero_point(set_):
     return set_.count_val() == 0
 
+def make_bases_to_matrix(bases):
+    base_matrix = []
+    for base in foreach_nontrival_point(bases):
+        base_matrix.append(base)
+    base_matrix = Matrix(base_matrix)
+    base_matrix = base_matrix.transpose()
+    return base_matrix
 
 def find_base_with_max_reuse(
     n_dim, dim_sizes, max_reuse_factor, hyperplanes, exclude_null_space_of=None, lex_lt_set=None
@@ -176,6 +183,21 @@ def find_base_with_max_reuse(
 
     if base is not None and empty_or_zero_point(base):
         base = None
+
+    # if base is not None and exclude_null_space_of is not None:
+    #     np_base_matrix = np.array(make_bases_to_matrix(base))
+    #     np_exclude_null_space_of = np.array(exclude_null_space_of)
+    #     check = np.matmul(np_exclude_null_space_of , np_base_matrix)
+    #     ge_zero_per_row = (check>=0).all(axis=1)
+    #     le_zero_per_row = (check<=0).all(axis=1)
+    #     ge_or_le_zero_per_row = np.logical_or(ge_zero_per_row, le_zero_per_row)
+    #     assert ge_or_le_zero_per_row.all(), f"{check}"
+        # print("")
+        # print(f"{np_base_matrix=}")
+        # print(f"{exclude_null_space_of=}")
+        # print(f"{ge_zero_per_row=}")
+        # print(f"{le_zero_per_row=}")
+        # print(f"{hyperplanes=}")
 
     return base, low
 
@@ -207,6 +229,7 @@ def find_bases_with_max_reuse(
         n_dim, dim_sizes, max_reuse_factor, hyperplanes, orth_subspace
     )
     
+    # import pdb; pdb.set_trace()
     if bases is None:
         return result
 
@@ -248,7 +271,7 @@ def find_bases_with_max_reuse(
                 final_row_as_set=list_to_set(new_base),
             )
             queue.put(new_search_status)
-
+    # import pdb; pdb.set_trace()
     return result
 
 
@@ -327,7 +350,19 @@ def foreach_nontrival_point(set_, return_isl_obj=False):
     points = []
     record_points_fn = partial(record_points, record=points)
     set_.foreach_point(record_points_fn)
-    return points
+
+    nonzero_count = []
+    for point in points:
+        nonzero_count.append(sum([1 for i in point if i != 0]))
+    min_nonzero_count = min(nonzero_count)
+    
+    new_points = []
+    for i in range(len(points)):
+        if nonzero_count[i] == min_nonzero_count:
+            new_points.append(points[i])
+    # new_points = points
+
+    return new_points
 
 
 def orthogonal_sub_space(A):
@@ -546,20 +581,22 @@ def main():
     # conv2d
     operator = BasicOperator(
         domain = isl.BasicSet(
-            "{ [oh,ow,kh,kw]: 0<=oh<64 and 0<=ow<64 and 0<=kh<3 and 0<=kw<3 }"
+            f"{{ [oh,ow,kh,kw]: 0<=oh<4 and 0<=ow<4 and 0<=kh<3 and 0<=kw<3 }}"
         ),
         access_I = isl.BasicMap("{ [oh,ow,kh,kw] -> I[oh + kh, ow + kw] }"),
         access_O = isl.BasicMap("{ [oh,ow,kh,kw] -> O[oh, ow] }"),
         access_W = isl.BasicMap("{ [oh,ow,kh,kw] -> W[kh, kw] }"),
     )
-    new_ops = auto_skewing_pass([operator], max_reuse_factor_for_arrays=(9,9), return_detail=False)
+    tiling_schedule = isl.BasicMap("{ [i0, i1, i2, i3] -> [o0, o1, o2, o3, o4, o5, o6, o7] : (i0 + o4) mod 2 = 0 and (i1 + o5) mod 2 = 0 and (-i2 + o6) mod 3 = 0 and (-i3 + o7) mod 3 = 0 and 0 <= i0 <= 3 and 0 <= i1 <= 3 and 0 <= i2 <= 2 and 0 <= i3 <= 2 and -1 + i0 <= 2o0 <= i0 and -1 + i1 <= 2o1 <= i1 and -2 + i2 <= 3o2 <= i2 and -2 + i3 <= 3o3 <= i3 and 0 <= o4 <= 1 and 0 <= o5 <= 1 and 0 <= o6 <= 2 and 0 <= o7 <= 2 }")
+    operator = operator.apply_schedule(tiling_schedule)
+    new_ops = auto_skewing_pass([operator], max_reuse_factor_for_arrays=(16,4), return_detail=False)
     for new_op in new_ops:
         domain_min_per_iter = [new_op.domain.dim_min_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
         domain_max_per_iter = [new_op.domain.dim_max_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
         print(f"{domain_min_per_iter=}")
         print(f"{domain_max_per_iter=}")
         print("-----------------------")
-    exit()
+    # exit()
     domain = isl.BasicSet(
         "{ S[oh,ow,kh,kw]: 0<=oh<64 and 0<=ow<64 and 0<=kh<3 and 0<=kw<3 }"
     )
@@ -654,9 +691,9 @@ def main():
         hyperplanes=((1,1),),
         exclude_null_space_of=None,
     )
-    print(bases)
-    bases.foreach_point(print)
-    exit()
+    # print(bases)
+    # bases.foreach_point(print)
+    # exit()
 
     bases = foreach_nontrival_point(bases)
     # bases = Matrix(bases)

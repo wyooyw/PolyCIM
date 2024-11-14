@@ -121,16 +121,16 @@ def get_schedule_from_mapping(mapping, software_op):
     schedule_range = list()
 
     # Put the axis not in mapping to the front
-    # s_axis_in_mapping = set([item for value in mapping.values() for item in value])
-    # s_axis_not_in_mapping = set(bounds.keys()) - s_axis_in_mapping
-    # s_axis_not_in_mapping = sort_by_name(s_axis_not_in_mapping)
-    # schedule_range.extend(s_axis_not_in_mapping)
-
-    # If the axis in mapping is not the last axis, put it to the back
-    s_axis_in_mapping = set([value[-1] for value in mapping.values()])
+    s_axis_in_mapping = set([item for value in mapping.values() for item in value])
     s_axis_not_in_mapping = set(bounds.keys()) - s_axis_in_mapping
     s_axis_not_in_mapping = sort_by_name(s_axis_not_in_mapping)
     schedule_range.extend(s_axis_not_in_mapping)
+
+    # If the axis in mapping is not the last axis, put it to the back
+    # s_axis_in_mapping = set([value[-1] for value in mapping.values()])
+    # s_axis_not_in_mapping = set(bounds.keys()) - s_axis_in_mapping
+    # s_axis_not_in_mapping = sort_by_name(s_axis_not_in_mapping)
+    # schedule_range.extend(s_axis_not_in_mapping)
     
     # Put the axis in mapping to the back
     def merge(axis_list, bounds):
@@ -147,7 +147,7 @@ def get_schedule_from_mapping(mapping, software_op):
         s_axis = mapping[h_axis]
         expression = merge(s_axis, bounds)
         schedule_range.append(expression)
-    print(schedule_range)
+    # print(schedule_range)
     # Make the schedule
     s_axis_sorted = sort_by_name(bounds.keys())
     schedule = isl.BasicMap("{ [%s] -> [%s] }" % (",".join(s_axis_sorted), ",".join(schedule_range)))
@@ -184,9 +184,9 @@ def hardware_tiling(all_schedule, tiling_factors):
         new_schedules.append((schedule, hardware_tiling_schedule))
     return new_schedules
 
-def hardware_merge_tiling(op):
-    n_rows = 4
-    n_cols = 4
+def hardware_merge_tiling(op, macro_row, macro_col):
+    n_rows = macro_row
+    n_cols = macro_col
     cim_op = get_cim_operator(n_rows, n_cols)
     software_access_bitmap = get_access_bitmap(op)
     hardware_access_bitmap = get_access_bitmap(cim_op)
@@ -225,11 +225,11 @@ def filter_op_by_execution_time_pass(op_list):
     min_value = exe_time_list[sorted_indices[0]]
     num_ops = len(op_list)
     for i,index in enumerate(sorted_indices):
-        if i < 10 or exe_time_list[index] == min_value:
+        if i < 3 or exe_time_list[index] == min_value:
             new_op_list.append(op_list[index])
             new_op_list_execution_time.append(exe_time_list[index])
         # print(f"{i}\n")
-        # print(f"outer_count_val: {exe_time_list[index]}\n")
+        print(f"outer_count_val: {exe_time_list[index]}\n")
         # op = op_list[index]
         # print(f"skewing: {op.history_schedules[0]}\n")
         # print(f"merge: {op.history_schedules[2]}\n")
@@ -254,7 +254,7 @@ def filter_op_by_execution_time_pass(op_list):
 
     return new_op_list
 
-def hardware_merge_tiling_pass(op_list):
+def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     new_op_list = []
     schedule_fail_op_cnt = 0
     for op in tqdm(op_list):
@@ -262,12 +262,17 @@ def hardware_merge_tiling_pass(op_list):
         assert op.access_W.is_single_valued(), f"{op.access_W} should be single valued!"
         assert op.access_O.is_single_valued(), f"{op.access_O} should be single valued!"
         
-        schedules = hardware_merge_tiling(op)
+        schedules = hardware_merge_tiling(op, macro_row, macro_col)
         if schedules is None:
             schedule_fail_op_cnt += 1
             continue
-        for merge_schedule, tile_schedule in schedules:
-            new_op = op.apply_schedule(merge_schedule, skip_simplify=True)
+        # print("-------------------------------------")
+        for idx,(merge_schedule, tile_schedule) in enumerate(schedules):
+            # print(f"{idx=}")
+            # print(f"{merge_schedule=}")
+            # print(f"{tile_schedule=}")
+            # print("-------------------------------------")
+            new_op = op.apply_schedule(merge_schedule, skip_simplify=True)            
             new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
             new_op_list.append(new_op)
     print(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")

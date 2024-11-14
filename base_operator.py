@@ -2,17 +2,28 @@ import utils
 import islpy as isl
 
 class AccessRelation:
-    def __init__(self, offsets):
+    def __init__(self, offsets, memory_type="__GLOBAL__"):
         assert type(offsets) in (isl.BasicMap, isl.Map), f"{type(offsets)}"
         self.offsets = offsets
+        self.memory_type = memory_type
+
+    def convex_hull(self):
+        return AccessRelation(self.offsets.convex_hull(), self.memory_type)
 
     def __repr__(self):
         return f"{self.offsets}"
 
 class TensorAccessRelation(AccessRelation):
-    def __init__(self, offsets, sizes):
-        super().__init__(offsets)
+    def __init__(self, offsets, sizes, memory_type="__GLOBAL__"):
+        super().__init__(offsets, memory_type)
         self.sizes = sizes
+
+    def convex_hull(self):
+        return TensorAccessRelation(
+            self.offsets.convex_hull(), 
+            self.sizes.convex_hull(), 
+            self.memory_type
+        )
 
 class BasicOperator:
     def __init__(self, domain, access_I, access_O, access_W, history_domains=list(), history_schedules=list()):
@@ -68,6 +79,16 @@ class BasicOperator:
             history_schedules=[*self.history_schedules, schedule]
         )
 
+    def convex_hull(self):
+        return BasicOperator(
+            domain=self.domain.convex_hull(),
+            access_I=self.access_I.convex_hull(),
+            access_O=self.access_O.convex_hull(),
+            access_W=self.access_W.convex_hull(),
+            history_domains=[*self.history_domains,self.domain],
+            history_schedules=[*self.history_schedules,"convex_hull"]
+        )
+
     def get_access_by_name(self, buffer_name):
         if buffer_name=="I":
             return self.access_I
@@ -103,6 +124,14 @@ class DataMovement:
         self.access_O = AccessRelation(access_O) if type(access_O) in (isl.BasicMap, isl.Map) else access_O
         self.level = level
 
+    def convex_hull(self):
+        return DataMovement(
+            self.domain.convex_hull(),
+            self.access_I.convex_hull(),
+            self.access_O.convex_hull(),
+            self.level
+        )
+
 class DataMovementOperator:
     def __init__(self, domain, access_I, access_O, access_W, 
         history_domains=list(), 
@@ -130,3 +159,28 @@ class DataMovementOperator:
     def insert_buffer(self, buffer_name, _data_movement):
         assert buffer_name in ["I", "O", "W"]
         self.data_movement[buffer_name].append(_data_movement)
+
+    def get_access_by_name(self, buffer_name):
+        if buffer_name=="I":
+            return self.access_I.offsets
+        elif buffer_name=="O":
+            return self.access_O.offsets
+        elif buffer_name=="W":
+            return self.access_W.offsets
+        else:
+            raise Exception(f"Unknown buffer name: {buffer_name}")
+
+    def convex_hull(self):
+        new_data_movement = {"I": list(), "O": list(), "W": list()}
+        for name, data_movement in self.data_movement.items():
+            for idx, dm in enumerate(data_movement):
+                new_data_movement[name].append(dm.convex_hull())
+        return DataMovementOperator(
+            domain=self.domain.convex_hull(),
+            access_I=self.access_I.convex_hull(),
+            access_O=self.access_O.convex_hull(),
+            access_W=self.access_W.convex_hull(),
+            history_domains=[*self.history_domains, self.domain],
+            history_schedules=[*self.history_schedules, "convex_hull"],
+            data_movement = new_data_movement
+        )

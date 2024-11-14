@@ -1,12 +1,24 @@
 import islpy as isl
 from base_operator import BasicOperator
+from config import get_config
+import utils
 
-def loop_padding(op, padding_inner_size):
+def loop_padding(op, _):
     
     domain = op.domain
     domain_size = domain.dim(isl.dim_type.set)
     domain_ub = [int(str(domain.dim_max_val(i))) for i in range(domain_size)]
     domain_lb = [int(str(domain.dim_min_val(i))) for i in range(domain_size)]
+
+    cim_cfg = get_config()
+    sizes = utils.get_box_hull_shape(domain)
+    padding_inner_size=[
+        # [0, cim_cfg.n_row - 1], # begin, size
+        [0, cim_cfg.n_comp - 1], # begin, size
+        [0, sizes[-3] - 1], # begin, size
+        [0, sizes[-2] - 1], # begin, size
+        [0, cim_cfg.n_group_vcol - 1]
+    ]
     inner_loop_level = len(padding_inner_size)
 
     domain_outer = domain.project_out(isl.dim_type.set, domain_size-inner_loop_level, inner_loop_level)

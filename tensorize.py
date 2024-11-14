@@ -1,6 +1,7 @@
 import islpy as isl
 import utils
 from base_operator import BasicOperator, DataMovementOperator, AccessRelation, TensorAccessRelation, DataMovement
+from tqdm import tqdm
 
 def pwaffs_to_map(affs):
     pw_aff_list = utils.make_pw_affs_to_aff_list(affs)
@@ -10,11 +11,13 @@ def pwaffs_to_map(affs):
     assign_buffer_acc_rel = isl.Map.from_pw_multi_aff(assign_buffer_acc_rel)
     return assign_buffer_acc_rel
 
-def transform_access(access, n_inner_level):
-    if isinstance(access, AccessRelation):
-        access = access.offsets
+def transform_access(ori_access, n_inner_level):
+    if isinstance(ori_access, AccessRelation):
+        access = ori_access.offsets
+    else:
+        access = ori_access
     assert type(access) in (isl.BasicMap, isl.Map)
-
+    
     access_domain_size = access.dim(isl.dim_type.in_)
     access_range_size = access.dim(isl.dim_type.out)
     outer_access = access.project_out(isl.dim_type.in_, access_domain_size - n_inner_level, n_inner_level)
@@ -29,15 +32,17 @@ def transform_access(access, n_inner_level):
     buffer_name = access.get_tuple_name(isl.dim_type.out)   
     access_sizes = access_sizes.set_tuple_name(isl.dim_type.out, buffer_name)
     access_offsets = access_offsets.set_tuple_name(isl.dim_type.out, buffer_name)
+    
     return TensorAccessRelation(
         offsets = access_offsets,
-        sizes = access_sizes
+        sizes = access_sizes,
+        memory_type = ori_access.memory_type
     )
 
 def tensorize_cim_compute(op):
     domain = op.domain
     domain_size = domain.dim(isl.dim_type.set)
-    n_inner_level = 2
+    n_inner_level = 4
 
     outer_domain = domain.project_out(isl.dim_type.set, domain_size-n_inner_level, n_inner_level)
     access_I = transform_access(op.access_I, n_inner_level)
@@ -94,7 +99,8 @@ def vectorize_data_movement_for_op(op):
 
 def tensorize_pass(op_list):
     new_op_list = []
-    for op in op_list:
+    for op in tqdm(op_list):
+        
         new_op = tensorize_cim_compute(op)
         new_op = vectorize_data_movement_for_op(new_op)
         new_op_list.append(new_op)

@@ -1,6 +1,6 @@
 import islpy as isl
-
-
+import yaml
+from collections import OrderedDict
 def gen_ast(domain, schedule, context=None):
     if context is None:
         context = isl.Set("{ : }")
@@ -206,3 +206,61 @@ def make_pw_affs_to_aff_list(pw_affs):
     for pw_aff in pw_affs:
         pw_aff_list = pw_aff_list.add(pw_aff)
     return pw_aff_list
+
+
+def get_static_box_shape(buffer):
+    assert buffer.is_box(), f"{buffer=}"
+    shape = [buffer.dim_max_val(i)-buffer.dim_min_val(i)+1 for i in range(buffer.dim(isl.dim_type.set))]
+    shape = [val_to_int(val) for val in shape]
+    return shape
+
+
+
+def ordered_yaml_load(s, Loader=yaml.Loader,
+                    object_pairs_hook=OrderedDict):
+    class OrderedLoader(Loader):
+        pass
+ 
+    def construct_mapping(loader, node):
+        loader.flatten_mapping(node)
+        return object_pairs_hook(loader.construct_pairs(node))
+    OrderedLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        construct_mapping)
+    # with open(yaml_path) as stream:
+    return yaml.load(s, OrderedLoader)
+ 
+ 
+def ordered_yaml_dump(data, stream=None, Dumper=yaml.SafeDumper, **kwds):
+    class OrderedDumper(Dumper):
+        pass
+ 
+    def _dict_representer(dumper, data):
+        return dumper.represent_mapping(
+            yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+            data.items())
+    OrderedDumper.add_representer(OrderedDict, _dict_representer)
+    return yaml.dump(data, stream, OrderedDumper, **kwds)
+
+
+def pretty_print_schedule_tree(node):
+    s = str(node)
+    a = ordered_yaml_load(s)
+    print(ordered_yaml_dump(a,indent=2))
+    print("\n")
+
+def print_schedule_tree_as_code(node,context=None):
+    while node.get_tree_depth()>0: node = node.parent()
+
+    domain = node.domain_get_domain()
+    schedule = node.get_subtree_schedule_union_map()
+    print("\n[ Domain and Schedule ]\n")
+    print("domain:",domain)
+    print("schedule:",schedule)
+
+    print("\n[ Code ]\n")
+    print_code(domain,schedule,context)
+
+def get_root(node):
+    while node.get_tree_depth()>0: node = node.parent()
+    return node
