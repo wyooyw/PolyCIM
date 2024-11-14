@@ -147,6 +147,9 @@ class CodeGenerator:
     def _codegen_expr_div(self, arg_list, depth):
         return self.codegen_expr_binary("/", arg_list, depth)
 
+    def _codegen_expr_rem(self, arg_list, depth):
+        return self.codegen_expr_binary("%", arg_list, depth)
+
     def _codegen_expr_minus(self, arg_list, depth):
         assert len(arg_list)==1, f"{len(arg_list)=}"
         new_var = alloc_unique_var()
@@ -189,6 +192,9 @@ class CodeGenerator:
     def codegen_expr_and(self, arg_list, depth):
         return self.codegen_expr_binary("&&", arg_list, depth)
 
+    def codegen_expr_or(self, arg_list, depth):
+        return self.codegen_expr_binary("||", arg_list, depth)
+
     def codegen_expr_binary(self, binary_op, arg_list, depth):
         assert len(arg_list)==2, f"{len(arg_list)=}"
 
@@ -228,6 +234,9 @@ class CodeGenerator:
         elif expr.get_op_type()==isl._isl.ast_expr_op_type.pdiv_q:
             code, new_var = self._codegen_expr_div(var_list, depth)
             code_list.extend(code)
+        elif expr.get_op_type()==isl._isl.ast_expr_op_type.pdiv_r:
+            code, new_var = self._codegen_expr_rem(var_list, depth)
+            code_list.extend(code)
         elif expr.get_op_type()==isl._isl.ast_expr_op_type.select:
             code, new_var = self._codegen_expr_select(expr, depth)
             code_list.extend(code)
@@ -242,6 +251,9 @@ class CodeGenerator:
             code_list.extend(code)
         elif expr.get_op_type()==isl._isl.ast_expr_op_type.and_:
             code, new_var = self.codegen_expr_and(var_list, depth)
+            code_list.extend(code)
+        elif expr.get_op_type()==isl._isl.ast_expr_op_type.or_:
+            code, new_var = self.codegen_expr_or(var_list, depth)
             code_list.extend(code)
         else:
             print(expr)
@@ -327,7 +339,7 @@ class CodeGenerator:
     def codegen_block(self, node, depth):
         children  = node.block_get_children()
         n_ast_node = children.n_ast_node()
-        print(f"block {n_ast_node=}")
+        # print(f"block {n_ast_node=}")
         total_code_list = []
         for i in range(children.n_ast_node()):
             child = children.get_at(i)
@@ -339,7 +351,7 @@ class CodeGenerator:
         call_name = expr.get_op_arg(0).id_get_id().get_name()
         
         
-        print("codegen_call")
+        # print("codegen_call")
         call_args = []
         for arg_id in range(1, expr.get_op_n_arg()):
             arg = expr.get_op_arg(arg_id)
@@ -385,7 +397,7 @@ class CodeGenerator:
 
         # generate offset for each array
         code_list_I, slice_var_I = self.codegen_tensor_access_from_pw_multi_aff(op.access_I, call_args, depth)
-        code_list_O, slice_var_O = self.codegen_tensor_access_from_pw_multi_aff(op.access_O, call_args, depth)
+        # code_list_O, slice_var_O = self.codegen_tensor_access_from_pw_multi_aff(op.access_O, call_args, depth)
         code_list_W, slice_var_W = self.codegen_tensor_access_from_pw_multi_aff(op.access_W, call_args, depth)
 
         # generate compute code
@@ -395,7 +407,8 @@ class CodeGenerator:
             depth=depth
         )
 
-        return [*code_list_I, *code_list_O, *code_list_W, compute_code]
+        # return [*code_list_I, *code_list_O, *code_list_W, compute_code]
+        return [*code_list_I, *code_list_W, compute_code]
         
 
     def codegen_tensor_access_from_pw_multi_aff(self, tensor_access, call_args, depth):
@@ -535,7 +548,7 @@ def extract_buffer_defines(op):
             buffer_to_memory_type[name] = memory_type
         else:
             assert buffer_to_memory_type[name]==memory_type, f"{buffer_to_memory_type[name]=}, {memory_type=}"
-    
+    # import pdb; pdb.set_trace()
     I_name, I_shape = get_name_and_shape(op.access_I) # this maybe incorrect.
     W_name, W_shape = get_name_and_shape(op.access_W)
     O_name, O_shape = get_name_and_shape(op.access_O)
