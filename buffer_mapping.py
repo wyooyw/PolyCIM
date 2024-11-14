@@ -11,6 +11,9 @@ from tqdm import tqdm
 from functools import reduce
 import itertools
 import numpy as np
+from dataclasses import dataclass
+from config import get_memory_sizes
+
 def find_domain_iters_exist_in_range(aff, return_name=True):
 
     n_iters_domain = aff.dim(isl.dim_type.in_)
@@ -92,7 +95,38 @@ def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel):
     return buffer_mapping, aligned_acc_rel    
 
 
+def map_domain_aligned_buffer_to_origin_buffer_for_weight(domain, acc_rel, force_inner_level=4):
+    """
+    1.get domain aligned buffer
+    2.map this aligned buffer to origin buffer
+    if a domain's iter not exist in buffer's iter, then no need to map it to buffer.
+    """
+    buffer_name = acc_rel.get_tuple_name(isl.dim_type.out)
+    align_buffer_name = f"{buffer_name}_aligned"
 
+    n_buf_dim = acc_rel.dim(isl.dim_type.out)
+    n_domain_dim = acc_rel.dim(isl.dim_type.in_)
+
+    domain_iter_names = acc_rel.get_var_names(isl.dim_type.in_)
+    involve_dims = get_dominate_iters_of_pw_multi_aff(acc_rel.as_pw_multi_aff(), return_name=True)
+    force_involve_dims = domain_iter_names[-force_inner_level:]
+    involve_dims = involve_dims | set(force_involve_dims)
+    
+    domain_iter_names_not_exist_in_lb_ub = list(set(domain_iter_names) - set(involve_dims))
+
+    aligned_acc_rel = build_domain_aligned_buffer_exclude_iters(
+        domain, 
+        align_buffer_name, 
+        domain_iter_names_not_exist_in_lb_ub
+    )
+    
+    # one to many
+    # buffer_mapping = acc_rel.reverse().apply_range(aligned_acc_rel)
+    
+    # many to one
+    buffer_mapping = aligned_acc_rel.reverse().apply_range(acc_rel)
+    assert buffer_mapping.is_single_valued()
+    return buffer_mapping, aligned_acc_rel   
 
 
 # def is_continuous(isl_obj, ):
@@ -140,7 +174,7 @@ def get_dominate_iters_of_pw_multi_aff_per_out(pw_multi_aff, return_name=True):
     dominate_dims = []
     for i in range(n_dim_range):
         dominate_dims.append(set())
-
+    
     for cond, multi_aff in get_pieces_from_pw_multi_aff(pw_multi_aff):
         for dim in range(n_dim_range):
             aff = multi_aff.get_at(dim)
@@ -181,15 +215,16 @@ def get_local_buffer_axis_mapping(domain, acc_rel, level):
     n_buf_dim = acc_rel.dim(isl.dim_type.out)
     n_iter_dim = acc_rel.dim(isl.dim_type.in_)
 
-    lb_per_dim = [acc_rel.dim_min(i) for i in range(n_buf_dim)]
-    ub_per_dim = [acc_rel.dim_max(i) for i in range(n_buf_dim)]
+    # lb_per_dim = [acc_rel.dim_min(i) for i in range(n_buf_dim)]
+    # ub_per_dim = [acc_rel.dim_max(i) for i in range(n_buf_dim)]
 
-    dominate_iters_per_buffer_axis = []
-    for buf_axix,(lb,ub) in enumerate(zip(lb_per_dim, ub_per_dim)):
-        lb_dominate_iters = get_dominate_iters_of_pw_aff(lb)
-        ub_dominate_iters = get_dominate_iters_of_pw_aff(ub)
-        dominate_iters = lb_dominate_iters.union(ub_dominate_iters)
-        dominate_iters_per_buffer_axis.append(dominate_iters)
+    # dominate_iters_per_buffer_axis = []
+    # for buf_axix,(lb,ub) in enumerate(zip(lb_per_dim, ub_per_dim)):
+    #     lb_dominate_iters = get_dominate_iters_of_pw_aff(lb)
+    #     ub_dominate_iters = get_dominate_iters_of_pw_aff(ub)
+    #     dominate_iters = lb_dominate_iters.union(ub_dominate_iters)
+    #     dominate_iters_per_buffer_axis.append(dominate_iters)
+    dominate_iters_per_buffer_axis = get_dominate_iters_of_pw_multi_aff_per_out(acc_rel.as_pw_multi_aff())
 
     # step 2: get inner level iter names
     iter_names = acc_rel.get_var_names(isl.dim_type.in_)
@@ -210,6 +245,133 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
     n_iter_dim = acc_rel.dim(isl.dim_type.in_)
     # assert n_buf_dim==n_iter_dim, f"{n_buf_dim=}, {n_iter_dim=}"
 
+    iter_names = domain.get_var_names(isl.dim_type.set)
+    prefix_acc_rel = acc_rel.project_out_except(iter_names[:level], [isl.dim_type.in_])
+    used_global_buffer_dynamic_shape = utils.get_dynamic_shape_from_dynamic_map(prefix_acc_rel) #[level:]
+    local_buffer_dynamic_shape = [
+        used_global_buffer_dynamic_shape[
+            local_to_global_buf_axis_mapping[i]
+        ] 
+        for i in range(len(local_to_global_buf_axis_mapping))
+    ]
+    # print(f"{local_buffer_dynamic_shape = }")
+    # check prefix_acc_rel is continous on given dim
+    
+    lower_bound_per_dim = [prefix_acc_rel.dim_min(i) for i in range(n_buf_dim)]
+    lb_aff_per_dim = lower_bound_per_dim
+    
+    n_local_buf_dim = len(local_to_global_buf_axis_mapping) # - level
+
+    param_names = acc_rel.get_var_names(isl.dim_type.param)
+    domain_names = acc_rel.get_var_names(isl.dim_type.in_)
+    range_names = acc_rel.get_var_names(isl.dim_type.out)
+
+    local_buffer_iters = [utils.get_unique_name() for i in range(n_local_buf_dim)]
+
+    # insert local buffer dim into lb_aff_per_dim's domain
+    # For example: {[i0,i1] -> Buffer[j0,j1,j2]}  -> {[i0,i1,a_,b_] -> Buffer[j0,j1,j2]}
+    # a_,b_ is local buffer dim
+    for i in range(len(lb_aff_per_dim)):
+        
+        lb_aff = lb_aff_per_dim[i]
+        lb_aff = lb_aff.insert_dims(isl.dim_type.in_, level, n_local_buf_dim)
+        for j in range(n_local_buf_dim):
+            lb_aff = lb_aff.set_dim_id(isl.dim_type.in_, level + j, isl.Id(local_buffer_iters[j]))
+        lb_aff_per_dim[i] = lb_aff
+    
+    # build buffer's access relation
+    affs = []
+    aff_domain_iters = lb_aff_per_dim[0].get_var_names(isl.dim_type.in_)
+    aff_domain_def = ','.join(aff_domain_iters)
+    for i in range(n_buf_dim):
+        affs.append(lb_aff_per_dim[i])
+    
+    
+    assert n_local_buf_dim <= n_buf_dim, f"{n_local_buf_dim=}, {n_buf_dim=}"
+    for i in range(n_local_buf_dim):
+        # i is local buffer dim, use local_to_global_buf_axis_mapping to get global buffer dim
+        global_buffer_axis = local_to_global_buf_axis_mapping[i]
+        aff_lb = affs[global_buffer_axis]
+        aff_i = isl.Aff(f"{{ [{aff_domain_def}] -> [({local_buffer_iters[i]})] }}")
+        aff = aff_lb.add(aff_i)
+        affs[global_buffer_axis] = aff
+    
+    pw_aff_list = utils.make_pw_affs_to_aff_list(affs)
+    
+    assign_buffer_acc_rel = isl.MultiPwAff.from_pw_aff_list(affs[0].space.insert_dims(isl.dim_type.out, 0, len(pw_aff_list)-1), pw_aff_list)
+    assign_buffer_acc_rel = isl.PwMultiAff.from_multi_pw_aff(assign_buffer_acc_rel)
+    assign_buffer_acc_rel = isl.Map.from_pw_multi_aff(assign_buffer_acc_rel)
+
+    # basic_maps = assign_buffer_acc_rel.get_basic_maps()
+    # assert len(basic_maps)==1, f"{len(basic_maps)=}"
+    # assign_buffer_acc_rel = basic_maps[0]
+    
+    # build local buffer's access relation
+    affs = []
+    for i in range(n_local_buf_dim):
+        aff = isl.Aff(f"{{ [{aff_domain_def}] -> [({local_buffer_iters[i]})] }}")
+        affs.append(aff)
+    aff_list = make_affs_to_aff_list(affs)
+    local_buffer_acc_rel = isl.BasicMap.from_aff_list(affs[0].domain().space, aff_list)
+    
+    # build assign domain
+    assign_domain = domain.project_out_except(iter_names[:level], [isl.dim_type.set])
+    assign_domain = assign_domain.add_dims(isl.dim_type.set, n_local_buf_dim)
+    for i in range(n_local_buf_dim):
+        assign_domain = assign_domain.set_dim_name(isl.dim_type.set, level + i, local_buffer_iters[i])
+
+    ub_mpf = utils.multi_pw_aff_from_pw_affs(local_buffer_dynamic_shape)
+    ub_mpf = ub_mpf.add_constant_val(isl.Val.int_from_si(ub_mpf.get_ctx(),-1))
+
+    # if level==2:
+    #     import pdb; pdb.set_trace()
+    assign_domain = utils.mpf_upper_bound_for_basic_set(ub_mpf, assign_domain, n_local_buf_dim)
+    assign_domain = utils.zero_lower_bound_for_basic_set(assign_domain, n_local_buf_dim)
+
+    # set tuple name
+    buffer_name = acc_rel.get_tuple_name(isl.dim_type.out)
+    assign_buffer_acc_rel = assign_buffer_acc_rel.set_tuple_name(isl.dim_type.out, buffer_name)
+    local_buffer_acc_rel = local_buffer_acc_rel.set_tuple_name(isl.dim_type.out, f"{buffer_name}_{level}")
+
+
+    return assign_domain, local_buffer_acc_rel, assign_buffer_acc_rel
+
+def get_local_buffer_axis_mapping_for_weight(domain, acc_rel, level, force_inner_level):
+    """
+    local_to_global_buf_axis_mapping = [1,2] means local buffer axis [0,1] map to global buffer axis [1,2]
+    """
+    
+    # step 1: get dominate iter of each dim in acc_rel's range
+    # dominate: iter exist in dim's lowerbound / upperbound affine function
+
+    n_buf_dim = acc_rel.dim(isl.dim_type.out)
+    n_iter_dim = acc_rel.dim(isl.dim_type.in_)
+    iter_names = acc_rel.get_var_names(isl.dim_type.in_)
+    dominate_iters_per_buffer_axis = get_dominate_iters_of_pw_multi_aff_per_out(acc_rel.as_pw_multi_aff())
+    
+    for i in range(force_inner_level):
+        dominate_iters = dominate_iters_per_buffer_axis[n_buf_dim - force_inner_level + i]
+        dominate_iters.add(iter_names[n_iter_dim - force_inner_level + i])
+    # import pdb; pdb.set_trace()
+    # step 2: get inner level iter names
+    # iter_names = acc_rel.get_var_names(isl.dim_type.in_)
+    inner_iter_names = iter_names[level:]
+
+    # step 3: find buffer axis that contain inner level iter
+    local_to_global_buf_axis_mapping = []
+    for buffer_axis, dominate_iters in enumerate(dominate_iters_per_buffer_axis):
+        if dominate_iters.intersection(inner_iter_names):
+            local_to_global_buf_axis_mapping.append(buffer_axis)
+
+    return local_to_global_buf_axis_mapping
+
+def map_prefix_domain_aligned_buffer_to_aligned_buffer_for_weight(domain, acc_rel, level, force_inner_level):
+    local_to_global_buf_axis_mapping = get_local_buffer_axis_mapping_for_weight(domain, acc_rel, level, force_inner_level)
+    
+    n_buf_dim = acc_rel.dim(isl.dim_type.out)
+    n_iter_dim = acc_rel.dim(isl.dim_type.in_)
+    # assert n_buf_dim==n_iter_dim, f"{n_buf_dim=}, {n_iter_dim=}"
+    # import pdb; pdb.set_trace()
     iter_names = domain.get_var_names(isl.dim_type.set)
     prefix_acc_rel = acc_rel.project_out_except(iter_names[:level], [isl.dim_type.in_])
     used_global_buffer_dynamic_shape = utils.get_dynamic_shape_from_dynamic_map(prefix_acc_rel) #[level:]
@@ -484,6 +646,8 @@ def insert_single_buffer_single_level_pass(op_list, buffer_name, buffer_level):
     return new_codes
 
 def parse_buffer_levels(op, buffer_levels):
+    print(f"{buffer_levels=}")
+    
     n_domain_dim = op.domain.dim(isl.dim_type.set)
     new_buffer_levels= []
     for buffer_level in buffer_levels:
@@ -496,15 +660,19 @@ def parse_buffer_levels(op, buffer_levels):
     return new_buffer_levels
 
 def insert_single_buffer_multi_level(
-    op, buffer_name, buffer_levels, memory_types
+    op, buffer_name, buffer_levels, memory_types, force_inner_level=5
 ):
     buffer_levels = parse_buffer_levels(op, buffer_levels)
 
     assert isinstance(buffer_levels, list)
     buffer_levels = sorted(buffer_levels)
 
-    map_buf_align_to_ori, aligned_acc_rel = map_domain_aligned_buffer_to_origin_buffer_v2(op.domain, op.get_access_by_name(buffer_name))
-
+    if "W" in buffer_name:
+        map_buf_align_to_ori, aligned_acc_rel = map_domain_aligned_buffer_to_origin_buffer_for_weight(op.domain, op.get_access_by_name(buffer_name), force_inner_level=force_inner_level)
+        
+    else:
+        map_buf_align_to_ori, aligned_acc_rel = map_domain_aligned_buffer_to_origin_buffer_v2(op.domain, op.get_access_by_name(buffer_name))
+    
     compute_acc_rel = aligned_acc_rel
     data_movement_list = []
 
@@ -513,7 +681,11 @@ def insert_single_buffer_multi_level(
     memory_types.insert(0, "__GLOBAL__")
     
     for idx,buffer_level in enumerate(buffer_levels):
-        assign_domain, assign_local_buffer_acc_rel, assign_global_buffer_acc_rel = map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(op.domain, compute_acc_rel, buffer_level)
+        if "W" in buffer_name:
+            assign_domain, assign_local_buffer_acc_rel, assign_global_buffer_acc_rel = map_prefix_domain_aligned_buffer_to_aligned_buffer_for_weight(op.domain, compute_acc_rel, buffer_level, force_inner_level=force_inner_level)
+            # import pdb; pdb.set_trace()
+        else:
+            assign_domain, assign_local_buffer_acc_rel, assign_global_buffer_acc_rel = map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(op.domain, compute_acc_rel, buffer_level)
         compute_acc_rel = map_access_to_buffer(compute_acc_rel, assign_global_buffer_acc_rel, assign_local_buffer_acc_rel, buffer_level)
         datamove = DataMovement(
             domain = assign_domain,
@@ -548,15 +720,15 @@ def insert_single_buffer_multi_level(
         data_movement=op.data_movement if hasattr(op,"data_movement") else None
     )
 
-    print(f"domain: {op.domain}\n")
-    print(f"access_I: {op.access_I}\n")
-    print(f"access_O: {op.access_O}\n")
-    print(f"access_W: {op.access_W}\n")
+    # print(f"domain: {op.domain}\n")
+    # print(f"access_I: {op.access_I}\n")
+    # print(f"access_O: {op.access_O}\n")
+    # print(f"access_W: {op.access_W}\n")
     
     for idx,data_movement in enumerate(data_movement_list):
         new_op.insert_buffer(buffer_name, data_movement)
-        print(f"{idx}. {data_movement.domain=}\n")
-    print("\n-----------------------\n")
+    #     print(f"{idx}. {data_movement.domain=}\n")
+    # print("\n-----------------------\n")
 
     
 
@@ -606,7 +778,7 @@ def buffer_level_serching(
     return buffer_level_list
     """
     if level_min is None:
-        level_min = 1
+        level_min = 0
     if level_max is None:
         level_max = -1
 
@@ -616,8 +788,10 @@ def buffer_level_serching(
 
     # find dominate iters
     valid_buffer_positions = get_valid_buffer_positions(acc_rel)
+    valid_buffer_positions = [0] + valid_buffer_positions
     valid_buffer_positions = [i for i in valid_buffer_positions if i>=level_min and i<=level_max]
-
+    
+    
     assert num_buffer_level <= len(valid_buffer_positions), f"{num_buffer_level=}, {len(valid_buffer_positions)=}"
     buffer_level_combinations = list(itertools.combinations(valid_buffer_positions, num_buffer_level))
 
@@ -660,13 +834,17 @@ def multi_level_buffer_insersion_pass(
             op, 
             "I",
             num_buffer_level=2, 
-            level_min=1,
-            level_max=macro_compute_level
+            level_min=0,
+            level_max=macro_compute_level + 1
         )
+        # input_buffer_level_combinations = input_buffer_level_combinations[2:]
         weight_buffer_level = get_macro_level(op, "W", macro_compute_level)
         for buffer_levels in input_buffer_level_combinations:
+            op = op.convex_hull() # Is this safe?
             new_op = insert_single_buffer_multi_level(op, "I", buffer_levels, input_memory_names)
             new_op = insert_single_buffer_multi_level(new_op, "W", [weight_buffer_level], weight_memory_names)
+            new_op = new_op.convex_hull()
+            # import pdb; pdb.set_trace()
             new_ops.append(new_op)
     return new_ops
 
@@ -693,8 +871,95 @@ def memory_access_cost(op):
 
     return total_cost
 
+def get_name_and_shape(access):
+    assert type(access)==AccessRelation
+    offsets = access.offsets.range()
+    sizes = [offsets.dim_max_val(i) + 1 for i in range(offsets.dim(isl.dim_type.set)) ]
+
+    name = access.offsets.get_tuple_name(isl.dim_type.out)
+    return name, sizes
+
+@dataclass
+class BufferInfo:
+    name: str
+    shape: list
+    memory_type: str
+
+def extract_buffer_defines(op):
+    
+    buffer_to_size = dict()
+    buffer_to_memory_type = dict()
+    
+    def _update_shape(name, shape):
+        if name not in buffer_to_size:
+            buffer_to_size[name] = shape
+        else:
+            old_shape = buffer_to_size[name]
+            assert len(old_shape)==len(shape), f"{old_shape=}, {shape=}"
+            max_shape = [max(old_shape[i], shape[i]) for i in range(len(shape))]
+            buffer_to_size[name] = max_shape
+    
+    def _update_memory_type(name, memory_type):
+        if name not in buffer_to_memory_type:
+            buffer_to_memory_type[name] = memory_type
+        else:
+            assert buffer_to_memory_type[name]==memory_type, f"{buffer_to_memory_type[name]=}, {memory_type=}"
+    # import pdb; pdb.set_trace()
+    I_name, I_shape = get_name_and_shape(op.access_I) # this maybe incorrect.
+    W_name, W_shape = get_name_and_shape(op.access_W)
+    O_name, O_shape = get_name_and_shape(op.access_O)
+
+    _update_shape(I_name, I_shape)
+    _update_shape(W_name, W_shape)
+    _update_shape(O_name, O_shape)
+
+    _update_memory_type(I_name, op.access_I.memory_type)
+    _update_memory_type(W_name, op.access_W.memory_type)
+    _update_memory_type(O_name, op.access_O.memory_type)
+
+    for buffer in ["I", "W"]:
+        for data_movement in op.data_movement[buffer]:
+            assert type(data_movement)==DataMovement
+
+            name, shape = get_name_and_shape(data_movement.access_I)
+            _update_shape(name, shape)
+            _update_memory_type(name, data_movement.access_I.memory_type)
+
+            name, shape = get_name_and_shape(data_movement.access_O)
+            _update_shape(name, shape)
+            _update_memory_type(name, data_movement.access_O.memory_type)
+
+    buffer_name_to_info = dict()
+    for name in buffer_to_size.keys():
+        shape = buffer_to_size[name]
+        memory_type = buffer_to_memory_type[name]
+        buffer_name_to_info[name] = BufferInfo(name=name, shape=shape, memory_type=memory_type)
+    return buffer_name_to_info
+
+def memory_access_satisfy_constraint(op):
+    buffer_name_to_info = extract_buffer_defines(op)
+    
+    buffer_type_to_use_size = dict()
+    # get each memory type's use size
+    for buffer_info in buffer_name_to_info.values():
+        memory_type = buffer_info.memory_type
+        buffer_type_to_use_size[memory_type] = buffer_type_to_use_size.get(memory_type, 0) + reduce(lambda x,y: x*y, buffer_info.shape)
+
+    buffer_type_to_size = get_memory_sizes()
+
+    satisfy = True
+    for memory_type, use_size in buffer_type_to_use_size.items():
+        size_limit = buffer_type_to_size[memory_type]
+        if use_size > size_limit:
+            satisfy = False
+            print(f"Memory not satisfy! {memory_type=}, {use_size=}, {size_limit=}")
+            break
+    return satisfy
+
 def filter_op_by_memory_access_cost_pass(op_list):
+    op_list = [op for op in op_list if memory_access_satisfy_constraint(op)]
     memory_access_cost_list = [memory_access_cost(op) for op in op_list]
+    
 
     memory_access_cost_list = np.array(memory_access_cost_list)
     sorted_indices = np.argsort(memory_access_cost_list)
@@ -704,10 +969,10 @@ def filter_op_by_memory_access_cost_pass(op_list):
     min_value = memory_access_cost_list[sorted_indices[0]]
     num_ops = len(op_list)
     for i,index in enumerate(sorted_indices):
-        if i < 10 or memory_access_cost_list[index] == min_value:
+        if i < 3 or memory_access_cost_list[index] == min_value:
             new_op_list.append(op_list[index])
             new_op_list_memory_access.append(memory_access_cost_list[index])
-        print(f"{i}. {memory_access_cost_list[index]=}")
+            print(f"{i}. {memory_access_cost_list[index]=}")
 
     return new_op_list
 
