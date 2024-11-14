@@ -72,17 +72,11 @@ def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel):
     align_buffer_name = f"{buffer_name}_aligned"
 
     n_buf_dim = acc_rel.dim(isl.dim_type.out)
-    lower_bound_per_dim = [acc_rel.dim_min(i) for i in range(n_buf_dim)]
-    upper_bound_per_dim = [acc_rel.dim_max(i) for i in range(n_buf_dim)]
+    n_domain_dim = acc_rel.dim(isl.dim_type.in_)
 
-    lower_bound_per_dim = [pw_aff_to_aff(pw_aff) for pw_aff in lower_bound_per_dim]
-    upper_bound_per_dim = [pw_aff_to_aff(pw_aff) for pw_aff in upper_bound_per_dim]
-
-    domain_iter_names_exist_in_range_ub_lb = find_domain_iters_exist_in_range_list_of_aff(
-        lower_bound_per_dim + upper_bound_per_dim
-    )
     domain_iter_names = acc_rel.get_var_names(isl.dim_type.in_)
-    domain_iter_names_not_exist_in_lb_ub = list(set(domain_iter_names) - set(domain_iter_names_exist_in_range_ub_lb))
+    involve_dims = get_dominate_iters_of_pw_multi_aff(acc_rel.as_pw_multi_aff(), return_name=True)
+    domain_iter_names_not_exist_in_lb_ub = list(set(domain_iter_names) - set(involve_dims))
 
     aligned_acc_rel = build_domain_aligned_buffer_exclude_iters(
         domain, 
@@ -135,7 +129,7 @@ def get_pieces_from_pw_multi_aff(pw_multi_aff):
     pw_multi_aff.foreach_piece(lambda x,y: record.append((x,y)))
     return record
 
-def get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name=True):
+def get_dominate_iters_of_pw_multi_aff_per_out(pw_multi_aff, return_name=True):
     """
     {[i0,i1,..,ik] -> [f(i1,i2)]}
     return {i1,i2}
@@ -151,9 +145,28 @@ def get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name=True):
         for dim in range(n_dim_range):
             aff = multi_aff.get_at(dim)
             for i in range(aff.dim(isl.dim_type.in_)):
-                coef = aff.get_coefficient_val(isl.dim_type.in_, i) 
-                if not coef==0:
+                if aff.involves_dims(isl.dim_type.in_, i, 1):
                     dominate_dims[dim].add(dim_names[i] if return_name else i)
+        
+    return dominate_dims
+
+def get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name=True):
+    """
+    {[i0,i1,..,ik] -> [f(i1,i2)]}
+    return {i1,i2}
+    """
+    dim_names = [pw_multi_aff.get_dim_name(isl.dim_type.in_, i) for i in range(pw_multi_aff.dim(isl.dim_type.in_))]
+    n_dim_range = pw_multi_aff.dim(isl.dim_type.out)
+
+    dominate_dims = set()
+
+    for cond, multi_aff in get_pieces_from_pw_multi_aff(pw_multi_aff):
+        for dim in range(n_dim_range):
+            aff = multi_aff.get_at(dim)
+            for i in range(aff.dim(isl.dim_type.in_)):
+                # coef = aff.get_coefficient_val(isl.dim_type.in_, i) 
+                if aff.involves_dims(isl.dim_type.in_, i, 1):
+                    dominate_dims.add(dim_names[i] if return_name else i)
         
     return dominate_dims
 
@@ -564,7 +577,8 @@ Buffer Searching
 """
 
 def get_valid_buffer_positions(acc_rel):
-    dominate_iters_per_dim = get_dominate_iters_of_pw_multi_aff(acc_rel.as_pw_multi_aff(), return_name=False)
+    dominate_iters_per_dim = get_dominate_iters_of_pw_multi_aff_per_out(acc_rel.as_pw_multi_aff(), return_name=False)
+    # print(f"{dominate_iters_per_dim=}")
     dominate_iters = reduce(lambda x,y: x.union(y), dominate_iters_per_dim)
     assert type(dominate_iters)==set
     dominate_iters = sorted(list(dominate_iters))
