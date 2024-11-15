@@ -2,6 +2,7 @@ import islpy as isl
 from base_operator import BasicOperator
 import utils
 import itertools
+from tqdm import tqdm
 
 def multiply(factors):
     result = 1
@@ -113,13 +114,15 @@ def enumerate_tiling_factors(operator, tiling_factor):
     dim_factors = []
     for dim_size in domain_shape:
         factors = factorize(dim_size, tiling_factor)
-        # factors = filter_factors(factors)
-        factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
+        factors = filter_factors(factors)
+        # factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
         # print(f"{len(factors)=}, {factors=}")
         dim_factors.append(factors)
     
     # exit()
-    for combination in itertools.product(*dim_factors):
+    combination_list = list(itertools.product(*dim_factors))
+    import pdb; pdb.set_trace()
+    for combination in tqdm(combination_list):
         new_operator = multi_level_tiling(operator, tiling_factor, combination)
         yield new_operator
 
@@ -127,8 +130,10 @@ def pre_tiling_pass(op_list):
     new_op_list = []
     for op in op_list:
         new_op_list.append(op)
+        
         for new_op in enumerate_tiling_factors(op, 2):
             new_op_list.append(new_op)
+        import pdb; pdb.set_trace()
     # new_op_list = new_op_list[:40]
     # print(len(new_op_list))
     # exit()

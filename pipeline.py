@@ -34,7 +34,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
 
     if skew:
         new_ops = pre_tiling_pass(new_ops)
-        new_ops = new_ops[::8]
+        # new_ops = new_ops[::8]
         # for idx,op in enumerate(new_ops):
         #     assert op.domain.is_box()
         new_ops,_,_,base_matrix_list = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp), return_detail=True)
@@ -55,7 +55,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     # return
     # new_ops = new_ops[3:4]
     new_ops = hardware_merge_tiling_pass(new_ops, macro_row=cim_cfg.n_comp, macro_col=cim_cfg.n_group_vcol)
-    exit()
+    # exit()
     # new_ops = hardware_merge_tiling_pass(new_ops)
     print(f"after hardware_merge_tiling_pass, {len(new_ops)=}")
     # exit()
@@ -109,7 +109,7 @@ if __name__=="__main__":
     # )
     skew = True
     virtual_axis = not skew
-    operator = benchmark.get_op_dwconv2d(ic=1, oh=8, ow=8, kh=4, kw=4, virtual_axis=virtual_axis)
+    operator = benchmark.get_op_dwconv2d(ic=1, oh=224, ow=224, kh=7, kw=7, virtual_axis=virtual_axis)
     # operator = benchmark.get_op_conv2d(b=1, oc=1, ic=1, oh=8, ow=8, kh=3, kw=3, stride=1, virtual_axis=virtual_axis)
     cim_cfg = get_config()
     # print(operator.domain)

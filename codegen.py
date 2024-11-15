@@ -63,13 +63,13 @@ class CodeGenerator:
         special_regs_setting = [
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_INPUT_BIT_WIDTH, 8);", depth=depth),
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_WEIGHT_BIT_WIDTH, 8);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 8);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_SIZE, 1);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_ACTIVATION_GROUP_NUM, 1);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM, 8);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, 1);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 32);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 32);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 32);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_SIZE, 16);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_ACTIVATION_GROUP_NUM, 16);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM, 128);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, 32);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 8);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 8);", depth=depth),
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 32);", depth=depth),
         ]
         return special_regs_setting

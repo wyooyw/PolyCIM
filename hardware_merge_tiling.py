@@ -191,13 +191,28 @@ def hardware_tiling(all_schedule, tiling_factors):
         new_schedules.append((schedule, hardware_tiling_schedule))
     return new_schedules
 
+compute_time_lowerbound_cache = dict()
+def clear_compute_time_lowerbound_cache():
+    global compute_time_lowerbound_cache
+    compute_time_lowerbound_cache = dict()
+
 def filter_all_mapping_by_compute_times(domain, all_mapping, min_compute_times):
+    global compute_time_lowerbound_cache
+
     all_iters = domain.get_var_names(isl.dim_type.set)
     new_all_mapping = []
     for mapping in all_mapping:
         keep_iters = set(all_iters) - set(mapping.values())
-        projected_domain = domain.project_out_except(names=list(keep_iters),types=[isl.dim_type.set])
-        compute_time_lowerbound = projected_domain.count_val()
+        keep_iters =list(keep_iters)
+        keep_iters = sorted(keep_iters)
+        cache_key = ",".join(keep_iters)
+        if cache_key in compute_time_lowerbound_cache:
+            compute_time_lowerbound = compute_time_lowerbound_cache[cache_key]
+        else:
+            projected_domain = domain.project_out_except(names=list(keep_iters),types=[isl.dim_type.set])
+            compute_time_lowerbound = projected_domain.count_val()
+            compute_time_lowerbound_cache[cache_key] = compute_time_lowerbound
+            
         if compute_time_lowerbound > min_compute_times:
             continue
 
@@ -206,6 +221,7 @@ def filter_all_mapping_by_compute_times(domain, all_mapping, min_compute_times):
 
 
 def hardware_merge_tiling(op, macro_row, macro_col, min_compute_times):
+    clear_compute_time_lowerbound_cache()
     # domain_name_to_size = utils.get_static_box_shape(op.domain)
 
     n_rows = macro_row
@@ -218,7 +234,7 @@ def hardware_merge_tiling(op, macro_row, macro_col, min_compute_times):
     if mapping is None: 
         return None
     all_mapping = get_all_software_to_hardware_index_mapping(mapping)
-    # all_mapping = filter_all_mapping_by_compute_times(op, all_mapping, min_compute_times)
+    all_mapping = filter_all_mapping_by_compute_times(op.domain, all_mapping, min_compute_times)
     all_schedules = [get_schedule_from_mapping(mapping, op) for mapping in all_mapping]
     for schedule in all_schedules:
         assert schedule.intersect_domain(op.domain).reverse().is_single_valued(), f"{schedule} should not be single valued!"
@@ -310,6 +326,12 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
             new_op = op.apply_schedule(merge_schedule, skip_simplify=True)            
             new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
             new_op_list.append(new_op)
+
+            n_dim = new_op.domain.dim(isl.dim_type.set)
+            outer_domain = new_op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
+            exe_time = int(str(outer_domain.count_val()))
+            min_compute_times = min(min_compute_times, exe_time)
+            
         time_apply += (time.time() - begin_time)
         
     print(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")
