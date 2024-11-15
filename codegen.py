@@ -68,7 +68,7 @@ class CodeGenerator:
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_INPUT_BIT_WIDTH, 8);", depth=depth),
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_WEIGHT_BIT_WIDTH, 8);", depth=depth),
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 32);", depth=depth),
-            CodeStmt(code=f"SpecialRegSet(SPECIAL_REG_GROUP_SIZE, {cim_cfg.n_group});", depth=depth),
+            CodeStmt(code=f"SpecialRegSet(SPECIAL_REG_GROUP_SIZE, {cim_cfg.n_macro_per_group});", depth=depth),
             CodeStmt(code=f"SpecialRegSet(SPECIAL_REG_ACTIVATION_GROUP_NUM, {use_group});", depth=depth),
             CodeStmt(code=f"SpecialRegSet(SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM, {cim_cfg.n_group_vcol});", depth=depth),
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, 32);", depth=depth),
@@ -726,7 +726,7 @@ def data_movement_operator_to_dsl(op):
     code_generator = CodeGenerator(op, name_to_op)
     code = code_generator.codegen_str(ast, 4)
     print(code)
-    exit()
+    # exit()
     return code
 
 def codegen_pass(op_list):
