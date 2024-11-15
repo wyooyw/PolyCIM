@@ -290,6 +290,7 @@ def get_code_conv2d(attr):
         operator = benchmark.get_op_conv2d(b=batch, oc=out_channel, ic=in_channel, oh=out_h, ow=out_w, kh=kernel_height, kw=kernel_width, stride=stride, virtual_axis=True)
         result = run_pipeline(operator, skew=False, cim_cfg=get_config(), save_dir=temp_dir)
         assert len(result) > 0, f"Fail when generating conv2d code. {attr=}"
+        assert result[0].stats is not None, f"Fail when generating conv2d code. {attr=}"
         cache_conv2d_result[cache_key] = result
         
     # read code from result
@@ -412,11 +413,14 @@ def get_unique_id_from_unique_name(unique_name):
         max_unique_id += 1
         return unique_name_to_unqiue_id[unique_name]
 
-def parse_instructions(instructions):
+def parse_instructions(core_name, stage_id, instructions):
     code_list = []
     max_data_size = 0
     max_shape = None
-    for instruction in instructions:
+    for idx,instruction in enumerate(instructions):
+        # if not (core_name=="core_0_1" and stage_id=="0" and instruction["op"] == "conv" and idx==2):
+        #     continue
+        # import pdb; pdb.set_trace()
         if instruction["op"] == "read":
             code = get_code_read_global(instruction["attr"])
         elif instruction["op"] == "write":
@@ -454,6 +458,39 @@ def parse_instructions(instructions):
         code_list.extend(code)
     return code_list
 
+def get_special_reg_set_code():
+    """
+    专用寄存器立即数赋值指令：special-li
+    指令字段划分：
+    - [31, 30]，2bit：class，指令类别码，值为10
+    - [29, 28]，2bit：type，指令类型码，值为11
+    - [27, 26]，2bit：opcode，指令操作码，值为01
+    - [25, 21]，5bit：rd，专用寄存器编号，即要赋值的通用寄存器
+    - [20, 0]，21bit：imm，立即数，表示将要赋给寄存器的值
+    """
+    code_simd_add1 = {
+        "class": 0b10,
+        "type": 0b11,
+        "opcode": 0b01,
+        "rd": 16,
+        "imm": 8
+    }
+    code_simd_add2 = {
+        "class": 0b10,
+        "type": 0b11,
+        "opcode": 0b01,
+        "rd": 17,
+        "imm": 8
+    }
+    code_simd_out = {
+        "class": 0b10,
+        "type": 0b11,
+        "opcode": 0b01,
+        "rd": 20,
+        "imm": 8
+    }
+    return [code_simd_add1, code_simd_add2, code_simd_out]
+
 def parse_noc_tasks(json_path, code_save_path):
     """
     {
@@ -488,10 +525,18 @@ def parse_noc_tasks(json_path, code_save_path):
     for core_name, stages in tasks.items():
         print(f"{core_name=}")
         code_list = []
+
+        code_list.extend(get_special_reg_set_code())
+
         for stage_id, stage in stages["stages"].items():
             print(f"    {stage_id=}")
-            code = parse_instructions(stage["instructions"])
+            code = parse_instructions(core_name, stage_id, stage["instructions"])
             code_list.extend(code)
+
+
+        # padding, forbidden branch code be last codes
+        code_list.extend(get_special_reg_set_code())
+        
         # import pdb; pdb.set_trace()
         
         core_id = get_core_id_from_core_name(core_name)
@@ -542,7 +587,9 @@ if __name__=="__main__":
     # print(network_final_code)
 
     total_save_files = parse_noc_tasks(
-        "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", 
+        '/home/wangyiou/Desktop/pim_compiler/playground/partition_0_resnet_instructions.json',
+        # '/home/wangyiou/Desktop/pim_compiler/playground/partition_2_extracted_model_instructions.json',
+        # "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", 
         ".save_core_code"
     )
     tidy_json_format(".package", total_save_files=[f"/home/wangyiou/Desktop/pim_compiler/playground/.save_core_code/{i}.json" for i in range(64)])

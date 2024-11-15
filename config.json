@@ -1,6 +1,6 @@
 {
     "macro": {
-        "n_macro": 256,
+        "n_macro": 128,
         "n_row": 16,
         "n_comp": 32,
         "n_bcol": 64

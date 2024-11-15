@@ -22,9 +22,9 @@ def get_access_bitmap(op):
     """
         Order: [output, Input, Weight]
     """
-    I_index_set = utils.extract_index_set(op.access_I)
-    W_index_set = utils.extract_index_set(op.access_W)
-    O_index_set = utils.extract_index_set(op.access_O)
+    I_index_set = utils.get_dominate_iters_of_pw_multi_aff(op.access_I.as_pw_multi_aff())
+    W_index_set = utils.get_dominate_iters_of_pw_multi_aff(op.access_W.as_pw_multi_aff())
+    O_index_set = utils.get_dominate_iters_of_pw_multi_aff(op.access_O.as_pw_multi_aff())
     bitmap = utils.convert_index_set_to_bitmap(O_index_set, I_index_set, W_index_set)
     bitmap = OrderedDict(sorted(bitmap.items(), key=lambda x: int(x[0][1:])))
     return bitmap
@@ -33,7 +33,7 @@ def map_software_index_to_hardware_index(software_access_bitmap, hardware_access
     def rename_access_bitmap(access_bitmap, char):
         new_bitmap = OrderedDict()
         for key, value in access_bitmap.items():
-            new_bitmap[char+key[1]] = tuple(value)
+            new_bitmap[char+key[1:]] = tuple(value)
         return new_bitmap
     software_access_bitmap = rename_access_bitmap(software_access_bitmap, "s")
     hardware_access_bitmap = rename_access_bitmap(hardware_access_bitmap, "h")
@@ -260,7 +260,8 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     n_software_dim = software_schedule.range().as_set().n_dim()
     n_hardware_dim = 3
 
-    new_domain = op.apply_schedule(software_schedule, skip_simplify=True).domain
+    new_op = op.apply_schedule(software_schedule, skip_simplify=True)
+    new_domain = new_op.domain
     sizes = utils.get_box_hull_shape(new_domain)
     n_h0 = sizes[-3]
     n_igroup = math.ceil(
