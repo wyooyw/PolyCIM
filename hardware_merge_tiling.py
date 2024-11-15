@@ -7,6 +7,8 @@ from collections import OrderedDict
 import pdb
 import numpy as np
 from tqdm import tqdm
+import time
+from functools import reduce
 
 def get_cim_operator(n_rows, n_cols):
     cim_operator = BasicOperator(
@@ -189,7 +191,23 @@ def hardware_tiling(all_schedule, tiling_factors):
         new_schedules.append((schedule, hardware_tiling_schedule))
     return new_schedules
 
-def hardware_merge_tiling(op, macro_row, macro_col):
+def filter_all_mapping_by_compute_times(domain, all_mapping, min_compute_times):
+    all_iters = domain.get_var_names(isl.dim_type.set)
+    new_all_mapping = []
+    for mapping in all_mapping:
+        keep_iters = set(all_iters) - set(mapping.values())
+        projected_domain = domain.project_out_except(names=list(keep_iters),types=[isl.dim_type.set])
+        compute_time_lowerbound = projected_domain.count_val()
+        if compute_time_lowerbound > min_compute_times:
+            continue
+
+        new_all_mapping.append(mapping)
+    return new_all_mapping
+
+
+def hardware_merge_tiling(op, macro_row, macro_col, min_compute_times):
+    # domain_name_to_size = utils.get_static_box_shape(op.domain)
+
     n_rows = macro_row
     n_cols = macro_col
     cim_op = get_cim_operator(n_rows, n_cols)
@@ -200,6 +218,7 @@ def hardware_merge_tiling(op, macro_row, macro_col):
     if mapping is None: 
         return None
     all_mapping = get_all_software_to_hardware_index_mapping(mapping)
+    # all_mapping = filter_all_mapping_by_compute_times(op, all_mapping, min_compute_times)
     all_schedules = [get_schedule_from_mapping(mapping, op) for mapping in all_mapping]
     for schedule in all_schedules:
         assert schedule.intersect_domain(op.domain).reverse().is_single_valued(), f"{schedule} should not be single valued!"
@@ -264,16 +283,25 @@ def filter_op_by_execution_time_pass(op_list):
 def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     new_op_list = []
     schedule_fail_op_cnt = 0
+    time_schedule = 0
+    time_apply = 0
+
+    min_compute_times = int(str(op_list[0].domain.count_val()))
     for op in tqdm(op_list):
         assert op.access_I.is_single_valued(), f"{op.access_I} should be single valued!"
         assert op.access_W.is_single_valued(), f"{op.access_W} should be single valued!"
         assert op.access_O.is_single_valued(), f"{op.access_O} should be single valued!"
         
-        schedules = hardware_merge_tiling(op, macro_row, macro_col)
+        begin_time = time.time()
+        schedules = hardware_merge_tiling(op, macro_row, macro_col, min_compute_times = min_compute_times)
+        time_schedule += (time.time() - begin_time)
+        
         if schedules is None:
             schedule_fail_op_cnt += 1
             continue
         # print("-------------------------------------")
+
+        begin_time = time.time()
         for idx,(merge_schedule, tile_schedule) in enumerate(schedules):
             # print(f"{idx=}")
             # print(f"{merge_schedule=}")
@@ -282,7 +310,10 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
             new_op = op.apply_schedule(merge_schedule, skip_simplify=True)            
             new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
             new_op_list.append(new_op)
+        time_apply += (time.time() - begin_time)
+        
     print(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")
+    print(f"    Schedule time: {time_schedule:.2f}s\n    Apply time: {time_apply:.2f}s\n ")
     return new_op_list
 
 if __name__=="__main__":

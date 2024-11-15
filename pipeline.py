@@ -39,6 +39,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
         #     assert op.domain.is_box()
         new_ops,_,_,base_matrix_list = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp), return_detail=True)
         print(f"after auto_skewing_pass, {len(new_ops)=}")
+        
         # exit()
     # print(len(new_ops))
     # for idx,op in enumerate(new_ops):
@@ -54,7 +55,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     # return
     # new_ops = new_ops[3:4]
     new_ops = hardware_merge_tiling_pass(new_ops, macro_row=cim_cfg.n_comp, macro_col=cim_cfg.n_group_vcol)
-    
+    exit()
     # new_ops = hardware_merge_tiling_pass(new_ops)
     print(f"after hardware_merge_tiling_pass, {len(new_ops)=}")
     # exit()
