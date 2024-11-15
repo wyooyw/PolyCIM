@@ -34,11 +34,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
 
     if skew:
         new_ops = pre_tiling_pass(new_ops)
-        # new_ops = new_ops[::8]
-        # for idx,op in enumerate(new_ops):
-        #     assert op.domain.is_box()
-        new_ops,_,_,base_matrix_list = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp), return_detail=True)
-        print(f"after auto_skewing_pass, {len(new_ops)=}")
+        new_ops = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp), return_detail=False)
         
         # exit()
     # print(len(new_ops))
@@ -62,9 +58,16 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     new_ops = filter_op_by_execution_time_pass(new_ops)
 
     min_compute_op = new_ops[0]
-    print("pretiling: ", min_compute_op.history_schedules[0])
-    print("affine: ", min_compute_op.history_schedules[1])
-    print("shift: ", min_compute_op.history_schedules[2])
+    for idx,op in enumerate(new_ops):
+        print(f"{idx=}")
+        n_dim = op.domain.dim(isl.dim_type.set)
+        outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
+        print(f"{outer_domain.count_val()=}")
+        print("pretiling: ", op.history_schedules[0])
+        print("pretiling-factor: ", op.history_schedules[1])
+    exit()
+    # print("affine: ", min_compute_op.history_schedules[1])
+    # print("shift: ", min_compute_op.history_schedules[2])
     for idx, value in enumerate(extract_frame_info(min_compute_op, cim_cfg)):
         timestamp, frame_info = value
         print(f"Index: {idx}.    Timestamp: {timestamp}")
@@ -109,7 +112,7 @@ if __name__=="__main__":
     # )
     skew = True
     virtual_axis = not skew
-    operator = benchmark.get_op_dwconv2d(ic=1, oh=224, ow=224, kh=7, kw=7, virtual_axis=virtual_axis)
+    operator = benchmark.get_op_dwconv2d(ic=1, oh=64, ow=64, kh=3, kw=3, stride=1, virtual_axis=virtual_axis)
     # operator = benchmark.get_op_conv2d(b=1, oc=1, ic=1, oh=8, ow=8, kh=3, kw=3, stride=1, virtual_axis=virtual_axis)
     cim_cfg = get_config()
     # print(operator.domain)

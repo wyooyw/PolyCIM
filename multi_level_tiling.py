@@ -95,12 +95,10 @@ def filter_factors(factors):
     """
     new_factors = []
     for factor in factors:
-        is_one = [item==1 for item in factor]
-        num_one = sum(is_one)
-        if num_one >= len(factor) - 1:
+        if factor[0] > factor[1]:
             continue
+        
         new_factors.append(factor)
-    new_factors.append(None)
     return new_factors
 
 
@@ -114,14 +112,14 @@ def enumerate_tiling_factors(operator, tiling_factor):
     dim_factors = []
     for dim_size in domain_shape:
         factors = factorize(dim_size, tiling_factor)
-        factors = filter_factors(factors)
-        # factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
+        # factors = filter_factors(factors)
+        factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
         # print(f"{len(factors)=}, {factors=}")
         dim_factors.append(factors)
     
     # exit()
     combination_list = list(itertools.product(*dim_factors))
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     for combination in tqdm(combination_list):
         new_operator = multi_level_tiling(operator, tiling_factor, combination)
         yield new_operator
@@ -133,7 +131,6 @@ def pre_tiling_pass(op_list):
         
         for new_op in enumerate_tiling_factors(op, 2):
             new_op_list.append(new_op)
-        import pdb; pdb.set_trace()
     # new_op_list = new_op_list[:40]
     # print(len(new_op_list))
     # exit()

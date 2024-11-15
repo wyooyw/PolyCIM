@@ -2,8 +2,8 @@
     "macro": {
         "n_macro": 1,
         "n_row": 1,
-        "n_comp": 8,
-        "n_bcol": 64
+        "n_comp": 16,
+        "n_bcol": 32
     },
     "mask": {
         "n_from": 128,
