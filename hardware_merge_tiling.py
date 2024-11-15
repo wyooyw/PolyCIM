@@ -249,13 +249,15 @@ def hardware_merge_tiling(op, macro_row, macro_col, min_compute_times):
     return all_schedules
 
 def filter_op_by_execution_time_pass(op_list):
+    begin_time = time.time()
+
     total_flops = int(str(op_list[0].domain.count_val()))
     if len(op_list) == 0:
         print(f"[filter_op_by_execution_time_pass]: \n    0 inputs. skip.")
         return op_list
 
     exe_time_list = []
-    for op in tqdm(op_list):
+    for idx,op in enumerate(tqdm(op_list)):
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
         exe_time = int(str(outer_domain.count_val()))
@@ -281,6 +283,8 @@ def filter_op_by_execution_time_pass(op_list):
         # print("------------------------------------\n")
     new_op_list_execution_time = np.array(new_op_list_execution_time)
 
+    end_time = time.time()
+
     print(f"""
 [filter_op_by_execution_time_pass]:
     {len(op_list)} ops input.
@@ -295,8 +299,10 @@ def filter_op_by_execution_time_pass(op_list):
             mean={int(new_op_list_execution_time.mean())},
             all={new_op_list_execution_time} .
         Min Average Use Cell: {total_flops / new_op_list_execution_time.min():2}
-""")
 
+        Pass time: {end_time - begin_time:.2f}s
+""")
+    exit()
     return new_op_list
 
 def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
@@ -306,7 +312,7 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     time_apply = 0
 
     min_compute_times = int(str(op_list[0].domain.count_val()))
-    for op_idx,op in tqdm(enumerate(op_list)):
+    for op_idx,op in enumerate(tqdm(op_list)):
         
         assert op.access_I.is_single_valued(), f"{op.access_I} should be single valued!"
         assert op.access_W.is_single_valued(), f"{op.access_W} should be single valued!"
@@ -327,8 +333,19 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
             # print(f"{merge_schedule=}")
             # print(f"{tile_schedule=}")
             # print("-------------------------------------")
-            new_op = op.apply_schedule(merge_schedule, skip_simplify=True)            
+            if op_idx >= 50:
+                print(f"{op_idx=}, {idx=}")
+                print(f"    {op.domain=}")
+                print(f"    {merge_schedule=}")
+                print("")
+            if op_idx>=108 and idx==5:
+                print(f"{op_idx=}, {idx=}")
+                merge_shedule = isl.BasicMap("{ [s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = s1 and o1 = s2 and o2 = s3 and o3 = s4 and o4 = s5 and o5 = s6 and o6 = 7s7+s0 and o7 = 2s9 + s8 }")
+                import pdb; pdb.set_trace()
+            new_op = op.apply_schedule(merge_schedule, skip_simplify=True)
+            new_op = new_op.convex_hull() 
             new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
+            new_op = new_op.convex_hull() 
             new_op_list.append(new_op)
 
             if len(new_op_list) % 8 == 0:

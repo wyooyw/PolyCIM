@@ -34,8 +34,8 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
 
     if skew:
         new_ops = pre_tiling_pass(new_ops)
-        new_ops,_,_,_ = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp), return_detail=True)
-        
+        new_ops,_,_,bases = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(64, 64), return_detail=True)
+
         # exit()
     # print(len(new_ops))
     # for idx,op in enumerate(new_ops):
