@@ -3,7 +3,7 @@ import benchmark
 import os
 import json
 from functools import reduce
-from config import get_config, get_memory_base
+from config import get_config, get_memory_base, get_memory_size
 import tempfile
 import os
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -330,6 +330,8 @@ def get_dwcode_conv2d(attr):
     temp_dir = tempfile.mkdtemp()
     code_path = os.path.join(temp_dir, "depthwise_conv.cim")
     
+    X_size = reduce(lambda x,y:x*y, attr["X_shape"])
+    assert X_size <= get_memory_size("input_memory"), f"{X_size=}"
 
     batch, _, in_height, in_width = attr["X_shape"]
     in_channel, _, kernel_height, kernel_width = attr["W_shape"]
@@ -412,6 +414,8 @@ def get_unique_id_from_unique_name(unique_name):
 
 def parse_instructions(instructions):
     code_list = []
+    max_data_size = 0
+    max_shape = None
     for instruction in instructions:
         if instruction["op"] == "read":
             code = get_code_read_global(instruction["attr"])
@@ -422,6 +426,8 @@ def parse_instructions(instructions):
         elif instruction["op"] == "depthwise_conv":
             code = get_dwcode_conv2d(instruction["attr"])
         elif instruction["op"] in ("send", "send_ring"):
+            data_size = reduce(lambda x,y:x*y, instruction["attr"]["shape"])
+            assert data_size <= get_memory_size("output_memory"), f"{data_size=}"
             code = get_code_single_send(
                 src_addr=get_memory_base("output_memory"), 
                 dst_core=get_core_id_from_core_name(instruction["attr"]["dist_core_name"]), 
@@ -429,6 +435,8 @@ def parse_instructions(instructions):
                 unqiue_id=get_unique_id_from_unique_name(instruction["attr"]["name"])
             )
         elif instruction["op"] in ("receive", "receive_ring"):
+            data_size = reduce(lambda x,y:x*y, instruction["attr"]["shape"])
+            assert data_size <= get_memory_size("input_memory"), f"{data_size=}"
             code = get_code_single_receive(
                 dst_addr=get_memory_base("input_memory"), 
                 src_core=get_core_id_from_core_name(instruction["attr"]["src_core_name"]), 

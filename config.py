@@ -66,3 +66,13 @@ def get_memory_base(memory_type):
         if memory["name"]==memory_type:
             return memory["addressing"]["offset_byte"]
     assert False, f"{memory_type=} not found"
+
+
+def get_memory_size(memory_type):
+    global config
+
+    memory_list = config["memory_list"]
+    for memory in memory_list:
+        if memory["name"]==memory_type:
+            return memory["addressing"]["size_byte"]
+    assert False, f"{memory_type=} not found"
