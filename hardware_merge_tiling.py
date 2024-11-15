@@ -198,11 +198,14 @@ def clear_compute_time_lowerbound_cache():
 
 def filter_all_mapping_by_compute_times(domain, all_mapping, min_compute_times):
     global compute_time_lowerbound_cache
-
+    domain = utils.rename_all_dims_for_basic_set(domain, 's')
     all_iters = domain.get_var_names(isl.dim_type.set)
     new_all_mapping = []
     for mapping in all_mapping:
-        keep_iters = set(all_iters) - set(mapping.values())
+        mapping_iters = set()
+        for value in mapping.values():
+            mapping_iters |= set(value)
+        keep_iters = set(all_iters) - mapping_iters
         keep_iters =list(keep_iters)
         keep_iters = sorted(keep_iters)
         cache_key = ",".join(keep_iters)
@@ -212,7 +215,7 @@ def filter_all_mapping_by_compute_times(domain, all_mapping, min_compute_times):
             projected_domain = domain.project_out_except(names=list(keep_iters),types=[isl.dim_type.set])
             compute_time_lowerbound = projected_domain.count_val()
             compute_time_lowerbound_cache[cache_key] = compute_time_lowerbound
-            
+        # import pdb; pdb.set_trace()
         if compute_time_lowerbound > min_compute_times:
             continue
 
@@ -266,7 +269,7 @@ def filter_op_by_execution_time_pass(op_list):
     min_value = exe_time_list[sorted_indices[0]]
     num_ops = len(op_list)
     for i,index in enumerate(sorted_indices):
-        if i < 3 or exe_time_list[index] == min_value:
+        if i < 5 or exe_time_list[index] == min_value:
             new_op_list.append(op_list[index])
             new_op_list_execution_time.append(exe_time_list[index])
         # print(f"{i}\n")
@@ -327,15 +330,19 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
             new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
             new_op_list.append(new_op)
 
-            n_dim = new_op.domain.dim(isl.dim_type.set)
-            outer_domain = new_op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-            exe_time = int(str(outer_domain.count_val()))
-            min_compute_times = min(min_compute_times, exe_time)
+            if len(new_op_list) % 8 == 0:
+                n_dim = new_op.domain.dim(isl.dim_type.set)
+                outer_domain = new_op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
+                exe_time = int(str(outer_domain.count_val()))
+                min_compute_times = min(min_compute_times, exe_time)
+
+            # print(f"{min_compute_times=}")
             
         time_apply += (time.time() - begin_time)
         
     print(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")
     print(f"    Schedule time: {time_schedule:.2f}s\n    Apply time: {time_apply:.2f}s\n ")
+    # exit()
     return new_op_list
 
 if __name__=="__main__":
