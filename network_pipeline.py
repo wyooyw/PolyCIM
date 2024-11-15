@@ -499,19 +499,31 @@ def parse_noc_tasks(json_path, code_save_path):
 
 
 def tidy_json_format(save_dir, total_save_files):
-    total_code = dict()
-    for idx,file_path in enumerate(total_save_files):
+    total_code_str = "{"
+    for core_idx,file_path in enumerate(total_save_files):
         file_name_with_extension = os.path.basename(file_path)
         file_name_without_extension, _ = os.path.splitext(file_name_with_extension)
-        assert str(idx)==file_name_without_extension
+        assert str(core_idx)==file_name_without_extension
         
         with open(file_path, "r") as f:
             code_list = json.load(f)
-            total_code[idx] = code_list
 
+        code_str = "[\n"
+        for idx,code in enumerate(code_list):
+            code_str += json.dumps(code, separators=(',', ':'))
+            if idx < len(code_list)-1:
+                code_str += ","
+            code_str += "\n"
+        code_str += "]"
+        
+        total_code_str += f"\"{core_idx}\":" + code_str
+        if core_idx < len(total_save_files)-1:
+            total_code_str += ","
+        total_code_str += "\n"
+    total_code_str += "}"
 
     with open(os.path.join(save_dir, "code.json"), "w") as f:
-        json.dump(total_code, f, indent=2)
+        f.write(total_code_str)
 
 if __name__=="__main__":
     # op_list = [
