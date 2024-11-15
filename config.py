@@ -7,6 +7,8 @@ class CIMConfig:
     n_group_vcol: int
     n_comp: int
     n_group: int
+    n_macro: int
+    n_macro_per_group: int
 
 config_json_path = "/home/wangyiou/Desktop/pim_compiler/playground/config.json"
 with open(config_json_path, "r") as f:
@@ -32,7 +34,9 @@ def get_config():
         n_row=n_row,
         n_group_vcol=n_group_vcol,
         n_comp=n_comp,
-        n_group=n_group
+        n_group=n_group,
+        n_macro=n_macro,
+        n_macro_per_group=n_macro_per_group
     )
 
 def get_memory_sizes():
