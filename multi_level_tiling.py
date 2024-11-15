@@ -61,7 +61,7 @@ def multi_level_tiling(operator, tiling_level, tiling_factors):
         # print(f"{tiling_map_def=}")
         tiling_maps.append(tiling_map)
 
-   
+    # import pdb; pdb.set_trace()
     # print("\n")
     tiling_map = tiling_maps[0].intersect_domain(domain)
     for _tiling_map in tiling_maps[1:]:
@@ -70,6 +70,7 @@ def multi_level_tiling(operator, tiling_level, tiling_factors):
     tiling_map = tiling_map.intersect_domain(domain)
     
     new_operator =  operator.apply_schedule(tiling_map)
+    new_operator.history_schedules.append({"tiling_factors":tiling_factors})
     return new_operator
 
 def factorize(N, T, depth=1, path=None, results=None):

@@ -13,10 +13,7 @@ def loop_padding(op, _):
     cim_cfg = get_config()
     sizes = utils.get_box_hull_shape(domain)
     padding_inner_size=[
-        # [0, cim_cfg.n_row - 1], # begin, size
-        [0, cim_cfg.n_comp - 1], # begin, size
-        [0, sizes[-3] - 1], # begin, size
-        [0, sizes[-2] - 1], # begin, size
+        [0, cim_cfg.n_comp - 1],
         [0, cim_cfg.n_group_vcol - 1]
     ]
     inner_loop_level = len(padding_inner_size)

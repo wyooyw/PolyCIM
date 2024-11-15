@@ -17,7 +17,7 @@ def get_config():
 
     config_macro = config["macro"]
     
-    n_group = 16
+    n_group = 1
     n_row = config_macro["n_row"]
     n_macro = config_macro["n_macro"]
     n_macro_per_group = n_macro // n_group

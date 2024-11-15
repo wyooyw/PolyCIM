@@ -21,9 +21,10 @@ def get_access_bitmap(op):
     """
         Order: [output, Input, Weight]
     """
-    I_index_set = utils.extract_index_set(op.access_I)
-    W_index_set = utils.extract_index_set(op.access_W)
-    O_index_set = utils.extract_index_set(op.access_O)
+    I_index_set = utils.get_dominate_iters_of_pw_multi_aff(op.access_I.as_pw_multi_aff())
+    W_index_set = utils.get_dominate_iters_of_pw_multi_aff(op.access_W.as_pw_multi_aff())
+    O_index_set = utils.get_dominate_iters_of_pw_multi_aff(op.access_O.as_pw_multi_aff())
+
     bitmap = utils.convert_index_set_to_bitmap(O_index_set, I_index_set, W_index_set)
     bitmap = OrderedDict(sorted(bitmap.items(), key=lambda x: int(x[0][1:])))
     return bitmap
@@ -32,7 +33,7 @@ def map_software_index_to_hardware_index(software_access_bitmap, hardware_access
     def rename_access_bitmap(access_bitmap, char):
         new_bitmap = OrderedDict()
         for key, value in access_bitmap.items():
-            new_bitmap[char+key[1]] = tuple(value)
+            new_bitmap[char+key[1:]] = tuple(value)
         return new_bitmap
     software_access_bitmap = rename_access_bitmap(software_access_bitmap, "s")
     hardware_access_bitmap = rename_access_bitmap(hardware_access_bitmap, "h")
@@ -116,10 +117,14 @@ def get_schedule_from_mapping(mapping, software_op):
     scheudle: { [s0, s1, s2, s3, s4, s5] -> [s0, s2, s3, s1, 3s4 + s5] }
     """
     new_domain = utils.rename_all_dims_for_basic_set(software_op.domain,'s')
+    domain_iter_names = new_domain.get_var_names(isl.dim_type.set)
     # print(mapping)
-    bounds = utils.get_bound_for_all_dims(new_domain)
+    # shape = utils.get_box_hull_shape(new_domain)
+    bounds = {iter_name: 
+                (int(str(new_domain.dim_min_val(i))),int(str(new_domain.dim_max_val(i))))
+                     for i,iter_name in enumerate(domain_iter_names)}
     schedule_range = list()
-
+    # import pdb; pdb.set_trace()
     # Put the axis not in mapping to the front
     s_axis_in_mapping = set([item for value in mapping.values() for item in value])
     s_axis_not_in_mapping = set(bounds.keys()) - s_axis_in_mapping
@@ -206,6 +211,7 @@ def hardware_merge_tiling(op, macro_row, macro_col):
     return all_schedules
 
 def filter_op_by_execution_time_pass(op_list):
+    total_flops = int(str(op_list[0].domain.count_val()))
     if len(op_list) == 0:
         print(f"[filter_op_by_execution_time_pass]: \n    0 inputs. skip.")
         return op_list
@@ -250,6 +256,7 @@ def filter_op_by_execution_time_pass(op_list):
             min={new_op_list_execution_time.min()}, 
             mean={int(new_op_list_execution_time.mean())},
             all={new_op_list_execution_time} .
+        Min Average Use Cell: {total_flops / new_op_list_execution_time.min():2}
 """)
 
     return new_op_list
