@@ -476,7 +476,7 @@ def parse_noc_tasks(json_path, code_save_path):
 
     get_max_core_row_col(list(tasks.keys()))
 
-    
+    total_save_files = []
     for core_name, stages in tasks.items():
         print(f"{core_name=}")
         code_list = []
@@ -485,14 +485,33 @@ def parse_noc_tasks(json_path, code_save_path):
             code = parse_instructions(stage["instructions"])
             code_list.extend(code)
         # import pdb; pdb.set_trace()
-            
-        core_code_save_path = os.path.join(code_save_path, f"{core_name}.json")
+        
+        core_id = get_core_id_from_core_name(core_name)
+        core_code_save_path = os.path.join(code_save_path, f"{core_id}.json")
+        total_save_files.append(core_code_save_path)
         with open(core_code_save_path, "w") as f:
             json.dump(code_list, f, indent=2)
 
             
     core_names = tasks.keys()
     print(core_names)
+    return total_save_files
+
+
+def tidy_json_format(save_dir, total_save_files):
+    total_code = dict()
+    for idx,file_path in enumerate(total_save_files):
+        file_name_with_extension = os.path.basename(file_path)
+        file_name_without_extension, _ = os.path.splitext(file_name_with_extension)
+        assert str(idx)==file_name_without_extension
+        
+        with open(file_path, "r") as f:
+            code_list = json.load(f)
+            total_code[idx] = code_list
+
+
+    with open(os.path.join(save_dir, "code.json"), "w") as f:
+        json.dump(total_code, f, indent=2)
 
 if __name__=="__main__":
     # op_list = [
@@ -502,4 +521,8 @@ if __name__=="__main__":
     # network_final_code = run_network_pipeline(op_list, skew=False, macro_row=16, macro_col=4)
     # print(network_final_code)
 
-    parse_noc_tasks("/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", ".save_core_code")
+    # total_save_files = parse_noc_tasks(
+    #     "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", 
+    #     ".save_core_code"
+    # )
+    tidy_json_format(".package", total_save_files=[f"/home/wangyiou/Desktop/pim_compiler/playground/.save_core_code/{i}.json" for i in range(64)])
