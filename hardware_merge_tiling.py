@@ -306,7 +306,8 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     time_apply = 0
 
     min_compute_times = int(str(op_list[0].domain.count_val()))
-    for op in tqdm(op_list):
+    for op_idx,op in tqdm(enumerate(op_list)):
+        
         assert op.access_I.is_single_valued(), f"{op.access_I} should be single valued!"
         assert op.access_W.is_single_valued(), f"{op.access_W} should be single valued!"
         assert op.access_O.is_single_valued(), f"{op.access_O} should be single valued!"

@@ -384,7 +384,7 @@ def base_to_coor_transform_matrix(bases_matrix):
     assert type(bases_matrix) == Matrix, f"{type(bases_matrix)=}"
     bases_matrix = bases_matrix.transpose()
     coor_transform_matrix = bases_matrix.inv()
-    coor_transform_matrix = inv.scale_to_integer(coor_transform_matrix)
+    coor_transform_matrix = inv.scale_to_integer_per_row(coor_transform_matrix)
     return coor_transform_matrix
 
 
@@ -560,6 +560,7 @@ def auto_skewing_pass(op_list, max_reuse_factor_for_arrays=(16,16), return_detai
 
         for idx,schedule in enumerate(schedules):
             new_op = op.apply_schedule(schedule)
+            new_op.history_schedules.append(base_matrixs[idx])
             new_op_list.append(new_op)
             if return_detail:
                 ori_op_list.append(op)

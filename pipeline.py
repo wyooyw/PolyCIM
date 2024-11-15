@@ -34,7 +34,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
 
     if skew:
         new_ops = pre_tiling_pass(new_ops)
-        new_ops = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp), return_detail=False)
+        new_ops,_,_,_ = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp), return_detail=True)
         
         # exit()
     # print(len(new_ops))
@@ -112,7 +112,7 @@ if __name__=="__main__":
     # )
     skew = True
     virtual_axis = not skew
-    operator = benchmark.get_op_dwconv2d(ic=1, oh=64, ow=64, kh=3, kw=3, stride=1, virtual_axis=virtual_axis)
+    operator = benchmark.get_op_dwconv2d(ic=1, oh=64, ow=64, kh=7, kw=7, stride=1, virtual_axis=virtual_axis)
     # operator = benchmark.get_op_conv2d(b=1, oc=1, ic=1, oh=8, ow=8, kh=3, kw=3, stride=1, virtual_axis=virtual_axis)
     cim_cfg = get_config()
     # print(operator.domain)
