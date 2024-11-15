@@ -40,7 +40,8 @@ def loop_padding(op, _):
         access_O = op.access_O,
         access_W = op.access_W,
         history_domains = [*op.history_domains, domain_padding],
-        history_schedules = [*op.history_schedules, {"padding_inner_size":padding_inner_size}]
+        history_schedules = [*op.history_schedules, {"padding_inner_size":padding_inner_size}],
+        attr={key:value for key,value in op.attr.items()}
     )
     # import pdb; pdb.set_trace()
     # pass

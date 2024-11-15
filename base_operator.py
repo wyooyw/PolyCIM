@@ -26,7 +26,7 @@ class TensorAccessRelation(AccessRelation):
         )
 
 class BasicOperator:
-    def __init__(self, domain, access_I, access_O, access_W, history_domains=list(), history_schedules=list()):
+    def __init__(self, domain, access_I, access_O, access_W, history_domains=list(), history_schedules=list(), attr=dict()):
         assert type(domain) == isl.BasicSet
         assert type(access_I) == isl.BasicMap
         assert type(access_O) == isl.BasicMap
@@ -39,6 +39,8 @@ class BasicOperator:
         self.history_schedules = history_schedules
 
         self.rename_domain_and_access()
+
+        self.attr = attr
 
     def rename_domain_and_access(self):
         self.domain = utils.rename_all_dims_for_basic_set(self.domain)
@@ -76,7 +78,8 @@ class BasicOperator:
             access_O=access_O,
             access_W=access_W,
             history_domains=[*self.history_domains, self.domain],
-            history_schedules=[*self.history_schedules, schedule]
+            history_schedules=[*self.history_schedules, schedule],
+            attr={key:value for key,value in self.attr.items()}
         )
 
     def convex_hull(self):
@@ -86,7 +89,8 @@ class BasicOperator:
             access_O=self.access_O.convex_hull(),
             access_W=self.access_W.convex_hull(),
             history_domains=[*self.history_domains,self.domain],
-            history_schedules=[*self.history_schedules,"convex_hull"]
+            history_schedules=[*self.history_schedules,"convex_hull"],
+            attr={key:value for key,value in self.attr.items()}
         )
 
     def get_access_by_name(self, buffer_name):
@@ -113,6 +117,9 @@ class BasicOperator:
     def concrete_access_W(self):
         return self.concrete_access(self.access_W)
 
+    def set_attr(self, key, value):
+        self.attr[key] = value
+
 
 class DataMovement:
     def __init__(self, domain, access_I, access_O, level):
@@ -136,7 +143,8 @@ class DataMovementOperator:
     def __init__(self, domain, access_I, access_O, access_W, 
         history_domains=list(), 
         history_schedules=list(),
-        data_movement = None
+        data_movement = None,
+        attr = dict()
         ):
         assert type(domain) in (isl.BasicSet, isl.Set)
         assert type(access_I) in (isl.BasicMap, isl.Map, AccessRelation, TensorAccessRelation)
@@ -149,6 +157,7 @@ class DataMovementOperator:
         self.access_W = AccessRelation(access_W) if type(access_W) in (isl.BasicMap, isl.Map) else access_W
         self.history_domains = history_domains
         self.history_schedules = history_schedules
+        self.attr = attr
 
         if data_movement is None:
             self.data_movement = {"I": list(), "O": list(), "W": list()}
@@ -182,5 +191,6 @@ class DataMovementOperator:
             access_W=self.access_W.convex_hull(),
             history_domains=[*self.history_domains, self.domain],
             history_schedules=[*self.history_schedules, "convex_hull"],
-            data_movement = new_data_movement
+            data_movement = new_data_movement,
+            attr={key:value for key,value in self.attr.items()}
         )

@@ -56,7 +56,8 @@ def tensorize_cim_compute(op):
         access_W = access_W,
         history_domains = [*op.history_domains, outer_domain],
         history_schedules = [*op.history_schedules, {"tensorize_cim_compute":n_inner_level}],
-        data_movement = op.data_movement
+        data_movement = op.data_movement,
+        attr={key:value for key,value in op.attr.items()}
     )
 
 def vectorize_data_movement(data_movement):
@@ -93,7 +94,8 @@ def vectorize_data_movement_for_op(op):
         access_W = op.access_W,
         history_domains = op.history_domains,
         history_schedules = op.history_schedules,
-        data_movement = new_data_movement_dict
+        data_movement = new_data_movement_dict,
+        attr={key:value for key,value in op.attr.items()}
     )
 
 

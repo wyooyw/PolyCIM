@@ -6,6 +6,7 @@ from base_operator import DataMovementOperator, DataMovement, TensorAccessRelati
 import utils
 from tqdm import tqdm
 import os
+from config import get_config
 
 unique_name_idx = 0
 char_set = "abcdefghijklmnopqrstuvwxyz"
@@ -60,16 +61,19 @@ class CodeGenerator:
         return special_reg_defs
 
     def codegen_special_settings(self, depth):
+        use_group = self.op.attr["n_use_group"]
+        cim_cfg = get_config()
+        assert use_group > cim_cfg.n_group // 2 and use_group <= cim_cfg.n_group, f"{use_group=}, {cim_cfg.n_group=}"
         special_regs_setting = [
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_INPUT_BIT_WIDTH, 8);", depth=depth),
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_WEIGHT_BIT_WIDTH, 8);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 8);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_SIZE, 1);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_ACTIVATION_GROUP_NUM, 1);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM, 8);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, 1);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 32);", depth=depth),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 32);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 32);", depth=depth),
+            CodeStmt(code=f"SpecialRegSet(SPECIAL_REG_GROUP_SIZE, {cim_cfg.n_group});", depth=depth),
+            CodeStmt(code=f"SpecialRegSet(SPECIAL_REG_ACTIVATION_GROUP_NUM, {use_group});", depth=depth),
+            CodeStmt(code=f"SpecialRegSet(SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM, {cim_cfg.n_group_vcol});", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, 32);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 8);", depth=depth),
+            CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 8);", depth=depth),
             CodeStmt(code="SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 32);", depth=depth),
         ]
         return special_regs_setting
@@ -720,6 +724,7 @@ def data_movement_operator_to_dsl(op):
     code_generator = CodeGenerator(op, name_to_op)
     code = code_generator.codegen_str(ast, 4)
     print(code)
+    exit()
     return code
 
 def codegen_pass(op_list):

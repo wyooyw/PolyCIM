@@ -269,6 +269,8 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     )
     n_ogroup = cim_cfg.n_group // n_igroup
 
+    use_group = n_ogroup * n_igroup
+
     keep_iters = []
     for i in range(n_software_dim - n_hardware_dim):
         keep_iters.append(f"s{i}")
@@ -306,14 +308,14 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     reorder_schedule = isl.BasicMap(reorder_def)
 
 
-    return tile_schedule, reorder_schedule
+    return tile_schedule, reorder_schedule, use_group
 
 def macro_5d_hardware_tiling(op, all_schedule, cim_cfg):
     new_schedules = []
     for schedule in all_schedule:
-        tile_schedule, reorder_schedule = get_macro_5d_hardware_tiling_schedule(op, schedule, cim_cfg)
+        tile_schedule, reorder_schedule, n_use_group = get_macro_5d_hardware_tiling_schedule(op, schedule, cim_cfg)
         # schedule = schedule.apply_range(hardware_tiling_schedule)
-        new_schedules.append((schedule, tile_schedule, reorder_schedule))
+        new_schedules.append((schedule, tile_schedule, reorder_schedule, n_use_group))
     return new_schedules
 
 def hardware_merge_tiling(op, cim_cfg):
@@ -408,7 +410,7 @@ def hardware_merge_tiling_pass(op_list, cim_cfg=None):
             schedule_fail_op_cnt += 1
             continue
         # print("-------------------------------------")
-        for idx,(merge_schedule, tile_schedule, merge_group_schedule) in enumerate(schedules):
+        for idx,(merge_schedule, tile_schedule, merge_group_schedule, n_use_group) in enumerate(schedules):
             # print(f"{idx=}")
             # print(f"{merge_schedule=}")
             # print(f"{tile_schedule=}")
@@ -416,6 +418,7 @@ def hardware_merge_tiling_pass(op_list, cim_cfg=None):
             new_op = op.apply_schedule(merge_schedule, skip_simplify=True)            
             new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
             new_op = new_op.apply_schedule(merge_group_schedule, skip_simplify=True)
+            new_op.set_attr("n_use_group", n_use_group)
 
             # check domain not exceed macro's size
             # N_ROW, N_COMP, N_GROUP, N_GROUP_VCOL
