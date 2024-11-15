@@ -45,7 +45,7 @@ def backend_compile_and_profile_pass(op_list, save_dir=None):
         cd_cmd = f"cd {simulator_path}"
         run_cmd = f"python utils/simulate_and_stats.py --input {input_path} --output {output_path} --config {config_path}" 
         backend_simulator_cmd = f"{cd_cmd} && {run_cmd}"  
-        # os.system(backend_simulator_cmd) 
+        os.system(backend_simulator_cmd) 
 
         # save op info
         dump_op_basic_info(op, os.path.join(save_path_dir, "op_info.txt"))
