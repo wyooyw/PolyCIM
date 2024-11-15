@@ -672,13 +672,13 @@ def insert_single_buffer_multi_level(
         
     else:
         map_buf_align_to_ori, aligned_acc_rel = map_domain_aligned_buffer_to_origin_buffer_v2(op.domain, op.get_access_by_name(buffer_name))
-    
+
     compute_acc_rel = aligned_acc_rel
     data_movement_list = []
 
-    assert len(memory_types)==len(buffer_levels)
+    assert len(memory_types)==len(buffer_levels) + 1, f"{memory_types=}, {buffer_levels=}"
     memory_types = [*memory_types]
-    memory_types.insert(0, "__GLOBAL__")
+    # memory_types.insert(0, "__INPUT_MEMORY__")
     
     for idx,buffer_level in enumerate(buffer_levels):
         if "W" in buffer_name:
@@ -717,7 +717,8 @@ def insert_single_buffer_multi_level(
         access_W = accesses["W"],
         history_domains=op.history_domains, 
         history_schedules=op.history_schedules,
-        data_movement=op.data_movement if hasattr(op,"data_movement") else None
+        data_movement=op.data_movement if hasattr(op,"data_movement") else None,
+        attr={key:value for key,value in op.attr.items()}
     )
 
     # print(f"domain: {op.domain}\n")
@@ -833,7 +834,7 @@ def multi_level_buffer_insersion_pass(
         input_buffer_level_combinations = buffer_level_serching(
             op, 
             "I",
-            num_buffer_level=2, 
+            num_buffer_level=1, 
             level_min=0,
             level_max=macro_compute_level + 1
         )
@@ -842,7 +843,7 @@ def multi_level_buffer_insersion_pass(
         for buffer_levels in input_buffer_level_combinations:
             op = op.convex_hull() # Is this safe?
             new_op = insert_single_buffer_multi_level(op, "I", buffer_levels, input_memory_names)
-            new_op = insert_single_buffer_multi_level(new_op, "W", [weight_buffer_level], weight_memory_names)
+            new_op = insert_single_buffer_multi_level(new_op, "W", [], weight_memory_names)
             new_op = new_op.convex_hull()
             # import pdb; pdb.set_trace()
             new_ops.append(new_op)
