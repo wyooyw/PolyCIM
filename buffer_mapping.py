@@ -951,7 +951,7 @@ def memory_access_satisfy_constraint(op):
     satisfy = True
     for memory_type, use_size in buffer_type_to_use_size.items():
         size_limit = buffer_type_to_size[memory_type]
-        if use_size > size_limit:
+        if memory_type=="__PIM_INPUT_REG_BUFFER__" and use_size > size_limit:
             satisfy = False
             print(f"Memory not satisfy! {memory_type=}, {use_size=}, {size_limit=}")
             break

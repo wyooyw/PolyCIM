@@ -418,7 +418,9 @@ class CodeGenerator:
     def codegen_tensor_access_from_pw_multi_aff(self, tensor_access, call_args, depth):
         assert type(tensor_access)==TensorAccessRelation
         offsets, sizes = tensor_access.offsets, tensor_access.sizes
-        access_offset = self._get_access_from_pw_multi_aff(offsets.as_pw_multi_aff(), call_args)
+
+        zero_offsets = ["0" for i in call_args]
+        access_offset = self._get_access_from_pw_multi_aff(offsets.as_pw_multi_aff(), zero_offsets)
         access_size = self._get_access_from_pw_multi_aff(sizes.as_pw_multi_aff(), call_args)
         
         code_list = []
