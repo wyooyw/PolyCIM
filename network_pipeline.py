@@ -533,8 +533,8 @@ if __name__=="__main__":
     # network_final_code = run_network_pipeline(op_list, skew=False, macro_row=16, macro_col=4)
     # print(network_final_code)
 
-    # total_save_files = parse_noc_tasks(
-    #     "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", 
-    #     ".save_core_code"
-    # )
+    total_save_files = parse_noc_tasks(
+        "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", 
+        ".save_core_code"
+    )
     tidy_json_format(".package", total_save_files=[f"/home/wangyiou/Desktop/pim_compiler/playground/.save_core_code/{i}.json" for i in range(64)])
