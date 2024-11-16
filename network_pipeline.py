@@ -356,7 +356,7 @@ def get_dwcode_conv2d(attr):
     global cache_dwconv2d_result
 
     template_path = (
-        "/home/wangyiou/Desktop/pim_compiler/playground/template/depthwise_conv.cim"
+        os.path.join(os.environ.get('POLYCIM_COMPILER_HOME'),"template/depthwise_conv.cim")
     )
     temp_dir = tempfile.mkdtemp()
     code_path = os.path.join(temp_dir, "depthwise_conv.cim")
@@ -400,10 +400,13 @@ def get_dwcode_conv2d(attr):
 
         fill_template(template_path, code_path, context)
 
-        backend_compile_cmd = (
-            f"input_file={code_path} output_path={temp_dir} bash run.sh "
-        )
-        os.system(backend_compile_cmd)
+        # run backend compiler
+        backend_compiler_base_path = os.environ.get("BACKEND_COMPILER_HOME")
+        config_path = os.environ.get("CONFIG_PATH")
+        cd_cmd = f"cd {backend_compiler_base_path}"
+        run_cmd = f"bash compile.sh isa {code_path} {temp_dir} {config_path}"
+        backend_compiler_cmd = f"{cd_cmd} && {run_cmd}"
+        os.system(backend_compiler_cmd)
 
         result = ProfileResult(stats=None, save_path=temp_dir)
         cache_dwconv2d_result[cache_key] = result
