@@ -64,7 +64,7 @@ class CodeGenerator:
 
     def codegen_special_defs(self, depth):
         with open(
-            "/home/wangyiou/project/cim_compiler_frontend/playground/op/bit_sparse/bit_sparse_conv2d_group/lib/def_special_regs.cim",
+            os.path.join(os.environ.get("POLYCIM_COMPILER_HOME"), "template/def_special_regs.cim"),
             "r",
         ) as f:
             special_reg_defs = CodeStmt(code=f.read(), depth=depth)

@@ -12,7 +12,8 @@ class CIMConfig:
     n_macro_per_group: int
 
 backend_compiler_base_path = os.environ.get("BACKEND_COMPILER_HOME")
-config_json_path = os.path.join(backend_compiler_base_path, "config/config.json")
+config_path = os.environ.get("CONFIG_PATH")
+config_json_path = os.path.join(config_path)
 with open(config_json_path, "r") as f:
     config = json.load(f)
 

@@ -38,7 +38,7 @@ def backend_compile_and_profile_pass(op_list, save_dir=None):
 
         # run cim compiler
         backend_compiler_base_path = os.environ.get("BACKEND_COMPILER_HOME")
-        config_path = os.path.join(backend_compiler_base_path, "config/config.json")
+        config_path = os.environ.get("CONFIG_PATH")
         input_path = os.path.abspath(save_path_file)
         output_path = os.path.abspath(save_path_dir)
 
@@ -55,7 +55,7 @@ def backend_compile_and_profile_pass(op_list, save_dir=None):
             output_path = os.path.join(os.path.abspath(save_path_dir), "stats")
             os.makedirs(output_path, exist_ok=True)
             cd_cmd = f"cd {backend_compiler_base_path}"
-            run_cmd = f"python utils/simulate_and_stats.py --input {input_path} --output {output_path} --config {config_path}"
+            run_cmd = f"PYTHONPATH={backend_compiler_base_path} python3 utils/simulate_and_stats.py --input {input_path} --output {output_path} --config {config_path}"
             backend_simulator_cmd = f"{cd_cmd} && {run_cmd}"
             os.system(backend_simulator_cmd)
 
