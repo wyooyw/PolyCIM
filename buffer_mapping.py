@@ -13,6 +13,7 @@ import itertools
 import numpy as np
 from dataclasses import dataclass
 from config import get_memory_sizes
+import math
 
 def find_domain_iters_exist_in_range(aff, return_name=True):
 
@@ -851,22 +852,39 @@ def multi_level_buffer_insersion_pass(
 
 def memory_access_cost(op):
     bandwidth_factor = {
-        ("__GLOBAL__", "__INPUT_MEMORY__"): 4,
-        ("__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"): 1,
-        ("__PIM_INPUT_REG_BUFFER__"): 1,
-        ("__GLOBAL__", "__MACRO__"): 4
+        # ("__GLOBAL__", "__INPUT_MEMORY__"): 4,
+        ("__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"): 1024,
+        # ("__PIM_INPUT_REG_BUFFER__"): 1,
+        # ("__GLOBAL__", "__MACRO__"): 4
     }
     total_cost = 0
     # cost of moving I and W
     for buffer_name in ["I", "W"]:
         for datamove in op.data_movement[buffer_name]:
             # TODO: consider data type, int8 / int32
-            data_volumn = datamove.domain.count_val()
+            # data_volumn = datamove.domain.count_val()
+
+            domain = datamove.domain
+            domain_size = domain.dim(isl.dim_type.set)
+            
+            n_access_O_dim = datamove.access_O.offsets.dim(isl.dim_type.out)
+            n_access_I_dim = datamove.access_I.offsets.dim(isl.dim_type.out)
+            n_inner_level = n_access_O_dim
+
+            outer_domain = domain.project_out(isl.dim_type.set, domain_size-n_inner_level, n_inner_level)
+            outer_domain_time = outer_domain.count_val()
+
+            access_O_sizes = [int(str(datamove.access_O.offsets.range().dim_max_val(i))) for i in range(n_access_O_dim)]
+            access_I_sizes = [int(str(datamove.access_I.offsets.range().dim_max_val(i))) for i in range(n_access_I_dim)]
+            assert access_O_sizes == access_I_sizes[n_access_I_dim-n_inner_level:]
+            tensorize_data_volumn = reduce(lambda x,y: x*y, access_O_sizes)
+
             src_memory_type = datamove.access_I.memory_type
             dst_memory_type = datamove.access_O.memory_type
             bandwidth = bandwidth_factor[(src_memory_type, dst_memory_type)]
-            cost = data_volumn * bandwidth
-            total_cost += cost
+            tensorize_time = math.ceil(tensorize_data_volumn / bandwidth)
+            
+            total_cost += tensorize_time * outer_domain_time
 
     # TODO: cost of moving O
 
@@ -960,8 +978,8 @@ def memory_access_satisfy_constraint(op):
 def filter_op_by_memory_access_cost_pass(op_list):
     op_list = [op for op in op_list if memory_access_satisfy_constraint(op)]
     memory_access_cost_list = [memory_access_cost(op) for op in op_list]
-    
-
+    # print(f"{memory_access_cost_list=}")
+    # exit()
     memory_access_cost_list = np.array(memory_access_cost_list)
     sorted_indices = np.argsort(memory_access_cost_list)
     
