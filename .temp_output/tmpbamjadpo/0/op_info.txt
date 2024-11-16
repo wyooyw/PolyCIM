@@ -1,5 +1,0 @@
-n_compute: 64
-domain: { [i0, i1, i2] : i2 = 0 and 0 <= i0 <= 31 and 0 <= i1 <= 1 }
-access_I: { [i0, i1, i2 = 0] -> I_aligned_1[i1, 0, 0] : 0 <= i0 <= 31 and 0 <= i1 <= 1 }
-access_O: { [i0, i1, i2 = 0] -> O[0, 0, o2, o0] : (16i0 + o0) mod 32 = 0 and 0 <= i0 <= 31 and 0 <= i1 <= 1 and -1 + i0 + 32i1 <= 2o2 <= i0 + 32i1 and 0 <= o0 <= 16 }
-access_W: { [i0, i1, i2 = 0] -> W_aligned[0, 0, 0, 0, o0 = 0] : 0 <= i0 <= 31 and 0 <= i1 <= 1 }
