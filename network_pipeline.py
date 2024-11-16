@@ -195,7 +195,7 @@ def run_network_pipeline(op_list, skew, macro_row, macro_col):
 def get_code_read_global(attr):
     assert "tensor_type" in  attr
     if attr["tensor_type"]=="weight":
-        dst_memory_type = "weight_memory"
+        dst_memory_type = "macro"
     elif attr["tensor_type"]=="feature":
         dst_memory_type = "input_memory"
     else:
@@ -587,8 +587,8 @@ if __name__=="__main__":
     # print(network_final_code)
 
     total_save_files = parse_noc_tasks(
-        '/home/wangyiou/Desktop/pim_compiler/playground/partition_0_resnet_instructions.json',
-        # '/home/wangyiou/Desktop/pim_compiler/playground/partition_2_extracted_model_instructions.json',
+        # '/home/wangyiou/Desktop/pim_compiler/playground/partition_0_resnet_instructions.json',
+        '/home/wangyiou/Desktop/pim_compiler/playground/partition_2_extracted_model_instructions.json',
         # "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", 
         ".save_core_code"
     )

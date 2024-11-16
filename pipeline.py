@@ -17,6 +17,7 @@ from multi_level_tiling import pre_tiling_pass, memory_tiling_pass
 import benchmark
 import json
 from config import get_config
+import tempfile
 
 def run_pipeline(op, skew, cim_cfg, save_dir):
     new_ops = [op]
@@ -94,9 +95,10 @@ if __name__=="__main__":
     # )
     skew = False
     virtual_axis = not skew
-    operator = benchmark.get_op_conv2d(b=2, oc=32, ic=32, oh=8, ow=8, kh=3, kw=3, stride=1, virtual_axis=virtual_axis)
+    operator = benchmark.get_op_conv2d(b=1, oc=64, ic=256, oh=16, ow=16, kh=3, kw=3, stride=2, virtual_axis=virtual_axis)
     # print(operator.access_W)
     # print(operator.access_W.intersect_domain(operator.domain))
     print(operator.domain.count_val())
     cim_cfg = get_config()
-    run_pipeline(operator, skew=skew, cim_cfg=cim_cfg)
+    temp_dir = tempfile.mkdtemp()
+    run_pipeline(operator, skew=skew, cim_cfg=cim_cfg, save_dir=temp_dir)
