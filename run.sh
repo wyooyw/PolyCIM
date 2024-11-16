@@ -1,5 +1,5 @@
-# input_file="/home/wangyiou/Desktop/pim_compiler/playground/.temp_save/0.cim"
-# output_path="/home/wangyiou/Desktop/pim_compiler/playground/.temp_output/"
-config_path="/home/wangyiou/project/cim_compiler_frontend/playground/config/config.json"
-cd /home/wangyiou/project/cim_compiler_frontend/playground
-bash compile.sh isa $input_file $output_path $config_path
+export BACKEND_COMPILER_HOME=/home/wangyiou/project/cim_compiler_frontend/playground
+
+python network_pipeline.py \
+--read-json instructions/partition_2_extracted_model_instructions.json \
+--save-dir ./.temp_save

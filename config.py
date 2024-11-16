@@ -11,8 +11,8 @@ class CIMConfig:
     n_macro: int
     n_macro_per_group: int
 
-
-config_json_path = "/home/wangyiou/Desktop/pim_compiler/playground/config.json"
+backend_compiler_base_path = os.environ.get("BACKEND_COMPILER_HOME")
+config_json_path = os.path.join(backend_compiler_base_path, "config/config.json")
 with open(config_json_path, "r") as f:
     config = json.load(f)
 

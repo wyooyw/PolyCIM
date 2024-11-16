@@ -763,7 +763,6 @@ def insert_single_buffer_single_level_pass(op_list, buffer_name, buffer_level):
 
 
 def parse_buffer_levels(op, buffer_levels):
-    print(f"{buffer_levels=}")
 
     n_domain_dim = op.domain.dim(isl.dim_type.set)
     new_buffer_levels = []

@@ -37,9 +37,7 @@ def backend_compile_and_profile_pass(op_list, save_dir=None):
             f.write(dsl)
 
         # run cim compiler
-        backend_compiler_base_path = (
-            "/home/wangyiou/project/cim_compiler_frontend/playground"
-        )
+        backend_compiler_base_path = os.environ.get("BACKEND_COMPILER_HOME")
         config_path = os.path.join(backend_compiler_base_path, "config/config.json")
         input_path = os.path.abspath(save_path_file)
         output_path = os.path.abspath(save_path_dir)

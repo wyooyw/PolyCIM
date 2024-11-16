@@ -9,7 +9,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined
 import op_define
 from config import get_config, get_memory_base, get_memory_size
 from pipeline import run_pipeline
-
+import argparse
 
 def get_final_code(result):
     final_code = os.path.join(result.save_path, "final_code.json")
@@ -240,9 +240,7 @@ def get_code_add(attr):
     - 21：input 3 address：input 3的起始地址
     - 22：input 4 address：input 4的起始地址
     """
-    print(f"add.attr.shape: {attr['shape']}")
     data_size = reduce(lambda x, y: x + y, attr["shape"])
-    print(f"{data_size=}")
     reg_input_1_addr = 1
     reg_input_2_addr = 2
     reg_data_size = 3
@@ -277,7 +275,6 @@ def get_code_conv2d(attr):
     """
     'X_shape': [1, 32, 224, 224], 'W_shape': [32, 3, 3, 3], 'padding': [1, 1, 1, 1], 'strides': [2, 2]
     """
-    print(attr)
     # import pdb; pdb.set_trace()
     batch, in_channel, in_height, in_width = attr["X_shape"]
     out_channel, in_channel, kernel_height, kernel_width = attr["W_shape"]
@@ -559,13 +556,11 @@ def parse_noc_tasks(json_path, code_save_path):
 
     total_save_files = []
     for core_name, stages in tasks.items():
-        print(f"{core_name=}")
         code_list = []
 
         code_list.extend(get_special_reg_set_code())
 
         for stage_id, stage in stages["stages"].items():
-            print(f"    {stage_id=}")
             code = parse_instructions(core_name, stage_id, stage["instructions"])
             code_list.extend(code)
 
@@ -580,8 +575,6 @@ def parse_noc_tasks(json_path, code_save_path):
         with open(core_code_save_path, "w") as f:
             json.dump(code_list, f, indent=2)
 
-    core_names = tasks.keys()
-    print(core_names)
     return total_save_files
 
 
@@ -613,32 +606,30 @@ def tidy_json_format(save_path, total_save_files):
         f.write(total_code_str)
 
 
-if __name__ == "__main__":
-    # op_list = [
-    #     op_define.get_op_conv2d(b=2, oc=8, ic=4, oh=8, ow=8, kh=3, kw=3, virtual_axis=True),
-    #     op_define.get_op_conv2d(b=2, oc=8, ic=8, oh=8, ow=8, kh=3, kw=3, virtual_axis=True)
-    # ]
-    # network_final_code = run_network_pipeline(op_list, skew=False, macro_row=16, macro_col=4)
-    # print(network_final_code)
+def main():
+    # use argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--read-json", type=str, help="read path")
+    parser.add_argument("--save-dir", type=str, help="save path")
+    args = parser.parse_args()
 
-    # read_path = "/home/wangyiou/Desktop/pim_compiler/playground/instructions/partition_2_resnet_instructions.json"
-    read_path = "/home/wangyiou/Desktop/pim_compiler/playground/instructions/partition_2_extracted_model_instructions.json"
-
+    each_core_save_dir = os.path.join(args.save_dir, "each_core")
     total_save_files = parse_noc_tasks(
-        # '/home/wangyiou/Desktop/pim_compiler/playground/partition_0_resnet_instructions.json',
-        # '/home/wangyiou/Desktop/pim_compiler/playground/partition_2_extracted_model_instructions.json',
-        read_path,
-        # "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json",
-        ".save_core_code",
+        args.read_json, 
+        each_core_save_dir
     )
 
-    save_file_name = os.path.basename(read_path)
+    save_file_name = os.path.basename(args.read_json)
     save_file_name = "isa_" + save_file_name
-    save_path = os.path.join(".package", save_file_name)
+    all_core_code_path = os.path.join(args.save_dir, save_file_name)
     tidy_json_format(
-        save_path,
-        total_save_files=[
-            f"/home/wangyiou/Desktop/pim_compiler/playground/.save_core_code/{i}.json"
-            for i in range(64)
-        ],
+        all_core_code_path,
+        total_save_files=total_save_files,
     )
+
+    print("Finish!")
+    print(f"{each_core_save_dir = }")
+    print(f"{all_core_code_path = }")
+
+if __name__ == "__main__":
+    main()
