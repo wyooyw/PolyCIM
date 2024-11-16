@@ -222,6 +222,27 @@ def multi_level_tiling_outer(operator, tiling_level, tiling_factors, inner_level
     new_operator = operator.apply_schedule(tiling_map, skip_simplify=True)
     return new_operator
 
+def reorder_outer(operator, inner_level):
+    n_domain_iter = operator.domain.dim(isl.dim_type.set)
+    n_outer_iter = n_domain_iter - inner_level
+
+    domain_iter_names = operator.domain.get_var_names(isl.dim_type.set)
+
+    outer_names = [ domain_iter_names[i] for i in range(n_outer_iter)]
+    inner_names = [ domain_iter_names[n_outer_iter + i] for i in range(inner_level)]
+
+    permutations = list(itertools.permutations(outer_names))
+
+    new_operator_list = []
+    # import pdb; pdb.set_trace()
+    for p in permutations:
+        reorder_schedule = isl.BasicMap(
+            f"{{ [{','.join(domain_iter_names)}] -> [{','.join(list(p) + inner_names)}] }}"
+        )
+        new_operator = operator.apply_schedule(reorder_schedule, skip_simplify=True)
+        new_operator_list.append(new_operator)
+
+    return new_operator_list
 
 def enumerate_tiling_factors_outer(operator, tiling_factor, inner_level=5):
     domain = operator.domain
@@ -243,10 +264,11 @@ def enumerate_tiling_factors_outer(operator, tiling_factor, inner_level=5):
     # exit()
     # dim_factors = dim_factors[::4]
     for combination in itertools.product(*dim_factors):
-        new_operator = multi_level_tiling_outer(
+        after_tile_operator = multi_level_tiling_outer(
             operator, tiling_factor, combination, inner_level
         )
-        yield new_operator
+        for new_operator in reorder_outer(after_tile_operator, inner_level):
+            yield new_operator
 
 
 def memory_tiling_pass(op_list):
