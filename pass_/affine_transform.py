@@ -11,8 +11,9 @@ import numpy as np
 import sympy
 from sympy import Matrix, lcm, nsimplify
 
-import mat_utils as inv
-import utils
+import utils.mat_utils as inv
+import utils.utils as utils
+
 from tqdm import tqdm
 from base_operator import BasicOperator
 

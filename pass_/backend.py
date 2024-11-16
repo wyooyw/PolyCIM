@@ -33,16 +33,21 @@ def backend_compile_and_profile_pass(op_list, save_dir=None):
             f.write(dsl)
 
         # run cim compiler
-        backend_compile_cmd = f"input_file={os.path.abspath(save_path_file)} output_path={os.path.abspath(save_path_dir)} bash run.sh "
-        os.system(backend_compile_cmd)
+        backend_compiler_base_path = "/home/wangyiou/project/cim_compiler_frontend/playground"
+        config_path=os.path.join(backend_compiler_base_path, "config/config.json")
+        input_path = os.path.abspath(save_path_file)
+        output_path = os.path.abspath(save_path_dir)
+       
+        cd_cmd = f"cd {backend_compiler_base_path}"
+        run_cmd = f"bash compile.sh isa {input_path} {output_path} {config_path}"
+        backend_compiler_cmd = f"{cd_cmd} && {run_cmd}"
+        os.system(backend_compiler_cmd)
 
         # run simulator to profile
         input_path = os.path.join(os.path.abspath(save_path_dir), "final_code.json")
         output_path = os.path.join(os.path.abspath(save_path_dir), "stats")
         os.makedirs(output_path, exist_ok=True)
-        config_path = "/home/wangyiou/project/cim_compiler_frontend/playground/config/config.json"
-        simulator_path = "/home/wangyiou/project/cim_compiler_frontend/playground"
-        cd_cmd = f"cd {simulator_path}"
+        cd_cmd = f"cd {backend_compiler_base_path}"
         run_cmd = f"python utils/simulate_and_stats.py --input {input_path} --output {output_path} --config {config_path}" 
         backend_simulator_cmd = f"{cd_cmd} && {run_cmd}"  
         os.system(backend_simulator_cmd) 

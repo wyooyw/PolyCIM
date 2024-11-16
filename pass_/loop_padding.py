@@ -1,7 +1,7 @@
 import islpy as isl
 from base_operator import BasicOperator
 from config import get_config
-import utils
+import utils.utils as utils
 
 def loop_padding(op, _):
     

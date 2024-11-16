@@ -1,5 +1,5 @@
 import islpy as isl
-import utils
+import utils.utils as utils
 from base_operator import BasicOperator, DataMovementOperator, AccessRelation, TensorAccessRelation, DataMovement
 from tqdm import tqdm
 

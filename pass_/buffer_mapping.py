@@ -1,11 +1,11 @@
 import islpy as isl
-from utils import (
+from utils.utils import (
     get_box_hull_shape,
     rename_all_dims_for_basic_set,
     rename_all_dims_for_basic_map,
     rename_out_dims_for_basic_map
 )
-import utils
+import utils.utils as utils
 from base_operator import BasicOperator, DataMovementOperator, DataMovement, AccessRelation
 from tqdm import tqdm
 from functools import reduce

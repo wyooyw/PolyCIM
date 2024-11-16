@@ -3,7 +3,7 @@ import islpy as isl
 import islpy as isl
 from dataclasses import dataclass
 from base_operator import DataMovementOperator, DataMovement, TensorAccessRelation
-import utils
+import utils.utils as utils
 from tqdm import tqdm
 import os
 from config import get_config

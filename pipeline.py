@@ -1,19 +1,19 @@
 from base_operator import BasicOperator
-from affine_transform import auto_skewing_pass
+from pass_.affine_transform import auto_skewing_pass
 # from hardware_merge_tiling import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
-from hardware_merge_tiling_4d_macro import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
+from pass_.hardware_merge_tiling_4d_macro import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
 import islpy as isl
-from buffer_mapping import (
+from pass_.buffer_mapping import (
     insert_single_buffer_single_level_pass,
     insert_single_buffer_multi_level_pass,
     multi_level_buffer_insersion_pass,
     filter_op_by_memory_access_cost_pass
 )
-from codegen import codegen_pass
-from loop_padding import loop_padding_pass
-from tensorize import tensorize_pass
-from backend import backend_compile_and_profile_pass
-from multi_level_tiling import pre_tiling_pass, memory_tiling_pass
+from pass_.codegen import codegen_pass
+from pass_.loop_padding import loop_padding_pass
+from pass_.tensorize import tensorize_pass
+from pass_.backend import backend_compile_and_profile_pass
+from pass_.multi_level_tiling import pre_tiling_pass, memory_tiling_pass
 import benchmark
 import json
 from config import get_config

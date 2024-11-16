@@ -1,5 +1,5 @@
 import islpy as isl
-import utils
+import utils.utils as utils
 from base_operator import BasicOperator
 from itertools import combinations
 import math

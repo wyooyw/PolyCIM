@@ -1,4 +1,4 @@
-import utils
+import utils.utils as utils
 import islpy as isl
 
 class AccessRelation:

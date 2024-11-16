@@ -551,7 +551,7 @@ def parse_noc_tasks(json_path, code_save_path):
     return total_save_files
 
 
-def tidy_json_format(save_dir, total_save_files):
+def tidy_json_format(save_path, total_save_files):
     total_code_str = "{"
     for core_idx,file_path in enumerate(total_save_files):
         file_name_with_extension = os.path.basename(file_path)
@@ -575,7 +575,7 @@ def tidy_json_format(save_dir, total_save_files):
         total_code_str += "\n"
     total_code_str += "}"
 
-    with open(os.path.join(save_dir, "code.json"), "w") as f:
+    with open(save_path, "w") as f:
         f.write(total_code_str)
 
 if __name__=="__main__":
@@ -586,10 +586,18 @@ if __name__=="__main__":
     # network_final_code = run_network_pipeline(op_list, skew=False, macro_row=16, macro_col=4)
     # print(network_final_code)
 
+    # read_path = "/home/wangyiou/Desktop/pim_compiler/playground/instructions/partition_2_resnet_instructions.json"
+    read_path = "/home/wangyiou/Desktop/pim_compiler/playground/instructions/partition_2_extracted_model_instructions.json"
+
     total_save_files = parse_noc_tasks(
         # '/home/wangyiou/Desktop/pim_compiler/playground/partition_0_resnet_instructions.json',
-        '/home/wangyiou/Desktop/pim_compiler/playground/partition_2_extracted_model_instructions.json',
+        # '/home/wangyiou/Desktop/pim_compiler/playground/partition_2_extracted_model_instructions.json',
+        read_path,
         # "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", 
         ".save_core_code"
     )
-    tidy_json_format(".package", total_save_files=[f"/home/wangyiou/Desktop/pim_compiler/playground/.save_core_code/{i}.json" for i in range(64)])
+
+    save_file_name = os.path.basename(read_path)
+    save_file_name = "isa_" + save_file_name
+    save_path = os.path.join(".package", save_file_name)
+    tidy_json_format(save_path, total_save_files=[f"/home/wangyiou/Desktop/pim_compiler/playground/.save_core_code/{i}.json" for i in range(64)])

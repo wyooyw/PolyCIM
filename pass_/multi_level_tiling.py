@@ -1,6 +1,6 @@
 import islpy as isl
 from base_operator import BasicOperator
-import utils
+import utils.utils as utils
 import itertools
 
 def multiply(factors):
@@ -210,8 +210,8 @@ def enumerate_tiling_factors_outer(operator, tiling_factor, inner_level=5):
         # factors = filter_factors(factors)
         factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
         # print(f"{len(factors)=}, {factors=}")
-        if len(factors) > 8:
-            factors = factors[::4]
+        # if len(factors) > 8:
+        #     factors = factors[::4]
         dim_factors.append(factors)
     # import pdb; pdb.set_trace()
     # exit()
