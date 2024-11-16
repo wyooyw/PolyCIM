@@ -257,12 +257,19 @@ def filter_op_by_execution_time_pass(op_list):
         return op_list
 
     exe_time_list = []
+    n_div_list = []
+    time_list = []
+
     for idx,op in enumerate(tqdm(op_list)):
+        begin = time.time()
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
         exe_time = int(str(outer_domain.count_val()))
         exe_time_list.append(exe_time)
-
+        end = time.time()
+        time_list.append(end - begin)
+        n_div_list.append(outer_domain.dim(isl.dim_type.div))
+    import pdb; pdb.set_trace()
     exe_time_list = np.array(exe_time_list)
     sorted_indices = np.argsort(exe_time_list)
 
@@ -338,14 +345,14 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
                 print(f"    {op.domain=}")
                 print(f"    {merge_schedule=}")
                 print("")
-            if op_idx>=108 and idx==5:
-                print(f"{op_idx=}, {idx=}")
-                merge_shedule = isl.BasicMap("{ [s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = s1 and o1 = s2 and o2 = s3 and o3 = s4 and o4 = s5 and o5 = s6 and o6 = 7s7+s0 and o7 = 2s9 + s8 }")
-                import pdb; pdb.set_trace()
+            # if op_idx>=108 and idx==5:
+            #     print(f"{op_idx=}, {idx=}")
+            #     merge_shedule = isl.BasicMap("{ [s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = s1 and o1 = s2 and o2 = s3 and o3 = s4 and o4 = s5 and o5 = s6 and o6 = 7s7+s0 and o7 = 2s9 + s8 }")
+            #     import pdb; pdb.set_trace()
             new_op = op.apply_schedule(merge_schedule, skip_simplify=True)
-            new_op = new_op.convex_hull() 
+            # new_op = new_op.convex_hull() 
             new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
-            new_op = new_op.convex_hull() 
+            # new_op = new_op.convex_hull() 
             new_op_list.append(new_op)
 
             if len(new_op_list) % 8 == 0:
