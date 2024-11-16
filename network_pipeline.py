@@ -1,5 +1,5 @@
 from pipeline import run_pipeline
-import benchmark
+import op_define
 import os
 import json
 from functools import reduce
@@ -287,7 +287,7 @@ def get_code_conv2d(attr):
         result = cache_conv2d_result[cache_key]
     else:
         temp_dir = tempfile.mkdtemp()
-        operator = benchmark.get_op_conv2d(b=batch, oc=out_channel, ic=in_channel, oh=out_h, ow=out_w, kh=kernel_height, kw=kernel_width, stride=stride, virtual_axis=True)
+        operator = op_define.get_op_conv2d(b=batch, oc=out_channel, ic=in_channel, oh=out_h, ow=out_w, kh=kernel_height, kw=kernel_width, stride=stride, virtual_axis=True)
         result = run_pipeline(operator, skew=False, cim_cfg=get_config(), save_dir=temp_dir)
         assert len(result) > 0, f"Fail when generating conv2d code. {attr=}"
         assert result[0].stats is not None, f"Fail when generating conv2d code. {attr=}"
@@ -580,8 +580,8 @@ def tidy_json_format(save_path, total_save_files):
 
 if __name__=="__main__":
     # op_list = [
-    #     benchmark.get_op_conv2d(b=2, oc=8, ic=4, oh=8, ow=8, kh=3, kw=3, virtual_axis=True),
-    #     benchmark.get_op_conv2d(b=2, oc=8, ic=8, oh=8, ow=8, kh=3, kw=3, virtual_axis=True)
+    #     op_define.get_op_conv2d(b=2, oc=8, ic=4, oh=8, ow=8, kh=3, kw=3, virtual_axis=True),
+    #     op_define.get_op_conv2d(b=2, oc=8, ic=8, oh=8, ow=8, kh=3, kw=3, virtual_axis=True)
     # ]
     # network_final_code = run_network_pipeline(op_list, skew=False, macro_row=16, macro_col=4)
     # print(network_final_code)

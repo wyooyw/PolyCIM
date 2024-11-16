@@ -14,7 +14,7 @@ from pass_.loop_padding import loop_padding_pass
 from pass_.tensorize import tensorize_pass
 from pass_.backend import backend_compile_and_profile_pass
 from pass_.multi_level_tiling import pre_tiling_pass, memory_tiling_pass
-import benchmark
+import op_define
 import json
 from config import get_config
 import tempfile
@@ -95,7 +95,7 @@ if __name__=="__main__":
     # )
     skew = False
     virtual_axis = not skew
-    operator = benchmark.get_op_conv2d(b=1, oc=64, ic=256, oh=16, ow=16, kh=3, kw=3, stride=2, virtual_axis=virtual_axis)
+    operator = op_define.get_op_conv2d(b=1, oc=64, ic=256, oh=16, ow=16, kh=3, kw=3, stride=2, virtual_axis=virtual_axis)
     # print(operator.access_W)
     # print(operator.access_W.intersect_domain(operator.domain))
     print(operator.domain.count_val())

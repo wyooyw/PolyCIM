@@ -1,6 +1,6 @@
 import pytest
 from config import get_config
-import benchmark
+import op_define
 from pipeline import run_pipeline
 import tempfile
 
@@ -18,7 +18,7 @@ def test_conv2d(op_config):
 
     skew = False
     virtual_axis = not skew
-    operator = benchmark.get_op_conv2d(b=b, oc=oc, ic=ic, oh=oh, ow=ow, kh=kh, kw=kw, stride=stride, virtual_axis=virtual_axis)
+    operator = op_define.get_op_conv2d(b=b, oc=oc, ic=ic, oh=oh, ow=ow, kh=kh, kw=kw, stride=stride, virtual_axis=virtual_axis)
     flops = int(str(operator.domain.count_val()))
     cim_cfg = get_config()
     total_cell = cim_cfg.n_row * cim_cfg.n_group_vcol * cim_cfg.n_group
