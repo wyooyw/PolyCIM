@@ -52,7 +52,7 @@
             "name": "pim_output_reg_buffer",
             "type": "reg_buffer",
             "addressing": {
-                "size_byte": 4096,
+                "size_byte": 8192,
                 "comments": "offset: 256 * 1024 Byte, size: 0.5 * 1024 * 2 Byte",
                 "offset_byte": 1311744
             }
@@ -63,7 +63,7 @@
             "addressing": {
                 "size_byte": 33554432,
                 "comments": "size: 16MB",
-                "offset_byte": 1315840
+                "offset_byte": 1319936
             }
         }
     ]

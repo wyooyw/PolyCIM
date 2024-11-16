@@ -44,7 +44,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     new_ops = tensorize_pass(new_ops)
     new_ops = codegen_pass(new_ops)
     result_list = backend_compile_and_profile_pass(new_ops, save_dir)
-
+    # exit()
     return result_list
 
 
