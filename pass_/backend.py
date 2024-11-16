@@ -48,13 +48,16 @@ def backend_compile_and_profile_pass(op_list, save_dir=None):
         os.system(backend_compiler_cmd)
 
         # run simulator to profile
-        input_path = os.path.join(os.path.abspath(save_path_dir), "final_code.json")
-        output_path = os.path.join(os.path.abspath(save_path_dir), "stats")
-        os.makedirs(output_path, exist_ok=True)
-        cd_cmd = f"cd {backend_compiler_base_path}"
-        run_cmd = f"python utils/simulate_and_stats.py --input {input_path} --output {output_path} --config {config_path}"
-        backend_simulator_cmd = f"{cd_cmd} && {run_cmd}"
-        os.system(backend_simulator_cmd)
+        run_simulator = os.environ.get("RUN_BEHAVIOR_SIMULATOR_FOR_CONV")
+        assert run_simulator in ["0", "1"], f"{run_simulator=}"
+        if run_simulator=="1":
+            input_path = os.path.join(os.path.abspath(save_path_dir), "final_code.json")
+            output_path = os.path.join(os.path.abspath(save_path_dir), "stats")
+            os.makedirs(output_path, exist_ok=True)
+            cd_cmd = f"cd {backend_compiler_base_path}"
+            run_cmd = f"python utils/simulate_and_stats.py --input {input_path} --output {output_path} --config {config_path}"
+            backend_simulator_cmd = f"{cd_cmd} && {run_cmd}"
+            os.system(backend_simulator_cmd)
 
         # save op info
         dump_op_basic_info(op, os.path.join(save_path_dir, "op_info.txt"))

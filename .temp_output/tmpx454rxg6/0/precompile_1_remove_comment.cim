@@ -1,0 +1,83 @@
+#define SPECIAL_REG_INPUT_BIT_WIDTH 0
+#define SPECIAL_REG_OUTPUT_BIT_WIDTH 1
+#define SPECIAL_REG_WEIGHT_BIT_WIDTH 2
+#define SPECIAL_REG_GROUP_SIZE 3
+#define SPECIAL_REG_ACTIVATION_GROUP_NUM 4
+#define SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM 5
+#define SPECIAL_REG_GROUP_INPUT_STEP 6
+#define SPECIAL_REG_GROUP_INPUT_OFFSET_ADDR 6
+#define SPECIAL_REG_VALUE_SPARSE_MASK_ADDR 7
+#define SPECIAL_REG_BIT_SPARSE_META_ADDR 8
+
+#define SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH 16
+#define SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH 17
+#define SPECIAL_REG_SIMD_INPUT_3_BIT_WIDTH 18
+#define SPECIAL_REG_SIMD_INPUT_4_BIT_WIDTH 19
+#define SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH 20
+
+#define SPECIAL_REG_SIMD_EXTRA_INPUT_ADDR_1 21
+#define SPECIAL_REG_SIMD_EXTRA_INPUT_ADDR_2 22
+def main(null<int8>) {
+    SpecialRegSet(SPECIAL_REG_INPUT_BIT_WIDTH, 8);
+    SpecialRegSet(SPECIAL_REG_WEIGHT_BIT_WIDTH, 8);
+    SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 32);
+    SpecialRegSet(SPECIAL_REG_GROUP_SIZE, 8);
+    SpecialRegSet(SPECIAL_REG_ACTIVATION_GROUP_NUM, 16);
+    SpecialRegSet(SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM, 64);
+    SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, 32);
+    SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 8);
+    SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 8);
+    SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 32);
+    I_aligned_2 = Buffer(<32,8,2>, int8, __PIM_INPUT_REG_BUFFER__);
+    W_aligned = Buffer(<16,32,8,2,64>, int8, __MACRO__);
+    O = Buffer(<1,64,32,32>, int8, __GLOBAL__);
+    I_aligned = Buffer(<128,16,32,8,2>, int8, __INPUT_MEMORY__);
+    ob_ = 0;
+    pb_ = 127;
+    qb_ = pb_ + 1;
+    for c0 in range(ob_, qb_, 1) carry (null) {
+        rb_ = 0;
+        sb_ = 15;
+        tb_ = sb_ + 1;
+        for c1 in range(rb_, tb_, 1) carry (null) {
+            ub_ = 0;
+            vb_ = 0;
+            wb_ = 0;
+            xb_ = 0;
+            yb_ = 0;
+            zb_ = 1;
+            ac_ = 1;
+            bc_ = 32;
+            cc_ = 8;
+            dc_ = 2;
+            ec_ = Slice(I_aligned, [ub_,vb_,wb_,xb_,yb_], [zb_,ac_,bc_,cc_,dc_], [1,1,1,1,1]);
+            fc_ = 0;
+            gc_ = 0;
+            hc_ = 0;
+            ic_ = 32;
+            jc_ = 8;
+            kc_ = 2;
+            lc_ = Slice(I_aligned_2, [fc_,gc_,hc_], [ic_,jc_,kc_], [1,1,1]);
+            Trans(ec_, lc_);
+            mc_ = 0;
+            nc_ = 0;
+            oc_ = 0;
+            pc_ = 32;
+            qc_ = 8;
+            rc_ = 2;
+            sc_ = Slice(I_aligned_2, [mc_,nc_,oc_], [pc_,qc_,rc_], [1,1,1]);
+            tc_ = 0;
+            uc_ = 0;
+            vc_ = 0;
+            wc_ = 0;
+            xc_ = 0;
+            yc_ = 1;
+            zc_ = 32;
+            ad_ = 8;
+            bd_ = 2;
+            cd_ = 64;
+            dd_ = Slice(W_aligned, [tc_,uc_,vc_,wc_,xc_], [yc_,zc_,ad_,bd_,cd_], [1,1,1,1,1]);
+            CIMComputeDense(sc_, dd_);
+        };
+    };
+}

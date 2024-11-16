@@ -1,0 +1,5 @@
+n_compute: 2048
+domain: { [i0, i1] : 0 <= i0 <= 127 and 0 <= i1 <= 15 }
+access_I: { [i0, i1] -> I_aligned_2[0, 0, 0] : 0 <= i0 <= 127 and 0 <= i1 <= 15 }
+access_O: { [i0, i1] -> O[0, 0, o2, o0] : (-8i0 + o0) mod 32 = 0 and 0 <= i0 <= 127 and 0 <= i1 <= 15 and -3 + i0 <= 4o2 <= i0 and 0 <= o0 <= 24 and 4*floor((-i0)/4) < -i0; [i0, i1] -> O[0, 0, o2, o0 = 0] : 4o2 = i0 and 0 <= i0 <= 127 and 0 <= i1 <= 15 }
+access_W: { [i0, i1] -> W_aligned[i1, 0, 0, 0, o0 = 0] : 0 <= i0 <= 127 and 0 <= i1 <= 15 }

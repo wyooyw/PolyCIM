@@ -270,7 +270,7 @@ def get_code_add(attr):
 cache_conv2d_result = dict()
 
 
-def get_code_conv2d(attr):
+def get_code_conv2d(attr, cache_dir):
     global cache_conv2d_result
     """
     'X_shape': [1, 32, 224, 224], 'W_shape': [32, 3, 3, 3], 'padding': [1, 1, 1, 1], 'strides': [2, 2]
@@ -298,7 +298,8 @@ def get_code_conv2d(attr):
     if cache_key in cache_conv2d_result:
         result = cache_conv2d_result[cache_key]
     else:
-        temp_dir = tempfile.mkdtemp()
+        # with tempfile.TemporaryDirectory() as temp_dir:
+        temp_dir = tempfile.mkdtemp(dir=cache_dir)
         operator = op_define.get_op_conv2d(
             b=batch,
             oc=out_channel,
@@ -314,7 +315,8 @@ def get_code_conv2d(attr):
             operator, skew=False, cim_cfg=get_config(), save_dir=temp_dir
         )
         assert len(result) > 0, f"Fail when generating conv2d code. {attr=}"
-        assert result[0].stats is not None, f"Fail when generating conv2d code. {attr=}"
+        if os.environ.get("RUN_BEHAVIOR_SIMULATOR_FOR_CONV") == "1":
+            assert result[0].stats is not None, f"Fail when generating conv2d code. {attr=}"
         cache_conv2d_result[cache_key] = result
 
     # read code from result
@@ -460,7 +462,7 @@ def get_unique_id_from_unique_name(unique_name):
         return unique_name_to_unqiue_id[unique_name]
 
 
-def parse_instructions(core_name, stage_id, instructions):
+def parse_instructions(core_name, stage_id, instructions, cache_dir):
     code_list = []
     max_data_size = 0
     max_shape = None
@@ -473,7 +475,7 @@ def parse_instructions(core_name, stage_id, instructions):
         elif instruction["op"] == "write":
             code = get_code_write_global(instruction["attr"])
         elif instruction["op"] == "conv":
-            code = get_code_conv2d(instruction["attr"])
+            code = get_code_conv2d(instruction["attr"], cache_dir)
         elif instruction["op"] == "depthwise_conv":
             code = get_dwcode_conv2d(instruction["attr"])
         elif instruction["op"] in ("send", "send_ring"):
@@ -524,7 +526,7 @@ def get_special_reg_set_code():
     return [code_simd_add1, code_simd_add2, code_simd_out]
 
 
-def parse_noc_tasks(json_path, code_save_path):
+def parse_noc_tasks(json_path, code_save_path, cache_dir):
     """
     {
     "core_0_0": {
@@ -561,7 +563,7 @@ def parse_noc_tasks(json_path, code_save_path):
         code_list.extend(get_special_reg_set_code())
 
         for stage_id, stage in stages["stages"].items():
-            code = parse_instructions(core_name, stage_id, stage["instructions"])
+            code = parse_instructions(core_name, stage_id, stage["instructions"], cache_dir)
             code_list.extend(code)
 
         # padding, forbidden branch code be last codes
@@ -614,10 +616,12 @@ def main():
     args = parser.parse_args()
 
     each_core_save_dir = os.path.join(args.save_dir, "each_core")
-    total_save_files = parse_noc_tasks(
-        args.read_json, 
-        each_core_save_dir
-    )
+    with tempfile.TemporaryDirectory() as cache_dir:
+        total_save_files = parse_noc_tasks(
+            args.read_json, 
+            each_core_save_dir,
+            cache_dir
+        )
 
     save_file_name = os.path.basename(args.read_json)
     save_file_name = "isa_" + save_file_name
