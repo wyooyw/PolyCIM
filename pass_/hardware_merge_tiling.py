@@ -1,12 +1,15 @@
-import islpy as isl
-import utils.utils as utils
-from base_operator import BasicOperator
-from itertools import combinations
 import math
-from collections import OrderedDict
 import pdb
+from collections import OrderedDict
+from itertools import combinations
+
+import islpy as isl
 import numpy as np
 from tqdm import tqdm
+
+import utils.utils as utils
+from base_operator import BasicOperator
+
 
 def get_cim_operator(n_rows, n_cols):
     cim_operator = BasicOperator(
@@ -17,9 +20,10 @@ def get_cim_operator(n_rows, n_cols):
     )
     return cim_operator
 
+
 def get_access_bitmap(op):
     """
-        Order: [output, Input, Weight]
+    Order: [output, Input, Weight]
     """
     I_index_set = utils.extract_index_set(op.access_I)
     W_index_set = utils.extract_index_set(op.access_W)
@@ -28,19 +32,23 @@ def get_access_bitmap(op):
     bitmap = OrderedDict(sorted(bitmap.items(), key=lambda x: int(x[0][1:])))
     return bitmap
 
-def map_software_index_to_hardware_index(software_access_bitmap, hardware_access_bitmap):
+
+def map_software_index_to_hardware_index(
+    software_access_bitmap, hardware_access_bitmap
+):
     def rename_access_bitmap(access_bitmap, char):
         new_bitmap = OrderedDict()
         for key, value in access_bitmap.items():
-            new_bitmap[char+key[1]] = tuple(value)
+            new_bitmap[char + key[1]] = tuple(value)
         return new_bitmap
+
     software_access_bitmap = rename_access_bitmap(software_access_bitmap, "s")
     hardware_access_bitmap = rename_access_bitmap(hardware_access_bitmap, "h")
     mapping = OrderedDict()
-    for skey,svalue in software_access_bitmap.items():
-        for hkey,hvalue in hardware_access_bitmap.items():
+    for skey, svalue in software_access_bitmap.items():
+        for hkey, hvalue in hardware_access_bitmap.items():
             if svalue == hvalue:
-                _mapping = mapping.get(svalue, [set(),set()])
+                _mapping = mapping.get(svalue, [set(), set()])
                 _mapping[0].add(skey)
                 _mapping[1].add(hkey)
                 mapping[svalue] = _mapping
@@ -48,7 +56,9 @@ def map_software_index_to_hardware_index(software_access_bitmap, hardware_access
     h2s_mapping = OrderedDict()
     for software_indexs, hardware_indexs in mapping.values():
         assert len(hardware_indexs) == 1
-        h2s_mapping[hardware_indexs.pop()] = sorted(software_indexs, key=lambda x: int(x[1:]))
+        h2s_mapping[hardware_indexs.pop()] = sorted(
+            software_indexs, key=lambda x: int(x[1:])
+        )
 
     for hardware_index in hardware_access_bitmap.keys():
         if hardware_index not in h2s_mapping:
@@ -58,20 +68,24 @@ def map_software_index_to_hardware_index(software_access_bitmap, hardware_access
 
     return h2s_mapping
 
+
 def generate_combinations(elements):
     all_combinations = []
     n = len(elements)
-    for r in range(1, n+1):
+    for r in range(1, n + 1):
         combinations_r = combinations(elements, r)
         all_combinations.extend(combinations_r)
     return all_combinations
 
+
 def sort_by_name(obj):
     return sorted(obj, key=lambda x: int(x[1:]))
+
 
 def generate_combinations_exclude(elements, exclude):
     elements = sort_by_name(set(elements) - set(exclude))
     return generate_combinations(elements)
+
 
 def get_all_software_to_hardware_index_mapping(h2s_mapping):
     """
@@ -93,29 +107,34 @@ def get_all_software_to_hardware_index_mapping(h2s_mapping):
     visited_s_axis = set()
     current_mapping = dict()
     all_mapping = []
+
     def dfs(step, visited_s_axis):
         if step == len(hardware_indexs):
             all_mapping.append(current_mapping.copy())
             return
         h_axis = hardware_indexs[step]
-        
-        for s_axis_combine in generate_combinations_exclude(h2s_mapping[h_axis], visited_s_axis):
-            
+
+        for s_axis_combine in generate_combinations_exclude(
+            h2s_mapping[h_axis], visited_s_axis
+        ):
+
             # ipdb.set_trace()
             visited_s_axis = visited_s_axis.union(set(s_axis_combine))
             current_mapping[h_axis] = s_axis_combine
-            dfs(step+1, visited_s_axis)
+            dfs(step + 1, visited_s_axis)
             current_mapping[h_axis] = None
             visited_s_axis = visited_s_axis - set(s_axis_combine)
+
     dfs(0, visited_s_axis)
     return all_mapping
+
 
 def get_schedule_from_mapping(mapping, software_op):
     """
     mapping:  {'h0': ('s1',), 'h1': ('s4', 's5')}
     scheudle: { [s0, s1, s2, s3, s4, s5] -> [s0, s2, s3, s1, 3s4 + s5] }
     """
-    new_domain = utils.rename_all_dims_for_basic_set(software_op.domain,'s')
+    new_domain = utils.rename_all_dims_for_basic_set(software_op.domain, "s")
     # print(mapping)
     bounds = utils.get_bound_for_all_dims(new_domain)
     schedule_range = list()
@@ -131,14 +150,14 @@ def get_schedule_from_mapping(mapping, software_op):
     # s_axis_not_in_mapping = set(bounds.keys()) - s_axis_in_mapping
     # s_axis_not_in_mapping = sort_by_name(s_axis_not_in_mapping)
     # schedule_range.extend(s_axis_not_in_mapping)
-    
+
     # Put the axis in mapping to the back
     def merge(axis_list, bounds):
         for i, axis in enumerate(axis_list):
-            if i==0:
+            if i == 0:
                 result = axis_list[0]
             else:
-                last_axis_upperbound = int(math.ceil(bounds[axis_list[i]][1]+1))
+                last_axis_upperbound = int(math.ceil(bounds[axis_list[i]][1] + 1))
                 result = f"({result}) * {last_axis_upperbound} + {axis}"
         return result
 
@@ -150,39 +169,55 @@ def get_schedule_from_mapping(mapping, software_op):
     # print(schedule_range)
     # Make the schedule
     s_axis_sorted = sort_by_name(bounds.keys())
-    schedule = isl.BasicMap("{ [%s] -> [%s] }" % (",".join(s_axis_sorted), ",".join(schedule_range)))
+    schedule = isl.BasicMap(
+        "{ [%s] -> [%s] }" % (",".join(s_axis_sorted), ",".join(schedule_range))
+    )
 
     return schedule
 
+
 def _get_hardware_tiling_schedule(n_software_dim, tiling_factor):
-    assert type(tiling_factor)==list
+    assert type(tiling_factor) == list
     assert len(tiling_factor) <= n_software_dim
     n_hardware_dim = len(tiling_factor)
     schedule_range = list()
-    for i in range(n_software_dim- n_hardware_dim):
+    for i in range(n_software_dim - n_hardware_dim):
         schedule_range.append(f"s{i}")
-    for i in range(n_software_dim- n_hardware_dim, n_software_dim):
-        schedule_range.append(f"floor(s{i}/{tiling_factor[i-(n_software_dim- n_hardware_dim)]})")
-    for i in range(n_software_dim- n_hardware_dim, n_software_dim):
-        schedule_range.append(f"s{i}%{tiling_factor[i-(n_software_dim- n_hardware_dim)]}")
+    for i in range(n_software_dim - n_hardware_dim, n_software_dim):
+        schedule_range.append(
+            f"floor(s{i}/{tiling_factor[i-(n_software_dim- n_hardware_dim)]})"
+        )
+    for i in range(n_software_dim - n_hardware_dim, n_software_dim):
+        schedule_range.append(
+            f"s{i}%{tiling_factor[i-(n_software_dim- n_hardware_dim)]}"
+        )
     schedule_domain = list()
     for i in range(n_software_dim):
         schedule_domain.append(f"s{i}")
-    schedule = isl.BasicMap("{ [%s] -> [%s] }" % (",".join(schedule_domain), ",".join(schedule_range)))
+    schedule = isl.BasicMap(
+        "{ [%s] -> [%s] }" % (",".join(schedule_domain), ",".join(schedule_range))
+    )
     return schedule
+
 
 def get_hardware_tiling_schedule(software_schedule, tiling_factor):
     n_software_dim = software_schedule.range().as_set().n_dim()
-    hardware_tiling_schedule = _get_hardware_tiling_schedule(n_software_dim, tiling_factor)
+    hardware_tiling_schedule = _get_hardware_tiling_schedule(
+        n_software_dim, tiling_factor
+    )
     return hardware_tiling_schedule
+
 
 def hardware_tiling(all_schedule, tiling_factors):
     new_schedules = []
     for schedule in all_schedule:
-        hardware_tiling_schedule = get_hardware_tiling_schedule(schedule, tiling_factors)
+        hardware_tiling_schedule = get_hardware_tiling_schedule(
+            schedule, tiling_factors
+        )
         # schedule = schedule.apply_range(hardware_tiling_schedule)
         new_schedules.append((schedule, hardware_tiling_schedule))
     return new_schedules
+
 
 def hardware_merge_tiling(op, macro_row, macro_col):
     n_rows = macro_row
@@ -190,20 +225,25 @@ def hardware_merge_tiling(op, macro_row, macro_col):
     cim_op = get_cim_operator(n_rows, n_cols)
     software_access_bitmap = get_access_bitmap(op)
     hardware_access_bitmap = get_access_bitmap(cim_op)
-    
-    mapping = map_software_index_to_hardware_index(software_access_bitmap, hardware_access_bitmap)
-    if mapping is None: 
+
+    mapping = map_software_index_to_hardware_index(
+        software_access_bitmap, hardware_access_bitmap
+    )
+    if mapping is None:
         return None
     all_mapping = get_all_software_to_hardware_index_mapping(mapping)
     all_schedules = [get_schedule_from_mapping(mapping, op) for mapping in all_mapping]
     for schedule in all_schedules:
-        assert schedule.intersect_domain(op.domain).reverse().is_single_valued(), f"{schedule} should not be single valued!"
-    
+        assert (
+            schedule.intersect_domain(op.domain).reverse().is_single_valued()
+        ), f"{schedule} should not be single valued!"
+
     all_schedules = hardware_tiling(all_schedules, [n_rows, n_cols])
     # for schedule in all_schedules:
     #     assert schedule.intersect_domain(op.domain).reverse().is_single_valued(), f"{schedule} should be single valued!"
     # exit()
     return all_schedules
+
 
 def filter_op_by_execution_time_pass(op_list):
     if len(op_list) == 0:
@@ -224,7 +264,7 @@ def filter_op_by_execution_time_pass(op_list):
     new_op_list_execution_time = []
     min_value = exe_time_list[sorted_indices[0]]
     num_ops = len(op_list)
-    for i,index in enumerate(sorted_indices):
+    for i, index in enumerate(sorted_indices):
         if i < 3 or exe_time_list[index] == min_value:
             new_op_list.append(op_list[index])
             new_op_list_execution_time.append(exe_time_list[index])
@@ -237,7 +277,8 @@ def filter_op_by_execution_time_pass(op_list):
         # print("------------------------------------\n")
     new_op_list_execution_time = np.array(new_op_list_execution_time)
 
-    print(f"""
+    print(
+        f"""
 [filter_op_by_execution_time_pass]:
     {len(op_list)} ops input.
         Execution time: 
@@ -250,9 +291,11 @@ def filter_op_by_execution_time_pass(op_list):
             min={new_op_list_execution_time.min()}, 
             mean={int(new_op_list_execution_time.mean())},
             all={new_op_list_execution_time} .
-""")
+"""
+    )
 
     return new_op_list
+
 
 def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     new_op_list = []
@@ -261,36 +304,39 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
         assert op.access_I.is_single_valued(), f"{op.access_I} should be single valued!"
         assert op.access_W.is_single_valued(), f"{op.access_W} should be single valued!"
         assert op.access_O.is_single_valued(), f"{op.access_O} should be single valued!"
-        
+
         schedules = hardware_merge_tiling(op, macro_row, macro_col)
         if schedules is None:
             schedule_fail_op_cnt += 1
             continue
         # print("-------------------------------------")
-        for idx,(merge_schedule, tile_schedule) in enumerate(schedules):
+        for idx, (merge_schedule, tile_schedule) in enumerate(schedules):
             # print(f"{idx=}")
             # print(f"{merge_schedule=}")
             # print(f"{tile_schedule=}")
             # print("-------------------------------------")
-            new_op = op.apply_schedule(merge_schedule, skip_simplify=True)            
+            new_op = op.apply_schedule(merge_schedule, skip_simplify=True)
             new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
             new_op_list.append(new_op)
-    print(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")
+    print(
+        f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output."
+    )
     return new_op_list
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     operator = BasicOperator(
-        domain = isl.BasicSet(
+        domain=isl.BasicSet(
             "{ [oc,oh,ow,kh,kw]: 0 <= oc < 64 and 0<=oh<64 and 0<=ow<64 and 0<=kh<3 and 0<=kw<3 }"
         ),
-        access_I = isl.BasicMap("{ [oc,oh,ow,kh,kw] -> I[oh + kh, ow + kw] }"),
-        access_O = isl.BasicMap("{ [oc,oh,ow,kh,kw] -> O[oc, oh, ow] }"),
-        access_W = isl.BasicMap("{ [oc,oh,ow,kh,kw] -> W[oc, kh, kw] }"),
+        access_I=isl.BasicMap("{ [oc,oh,ow,kh,kw] -> I[oh + kh, ow + kw] }"),
+        access_O=isl.BasicMap("{ [oc,oh,ow,kh,kw] -> O[oc, oh, ow] }"),
+        access_W=isl.BasicMap("{ [oc,oh,ow,kh,kw] -> W[oc, kh, kw] }"),
     )
 
     new_ops = hardware_merge_tiling_pass([operator])
     # filter_op_by_execution_time_pass(new_ops)
-    for i,op in enumerate(new_ops):
+    for i, op in enumerate(new_ops):
         print(f"{i}")
         print(f"  {op.domain.as_set()=}\n")
         print(f"  {op.access_I=}\n")

@@ -1,27 +1,29 @@
-from base_operator import BasicOperator
-from pass_.affine_transform import auto_skewing_pass
-# from hardware_merge_tiling import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
-from pass_.hardware_merge_tiling_4d_macro import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
-import islpy as isl
-from pass_.buffer_mapping import (
-    insert_single_buffer_single_level_pass,
-    insert_single_buffer_multi_level_pass,
-    multi_level_buffer_insersion_pass,
-    filter_op_by_memory_access_cost_pass
-)
-from pass_.codegen import codegen_pass
-from pass_.loop_padding import loop_padding_pass
-from pass_.tensorize import tensorize_pass
-from pass_.backend import backend_compile_and_profile_pass
-from pass_.multi_level_tiling import pre_tiling_pass, memory_tiling_pass
-import op_define
 import json
-from config import get_config
 import tempfile
+
+import islpy as isl
+
+import op_define
+from base_operator import BasicOperator
+from config import get_config
+from pass_.affine_transform import auto_skewing_pass
+from pass_.backend import backend_compile_and_profile_pass
+from pass_.buffer_mapping import (filter_op_by_memory_access_cost_pass,
+                                  insert_single_buffer_multi_level_pass,
+                                  insert_single_buffer_single_level_pass,
+                                  multi_level_buffer_insersion_pass)
+from pass_.codegen import codegen_pass
+# from hardware_merge_tiling import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
+from pass_.hardware_merge_tiling_4d_macro import (
+    filter_op_by_execution_time_pass, hardware_merge_tiling_pass)
+from pass_.loop_padding import loop_padding_pass
+from pass_.multi_level_tiling import memory_tiling_pass, pre_tiling_pass
+from pass_.tensorize import tensorize_pass
+
 
 def run_pipeline(op, skew, cim_cfg, save_dir):
     new_ops = [op]
-    
+
     # i2#2, i4
     # i1#2, i3
     # tiling = isl.BasicMap("{ [i0, i1, i2, i3, i4] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = i3 and o1 = i4 and (i0 + o5) mod 2 = 0 and (i1 + o6) mod 2 = 0 and (i2 + o7) mod 2 = 0 and 0 <= i0 <= 7 and 0 <= i1 <= 7 and 0 <= i2 <= 7 and 0 <= i3 <= 2 and 0 <= i4 <= 2 and -1 + i0 <= 2o2 <= i0 and -1 + i1 <= 2o3 <= i1 and -1 + i2 <= 2o4 <= i2 and 0 <= o5 <= 1 and 0 <= o6 <= 1 and 0 <= o7 <= 1 }")
@@ -33,7 +35,11 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
         new_ops = pre_tiling_pass(new_ops)
         # for idx,op in enumerate(new_ops):
         #     assert op.domain.is_box()
-        new_ops = auto_skewing_pass(new_ops, max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp), return_detail=False)
+        new_ops = auto_skewing_pass(
+            new_ops,
+            max_reuse_factor_for_arrays=(cim_cfg.n_group_vcol, cim_cfg.n_comp),
+            return_detail=False,
+        )
         print(f"after auto_skewing_pass, {len(new_ops)=}")
         # exit()
 
@@ -46,12 +52,12 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     #     print("")
     #     print(f"tiling : \n    domain: {op.history_domains[0]=}\n    schedule:{op.history_schedules[0]=}")
     #     print(f"skewing : \n    domain: {op.history_domains[1]=}\n    schedule:{op.history_schedules[1]=}")
-        
+
     # print(len(new_ops))
     # new_ops = new_ops[0:1]
-    # 
+    #
     # new_ops = new_ops[0:2]
-    
+
     # operator = BasicOperator(
     #     domain = isl.BasicSet(
     #         "{ [i0, i1, i2, i3, i4, i5] : i1 >= -2 + i0 and 0 <= i1 <= 63 and i1 <= i0 and 0 <= i4 <= 3 and 0 <= i5 <= 3 and 4*floor((i5)/4) >= -63 + 4i3 + i5 and 4*floor((i5)/4) <= 4i3 + i5 and -2 - 66i0 + 4i2 - 4i3 + i4 - i5 + 4*floor((i5)/4) <= 4*floor((i4)/4) <= -66i0 + 4i2 - 4i3 + i4 - i5 + 4*floor((i5)/4) }"
@@ -64,7 +70,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     # N_COMP, N_GROUP, N_GROUP_VCOL
     new_ops = loop_padding_pass(new_ops, padding_inner_size=None)
     new_ops = memory_tiling_pass(new_ops)
-    
+
     new_ops = multi_level_buffer_insersion_pass(new_ops, macro_compute_level=-6)
     # exit()
     # import pdb; pdb.set_trace()
@@ -75,7 +81,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     # print(len(new_ops))
     # print(new_ops[0].dsl)
     result_list = backend_compile_and_profile_pass(new_ops, save_dir)
-    
+
     # for result in result_list:
     #     print(f"{result.save_path=}")
     #     print(json.dumps(result.stats,indent=2))
@@ -84,7 +90,8 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     # exit()
     return result_list
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     # operator = BasicOperator(
     #     domain = isl.BasicSet(
     #         f"{{ [v0,oh,ow,kh,kw]: v0=0 and 0<=oh<4 and 0<=ow<4 and 0<=kh<3 and 0<=kw<3 }}"
@@ -95,7 +102,17 @@ if __name__=="__main__":
     # )
     skew = False
     virtual_axis = not skew
-    operator = op_define.get_op_conv2d(b=1, oc=64, ic=256, oh=16, ow=16, kh=3, kw=3, stride=2, virtual_axis=virtual_axis)
+    operator = op_define.get_op_conv2d(
+        b=1,
+        oc=64,
+        ic=256,
+        oh=16,
+        ow=16,
+        kh=3,
+        kw=3,
+        stride=2,
+        virtual_axis=virtual_axis,
+    )
     # print(operator.access_W)
     # print(operator.access_W.intersect_domain(operator.domain))
     print(operator.domain.count_val())

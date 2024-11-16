@@ -10,12 +10,12 @@ import islpy as isl
 import numpy as np
 import sympy
 from sympy import Matrix, lcm, nsimplify
+from tqdm import tqdm
 
 import utils.mat_utils as inv
 import utils.utils as utils
-
-from tqdm import tqdm
 from base_operator import BasicOperator
+
 
 def add_constraints_exclude_null_space(base, exclude_null_space_of):
     if exclude_null_space_of is None:
@@ -129,7 +129,9 @@ second_array = False
 call_find_base_times = 0
 
 
-def find_base(n_dim, dim_sizes, min_reuse_factor, hyperplanes, exclude_null_space_of, lex_lt_set):
+def find_base(
+    n_dim, dim_sizes, min_reuse_factor, hyperplanes, exclude_null_space_of, lex_lt_set
+):
     global second_array
     global call_find_base_times
     call_find_base_times += 1
@@ -137,16 +139,16 @@ def find_base(n_dim, dim_sizes, min_reuse_factor, hyperplanes, exclude_null_spac
     base = _find_base_cache(n_dim, dim_sizes, min_reuse_factor, hyperplanes)
     base = add_constraints_exclude_null_space(base, exclude_null_space_of)
 
-    
     if lex_lt_set is not None:
         base = base.lex_lt_set(lex_lt_set).domain()
-        assert type(base)==isl.Set, f"{type(base)=}"
+        assert type(base) == isl.Set, f"{type(base)=}"
 
     return base
 
 
 def empty_or_zero_point(set_):
     return set_.count_val() == 0
+
 
 def make_bases_to_matrix(bases):
     base_matrix = []
@@ -156,8 +158,14 @@ def make_bases_to_matrix(bases):
     base_matrix = base_matrix.transpose()
     return base_matrix
 
+
 def find_base_with_max_reuse(
-    n_dim, dim_sizes, max_reuse_factor, hyperplanes, exclude_null_space_of=None, lex_lt_set=None
+    n_dim,
+    dim_sizes,
+    max_reuse_factor,
+    hyperplanes,
+    exclude_null_space_of=None,
+    lex_lt_set=None,
 ):
     global second_array
     """
@@ -172,13 +180,17 @@ def find_base_with_max_reuse(
     while low < high:
 
         mid = (low + high + 1) // 2
-        base = find_base(n_dim, dim_sizes, mid, hyperplanes, exclude_null_space_of, lex_lt_set)
+        base = find_base(
+            n_dim, dim_sizes, mid, hyperplanes, exclude_null_space_of, lex_lt_set
+        )
         if empty_or_zero_point(base):
             high = mid - 1
         else:
             low = mid
 
-    base = find_base(n_dim, dim_sizes, low, hyperplanes, exclude_null_space_of, lex_lt_set)
+    base = find_base(
+        n_dim, dim_sizes, low, hyperplanes, exclude_null_space_of, lex_lt_set
+    )
     # if second_array:
     #     import pdb; pdb.set_trace()
 
@@ -193,12 +205,12 @@ def find_base_with_max_reuse(
     #     le_zero_per_row = (check<=0).all(axis=1)
     #     ge_or_le_zero_per_row = np.logical_or(ge_zero_per_row, le_zero_per_row)
     #     assert ge_or_le_zero_per_row.all(), f"{check}"
-        # print("")
-        # print(f"{np_base_matrix=}")
-        # print(f"{exclude_null_space_of=}")
-        # print(f"{ge_zero_per_row=}")
-        # print(f"{le_zero_per_row=}")
-        # print(f"{hyperplanes=}")
+    # print("")
+    # print(f"{np_base_matrix=}")
+    # print(f"{exclude_null_space_of=}")
+    # print(f"{ge_zero_per_row=}")
+    # print(f"{le_zero_per_row=}")
+    # print(f"{hyperplanes=}")
 
     return base, low
 
@@ -209,10 +221,12 @@ class SearchStatus:
     max_reuse: int
     final_row_as_set: isl.Set
 
+
 def list_to_set(ls):
     ls = [str(i) for i in ls]
     set_ = isl.Set(f"{{ [{','.join(ls)}] }}")
     return set_
+
 
 def find_bases_with_max_reuse(
     n_dim, dim_sizes, max_reuse_factor, hyperplanes, pre_bases=Matrix([[]])
@@ -225,20 +239,20 @@ def find_bases_with_max_reuse(
         orth_subspace = orthogonal_sub_space(pre_bases)
     else:
         orth_subspace = None
-    
+
     bases, reuse = find_base_with_max_reuse(
         n_dim, dim_sizes, max_reuse_factor, hyperplanes, orth_subspace
     )
-    
+
     # import pdb; pdb.set_trace()
     if bases is None:
         return result
 
     for base in foreach_nontrival_point(bases):
         search_status = SearchStatus(
-            bases=pre_bases.col_join(Matrix([base])), 
+            bases=pre_bases.col_join(Matrix([base])),
             max_reuse=reuse,
-            final_row_as_set=list_to_set(base)
+            final_row_as_set=list_to_set(base),
         )
         queue.put(search_status)
 
@@ -312,7 +326,7 @@ def find_bases_for_multi_array_reuse(
             search_status_per_array=[search_status]
         )
         ma_result.append(ma_search_status)
-    
+
     second_array = True
     for array_id in range(1, n_array):
         new_ma_result = []
@@ -356,7 +370,7 @@ def foreach_nontrival_point(set_, return_isl_obj=False):
     for point in points:
         nonzero_count.append(sum([1 for i in point if i != 0]))
     min_nonzero_count = min(nonzero_count)
-    
+
     new_points = []
     for i in range(len(points)):
         if nonzero_count[i] == min_nonzero_count:
@@ -407,7 +421,9 @@ def matrix_to_schedule(coor_transform_matrix):
             coor = coor_transform_matrix[row_idx, col_idx]
             cons = cons.set_coefficient_val(isl.dim_type.in_, col_idx, coor)
 
-        cons = cons.set_coefficient_val(isl.dim_type.out, coor_transform_matrix.rows - row_idx - 1, -1)
+        cons = cons.set_coefficient_val(
+            isl.dim_type.out, coor_transform_matrix.rows - row_idx - 1, -1
+        )
         schedule = schedule.add_constraint(cons)
     return schedule
 
@@ -443,8 +459,12 @@ def padding_for_base_matrix(base_matrix):
 
 
 def find_schedules_for_multi_array_reuse(
-    n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays,
-    return_detail=False
+    n_dim,
+    n_array,
+    dim_sizes,
+    max_reuse_factor_for_arrays,
+    hyperplanes_for_arrays,
+    return_detail=False,
 ):
     result = find_bases_for_multi_array_reuse(
         n_dim=n_dim,
@@ -484,8 +504,8 @@ def parse_operator(domain, access_relations, max_reuse_factor_for_arrays):
         assert pma.n_piece() == 1, f"{len(mas)=}"
 
         mas = []
-        pma.foreach_piece(lambda x,y: mas.append(y))
-        assert len(mas)==1
+        pma.foreach_piece(lambda x, y: mas.append(y))
+        assert len(mas) == 1
         ma = mas[0]
         hyperplanes = []
         # print(f"{ma=}, {ma.n_piece()=}")
@@ -505,8 +525,9 @@ def parse_operator(domain, access_relations, max_reuse_factor_for_arrays):
     )
 
 
-def find_schedules_for_operator(domain, access_relations, max_reuse_factor_for_arrays,
-    return_detail=False):
+def find_schedules_for_operator(
+    domain, access_relations, max_reuse_factor_for_arrays, return_detail=False
+):
     n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays = (
         parse_operator(
             domain=domain,
@@ -530,21 +551,29 @@ def find_schedules_for_operator(domain, access_relations, max_reuse_factor_for_a
     )
     return schedules
 
+
 def shift_to_positive(op):
     domain = op.domain
-    min_val = [domain.dim_min_val(i).get_num_si() for i in range(domain.dim(isl.dim_type.set))]
+    min_val = [
+        domain.dim_min_val(i).get_num_si() for i in range(domain.dim(isl.dim_type.set))
+    ]
     shift = [0 if val >= 0 else -val for val in min_val]
     # shift = [str(val) for val in shift]
     # shift = ",".join(shift)
 
     shift_domain = ",".join([f"i{i}" for i in range(domain.dim(isl.dim_type.set))])
-    shift_range = ",".join([f"i{i} + {shift[i]}" for i in range(domain.dim(isl.dim_type.set))])
+    shift_range = ",".join(
+        [f"i{i} + {shift[i]}" for i in range(domain.dim(isl.dim_type.set))]
+    )
     shift = isl.BasicMap(f"{{ [{shift_domain}] -> [{shift_range}] }}")
     new_op = op.apply_schedule(shift)
 
     return new_op
 
-def auto_skewing_pass(op_list, max_reuse_factor_for_arrays=(16,16), return_detail=False):
+
+def auto_skewing_pass(
+    op_list, max_reuse_factor_for_arrays=(16, 16), return_detail=False
+):
     ori_op_list = []
     schedule_list = []
     base_matrix_list = []
@@ -554,12 +583,12 @@ def auto_skewing_pass(op_list, max_reuse_factor_for_arrays=(16,16), return_detai
             domain=op.domain,
             access_relations=[op.access_I, op.access_O],
             max_reuse_factor_for_arrays=max_reuse_factor_for_arrays,
-            return_detail=return_detail
+            return_detail=return_detail,
         )
         if return_detail:
             schedules, base_matrixs = schedules
 
-        for idx,schedule in enumerate(schedules):
+        for idx, schedule in enumerate(schedules):
             new_op = op.apply_schedule(schedule)
             new_op_list.append(new_op)
             if return_detail:
@@ -571,29 +600,40 @@ def auto_skewing_pass(op_list, max_reuse_factor_for_arrays=(16,16), return_detai
         new_op = new_op_list[idx]
         new_op = shift_to_positive(new_op)
         new_op_list[idx] = new_op
-    
+
     if return_detail:
         return new_op_list, ori_op_list, schedule_list, base_matrix_list
     else:
         return new_op_list
 
+
 def main():
 
     # conv2d
     operator = BasicOperator(
-        domain = isl.BasicSet(
+        domain=isl.BasicSet(
             f"{{ [oh,ow,kh,kw]: 0<=oh<4 and 0<=ow<4 and 0<=kh<3 and 0<=kw<3 }}"
         ),
-        access_I = isl.BasicMap("{ [oh,ow,kh,kw] -> I[oh + kh, ow + kw] }"),
-        access_O = isl.BasicMap("{ [oh,ow,kh,kw] -> O[oh, ow] }"),
-        access_W = isl.BasicMap("{ [oh,ow,kh,kw] -> W[kh, kw] }"),
+        access_I=isl.BasicMap("{ [oh,ow,kh,kw] -> I[oh + kh, ow + kw] }"),
+        access_O=isl.BasicMap("{ [oh,ow,kh,kw] -> O[oh, ow] }"),
+        access_W=isl.BasicMap("{ [oh,ow,kh,kw] -> W[kh, kw] }"),
     )
-    tiling_schedule = isl.BasicMap("{ [i0, i1, i2, i3] -> [o0, o1, o2, o3, o4, o5, o6, o7] : (i0 + o4) mod 2 = 0 and (i1 + o5) mod 2 = 0 and (-i2 + o6) mod 3 = 0 and (-i3 + o7) mod 3 = 0 and 0 <= i0 <= 3 and 0 <= i1 <= 3 and 0 <= i2 <= 2 and 0 <= i3 <= 2 and -1 + i0 <= 2o0 <= i0 and -1 + i1 <= 2o1 <= i1 and -2 + i2 <= 3o2 <= i2 and -2 + i3 <= 3o3 <= i3 and 0 <= o4 <= 1 and 0 <= o5 <= 1 and 0 <= o6 <= 2 and 0 <= o7 <= 2 }")
+    tiling_schedule = isl.BasicMap(
+        "{ [i0, i1, i2, i3] -> [o0, o1, o2, o3, o4, o5, o6, o7] : (i0 + o4) mod 2 = 0 and (i1 + o5) mod 2 = 0 and (-i2 + o6) mod 3 = 0 and (-i3 + o7) mod 3 = 0 and 0 <= i0 <= 3 and 0 <= i1 <= 3 and 0 <= i2 <= 2 and 0 <= i3 <= 2 and -1 + i0 <= 2o0 <= i0 and -1 + i1 <= 2o1 <= i1 and -2 + i2 <= 3o2 <= i2 and -2 + i3 <= 3o3 <= i3 and 0 <= o4 <= 1 and 0 <= o5 <= 1 and 0 <= o6 <= 2 and 0 <= o7 <= 2 }"
+    )
     operator = operator.apply_schedule(tiling_schedule)
-    new_ops = auto_skewing_pass([operator], max_reuse_factor_for_arrays=(16,4), return_detail=False)
+    new_ops = auto_skewing_pass(
+        [operator], max_reuse_factor_for_arrays=(16, 4), return_detail=False
+    )
     for new_op in new_ops:
-        domain_min_per_iter = [new_op.domain.dim_min_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
-        domain_max_per_iter = [new_op.domain.dim_max_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
+        domain_min_per_iter = [
+            new_op.domain.dim_min_val(i).get_num_si()
+            for i in range(new_op.domain.dim(isl.dim_type.set))
+        ]
+        domain_max_per_iter = [
+            new_op.domain.dim_max_val(i).get_num_si()
+            for i in range(new_op.domain.dim(isl.dim_type.set))
+        ]
         print(f"{domain_min_per_iter=}")
         print(f"{domain_max_per_iter=}")
         print("-----------------------")
@@ -614,7 +654,6 @@ def main():
     # access_I = utils.simplify_basic_map(access_I)
     # access_O = utils.simplify_basic_map(access_O)
 
-
     # domain = isl.BasicSet("{ [i0, i1, i2] : 0 <= i0 <= 1 and 0 <= i1 <= 3 and 0 <= i2 <= 2 }")
     # access_I = isl.BasicMap("{ [i0, i1, i2] -> I[o0] : o0 = 4i0 + i1 + i2 and i1 >= 0 and -4i0 <= i1 <= 7 - 4i0 and i1 <= 3 and 0 <= i2 <= 2 }")
     # access_O = isl.BasicMap("{ [i0, i1, i2] -> O[o0] : o0 = 4i0 + i1 and i1 >= 0 and -4i0 <= i1 <= 7 - 4i0 and i1 <= 3 and 0 <= i2 <= 2 }")
@@ -624,7 +663,7 @@ def main():
         domain=domain,
         access_relations=[access_I],
         max_reuse_factor_for_arrays=(9,),
-        return_detail=True
+        return_detail=True,
     )
     end_time = time.time()
     print(f"{len(schedules)=}")
@@ -634,7 +673,7 @@ def main():
     #     print(f"{idx}")
     #     print(f"- {schedule=}")
     #     print(f"- {matrix=}")
-        
+
     return
 
     """
@@ -689,7 +728,7 @@ def main():
         n_dim=2,
         min_reuse_factor=1,
         dim_sizes=(8, 3),
-        hyperplanes=((1,1),),
+        hyperplanes=((1, 1),),
         exclude_null_space_of=None,
     )
     # print(bases)

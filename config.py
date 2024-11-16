@@ -1,5 +1,6 @@
-from dataclasses import dataclass
 import json
+from dataclasses import dataclass
+
 
 @dataclass
 class CIMConfig:
@@ -10,15 +11,17 @@ class CIMConfig:
     n_macro: int
     n_macro_per_group: int
 
+
 config_json_path = "/home/wangyiou/Desktop/pim_compiler/playground/config.json"
 with open(config_json_path, "r") as f:
     config = json.load(f)
+
 
 def get_config():
     global config
 
     config_macro = config["macro"]
-    
+
     n_group = 16
     n_row = config_macro["n_row"]
     n_macro = config_macro["n_macro"]
@@ -36,8 +39,9 @@ def get_config():
         n_comp=n_comp,
         n_group=n_group,
         n_macro=n_macro,
-        n_macro_per_group=n_macro_per_group
+        n_macro_per_group=n_macro_per_group,
     )
+
 
 def get_memory_sizes():
     """
@@ -58,16 +62,17 @@ def get_memory_sizes():
     memory_list = config["memory_list"]
     memory_type_to_sizes = {}
     for memory in memory_list:
-        big_name = "__"+memory["name"].upper()+"__"
+        big_name = "__" + memory["name"].upper() + "__"
         memory_type_to_sizes[big_name] = memory["addressing"]["size_byte"]
     return memory_type_to_sizes
+
 
 def get_memory_base(memory_type):
     global config
 
     memory_list = config["memory_list"]
     for memory in memory_list:
-        if memory["name"]==memory_type:
+        if memory["name"] == memory_type:
             return memory["addressing"]["offset_byte"]
     assert False, f"{memory_type=} not found"
 
@@ -77,6 +82,6 @@ def get_memory_size(memory_type):
 
     memory_list = config["memory_list"]
     for memory in memory_list:
-        if memory["name"]==memory_type:
+        if memory["name"] == memory_type:
             return memory["addressing"]["size_byte"]
     assert False, f"{memory_type=} not found"
