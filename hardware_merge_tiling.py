@@ -260,6 +260,9 @@ def filter_op_by_execution_time_pass(op_list):
     n_div_list = []
     time_list = []
 
+    # filter op with n_div < 5
+    op_list = [op for op in op_list if op.domain.dim(isl.dim_type.div) < 5]
+
     for idx,op in enumerate(tqdm(op_list)):
         begin = time.time()
         n_dim = op.domain.dim(isl.dim_type.set)
@@ -269,7 +272,7 @@ def filter_op_by_execution_time_pass(op_list):
         end = time.time()
         time_list.append(end - begin)
         n_div_list.append(outer_domain.dim(isl.dim_type.div))
-    import pdb; pdb.set_trace()
+
     exe_time_list = np.array(exe_time_list)
     sorted_indices = np.argsort(exe_time_list)
 
@@ -309,7 +312,6 @@ def filter_op_by_execution_time_pass(op_list):
 
         Pass time: {end_time - begin_time:.2f}s
 """)
-    exit()
     return new_op_list
 
 def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
