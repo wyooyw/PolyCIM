@@ -7,7 +7,7 @@ def get_op_dwconv2d(
     if virtual_axis:
         operator = BasicOperator(
             domain = isl.BasicSet(
-                f"{{ [v0,ic,oh,ow,kh,kw]: 0 <= v0 < 2 and 0<=ic<{ic} and 0<=oh<{oh} and 0<=ow<{ow} and 0<=kh<{kh} and 0<=kw<{kw} }}"
+                f"{{ [v0,ic,oh,ow,kh,kw]: 0 <= v0 < 1 and 0<=ic<{ic} and 0<=oh<{oh} and 0<=ow<{ow} and 0<=kh<{kh} and 0<=kw<{kw} }}"
             ),
             access_I = isl.BasicMap(f"{{ [v0, ic,oh,ow,kh,kw] -> I[ic, oh * {stride} + kh, ow * {stride} + kw] }}"),
             access_O = isl.BasicMap("{ [v0, ic,oh,ow,kh,kw] -> O[v0, ic, oh, ow] }"),

@@ -8,7 +8,7 @@ import multiprocessing
 import os
 import istarmap
 from tqdm import tqdm
-def parse_op_info_into_operator(op_info):
+def parse_op_info_into_operator(op_info,virtual_axis):
 
     if op_info["type"] == "conv2d":
         if op_info["group"] == 1:
@@ -22,6 +22,7 @@ def parse_op_info_into_operator(op_info):
                 kh=op_info["weight_tensor_shape"][2], 
                 kw=op_info["weight_tensor_shape"][3], 
                 stride=op_info["strides"][0],
+                virtual_axis=virtual_axis
             )
             
         elif op_info["group"] == op_info["weight_tensor_shape"][0]:
@@ -32,6 +33,7 @@ def parse_op_info_into_operator(op_info):
                 kh=op_info["weight_tensor_shape"][2], 
                 kw=op_info["weight_tensor_shape"][3], 
                 stride=op_info["strides"][0],
+                virtual_axis=virtual_axis
             )
             
         else:
@@ -63,11 +65,17 @@ def parse_op_info_to_key(op_info):
     print(key)
     return key
     
-def run_op(idx, op_info):
+def _run_op(idx, op_info, skew):
     temp_dir = tempfile.mkdtemp()
-    operator = parse_op_info_into_operator(op_info)
-    result = run_pipeline(operator, skew=True, cim_cfg=get_config(), save_dir=temp_dir)
+    operator = parse_op_info_into_operator(op_info, virtual_axis=not skew)
+    result = run_pipeline(operator, skew=skew, cim_cfg=get_config(), save_dir=temp_dir)
     return idx, result[1]
+
+def run_op(idx, op_info):
+    return _run_op(idx, op_info, skew=False)
+
+def run_op_skew(idx, op_info):
+    return _run_op(idx, op_info, skew=True)
 
 def remove_reductant_op_info(op_info_list):
     keys = set()
@@ -79,23 +87,24 @@ def remove_reductant_op_info(op_info_list):
             keys.add(key)
     return new_op_info
 
-def run_ops_parallel(op_list):
+def run_ops_parallel(op_list, skew):
     MAX_PROCESS_USE = int(os.environ.get("MAX_PROCESS_USE", 2))
     cim_flops_list = [0] * len(op_list)
+    run_op_fn = run_op_skew if skew else run_op
     with multiprocessing.Pool(MAX_PROCESS_USE) as pool:
-        results = pool.istarmap(run_op, enumerate(op_list))
+        results = pool.istarmap(run_op_fn, enumerate(op_list))
         for idx,cim_flops in tqdm(results,total=len(op_list)):
             cim_flops_list[idx] = cim_flops
     return cim_flops_list
 
-def run_model(json_model_path, result_json_path):
+def run_model(json_model_path, result_json_path, skew):
     with open(json_model_path, "r") as f:
         op_info_list = json.load(f)
 
     run_op_info_list = remove_reductant_op_info(op_info_list)
     run_op_info_key_to_index = {parse_op_info_to_key(op_info):idx for idx,op_info in enumerate(run_op_info_list)}
 
-    run_cim_flops_list = run_ops_parallel(run_op_info_list)
+    run_cim_flops_list = run_ops_parallel(run_op_info_list, skew)
 
     cim_flops_list = []
     for op_info in op_info_list:
@@ -106,7 +115,7 @@ def run_model(json_model_path, result_json_path):
     # save cim_flops_list into json
     new_op_info_list = []
     for idx,op_info in enumerate(op_info_list):
-        op_info["cim_flops"] = cim_flops_list[idx]
+        op_info["cim_flops"] = int(cim_flops_list[idx])
         new_op_info_list.append(op_info)
     with open(os.path.join(result_json_path), "w") as f:
         json.dump(new_op_info_list, f, indent=2)
@@ -114,4 +123,6 @@ def run_model(json_model_path, result_json_path):
     return cim_flops_list
 
 if __name__=="__main__":
-    run_model("models/json/convnext_tiny.json", "result/convnext_tiny/cim_flops.json")
+    for model in ["convnext_tiny", "RepLKNet-31B", "SLaK_tiny"]:
+        run_model(f"models/json/{model}.json", f"result/{model}/skew.json", skew=True)
+        run_model(f"models/json/{model}.json", f"result/{model}/im2col.json", skew=False)
