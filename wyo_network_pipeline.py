@@ -123,6 +123,8 @@ def run_model(json_model_path, result_json_path, skew):
     return cim_flops_list
 
 if __name__=="__main__":
-    for model in ["convnext_tiny", "RepLKNet-31B", "SLaK_tiny"]:
-        run_model(f"models/json/{model}.json", f"result/{model}/skew.json", skew=True)
-        run_model(f"models/json/{model}.json", f"result/{model}/im2col.json", skew=False)
+    for model in ["convnext_tiny"]:#, "RepLKNet-31B", "SLaK_tiny"]:
+        result_dir = f"result/{model}"
+        os.makedirs(result_dir, exist_ok=True)
+        run_model(f"models/json/{model}.json", os.path.join(result_dir, "skew.json"), skew=True)
+        run_model(f"models/json/{model}.json", os.path.join(result_dir, "im2col.json"), skew=False)

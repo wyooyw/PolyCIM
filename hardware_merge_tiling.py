@@ -248,10 +248,12 @@ def hardware_merge_tiling(op, macro_row, macro_col, min_compute_times):
     # exit()
     return all_schedules
 
-def filter_op_by_execution_time_pass(op_list):
+def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
     begin_time = time.time()
 
     total_flops = int(str(op_list[0].domain.count_val()))
+    min_compute_times_limit = math.ceil(total_flops / ( macro_row * macro_col))
+    
     if len(op_list) == 0:
         print(f"[filter_op_by_execution_time_pass]: \n    0 inputs. skip.")
         return op_list
@@ -261,11 +263,14 @@ def filter_op_by_execution_time_pass(op_list):
     # filter op with n_div < 5
     op_list = [op for op in op_list if op.domain.dim(isl.dim_type.div) < 5]
 
-    for idx,op in enumerate(tqdm(op_list)):
+    for idx,op in enumerate(tqdm(op_list, desc="filter op by outer execute time")):
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
         exe_time = int(str(outer_domain.count_val()))
         exe_time_list.append(exe_time)
+
+        if exe_time <= min_compute_times_limit:
+            break
 
     exe_time_list = np.array(exe_time_list)
     sorted_indices = np.argsort(exe_time_list)
@@ -372,6 +377,8 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     time_list = []
     dim_size_list = []
     min_compute_times = int(str(op_list[0].domain.count_val()))
+    min_compute_times_limit = math.ceil(min_compute_times /(macro_row * macro_col) )
+    early_stop = False
     for op_idx,op in enumerate(tqdm(op_list)):
         
         assert op.access_I.is_single_valued(), f"{op.access_I} should be single valued!"
@@ -399,13 +406,17 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
                 n_dim = new_op.domain.dim(isl.dim_type.set)
                 outer_domain = new_op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
                 exe_time = int(str(outer_domain.count_val()))
-                # exe_time = fast_count_val_v2(op, merge_schedule, macro_row, macro_col).get_num_si()
-                # print(f"{exe_time=}, {fast_count_val=}")
                 min_compute_times = min(min_compute_times, exe_time)
+                if min_compute_times <= min_compute_times_limit:
+                    early_stop = True
+                    break
 
             # print(f"{min_compute_times=}")
             
         time_apply += (time.time() - begin_time)
+
+        if early_stop:
+            break
 
     print(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")
     print(f"    Schedule time: {time_schedule:.2f}s\n    Apply time: {time_apply:.2f}s\n ")

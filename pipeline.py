@@ -20,6 +20,9 @@ from config import get_config
 from draw import extract_frame_info
 
 def run_pipeline(op, skew, cim_cfg, save_dir):
+
+    print(f"run_pipeline {skew=}, {op.domain=}")
+
     new_ops = [op]
 
     if skew:
@@ -28,7 +31,7 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
     # new_ops = new_ops[:min(len(new_ops), 8)]
     new_ops = hardware_merge_tiling_pass(new_ops, macro_row=cim_cfg.n_comp, macro_col=cim_cfg.n_group_vcol)
     # new_ops = new_ops[:min(len(new_ops), 8)]
-    new_ops, execution_times = filter_op_by_execution_time_pass(new_ops)
+    new_ops, execution_times = filter_op_by_execution_time_pass(new_ops, macro_row=cim_cfg.n_comp, macro_col=cim_cfg.n_group_vcol)
     min_compute_op = new_ops[0]
     return new_ops[0], execution_times[0]
 
