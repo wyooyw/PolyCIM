@@ -1,23 +1,25 @@
 import onnx
 from models.read_file import get_tensor_shape
 import benchmark
-
+import json
+import os
+from tqdm import tqdm
 def parse_conv_attr(model, node):
     name_to_attr = {attr.name: attr for attr in node.attribute}
-    dilations = name_to_attr["dilations"].ints
+    dilations = list(name_to_attr["dilations"].ints)
     group = name_to_attr["group"].i
-    kernel_shape = name_to_attr["kernel_shape"].ints
-    pads = name_to_attr["pads"].ints
-    strides = name_to_attr["strides"].ints
+    kernel_shape = list(name_to_attr["kernel_shape"].ints)
+    pads = list(name_to_attr["pads"].ints)
+    strides = list(name_to_attr["strides"].ints)
 
     input_tensor = node.input[0]
-    input_tensor_shape = get_tensor_shape(model.graph, input_tensor)
+    input_tensor_shape = list(get_tensor_shape(model.graph, input_tensor))
 
     weight_tensor = node.input[1]
-    weight_tensor_shape = get_tensor_shape(model.graph, weight_tensor)
+    weight_tensor_shape = list(get_tensor_shape(model.graph, weight_tensor))
 
     output_tensor = node.output[0]
-    output_tensor_shape = get_tensor_shape(model.graph, output_tensor)
+    output_tensor_shape = list(get_tensor_shape(model.graph, output_tensor))
 
     return {
         "type": "conv2d",
@@ -54,13 +56,31 @@ def extract_op_info_from_onnx(onnx_path):
 
     return op_info_list
 
+def extract_op_info_from_onnx_model_to_json(onnx_path, json_dir):
+    op_info_list = extract_op_info_from_onnx(onnx_path)
 
+    file_name = os.path.basename(onnx_path)
+    file_name, file_extension = os.path.splitext(file_name)
+    json_path = os.path.join(json_dir, f"{file_name}.json")
 
-# def get_op_list_from_onnx(onnx_path):
-#     op_info_list = extract_op_info_from_onnx(onnx_path)
-#     op_list = parse_op_info_into_operator(op_info_list)
-#     return op_list
+    with open(json_path, "w") as f:
+        json.dump(op_info_list, f, indent=2)
+
+def get_onnx_files(directory):
+    onnx_files = []
+    # os.walk遍历目录及子目录
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith('.onnx'):
+                # 将文件的完整路径添加到列表中
+                onnx_files.append(os.path.join(root, file))
+    return onnx_files
+
+def extract_op_info_from_onnx_to_json(onnx_dir, json_dir):
+    for onnx_path in tqdm(get_onnx_files(onnx_dir)):
+        extract_op_info_from_onnx_model_to_json(onnx_path, json_dir)
 
 if __name__ == "__main__":
-    op_info_list = extract_op_info_from_onnx("models/convnext_tiny/convnext_tiny.onnx")
-    op_list = parse_op_info_into_operator(op_info_list)
+    extract_op_info_from_onnx_to_json("models/onnx", "models/json")
+    # op_info_list = extract_op_info_from_onnx("models/convnext_tiny/convnext_tiny.onnx")
+    # op_list = parse_op_info_into_operator(op_info_list)
