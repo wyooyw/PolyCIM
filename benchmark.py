@@ -36,3 +36,16 @@ def get_op_conv2d(
         access_W = isl.BasicMap("{ [b,oc,ic,oh,ow,kh,kw] -> W[oc, ic, kh, kw] }"),
     )
     return operator
+
+def get_op_dwconv3d(
+    ic, ox, oy, oz, kx, ky, kz, stride, virtual_axis=True
+    ):
+    operator = BasicOperator(
+        domain = isl.BasicSet(
+            f"{{ [ic, ox, oy, oz, kx, ky, kz]: 0<=ic<{ic} and 0<=ox<{ox} and 0<=oy<{oy} and 0<=oz<{oz} and 0<=kx<{kx} and 0<=ky<{ky} and 0<=kz<{kz}  }}"
+        ),
+        access_I = isl.BasicMap("{ [ic, ox, oy, oz, kx, ky, kz] -> I[ic, ox + kx, oy + ky, oz + kz] }"),
+        access_O = isl.BasicMap("{ [ic, ox, oy, oz, kx, ky, kz] -> O[ic, ox, oy, oz] }"),
+        access_W = isl.BasicMap("{ [ic, ox, oy, oz, kx, ky, kz] -> W[ic, kx, ky, kz] }"),
+    )
+    return operator

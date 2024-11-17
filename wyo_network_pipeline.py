@@ -3,7 +3,11 @@ import tempfile
 import benchmark
 from pipeline import run_pipeline
 from config import get_config
-
+import json
+import multiprocessing
+import os
+import istarmap
+from tqdm import tqdm
 def parse_op_info_into_operator(op_info):
 
     if op_info["type"] == "conv2d":
@@ -24,7 +28,7 @@ def parse_op_info_into_operator(op_info):
             operator = benchmark.get_op_dwconv2d(
                 ic=op_info["weight_tensor_shape"][0], 
                 oh=op_info["output_tensor_shape"][2], 
-                ow=op_info["output_tensor_shape"][3], 
+                ow=op_info["output_tensor_shape"][3],
                 kh=op_info["weight_tensor_shape"][2], 
                 kw=op_info["weight_tensor_shape"][3], 
                 stride=op_info["strides"][0],
@@ -59,25 +63,55 @@ def parse_op_info_to_key(op_info):
     print(key)
     return key
     
-op_cache = dict()
-def run_op(op_info, save_dir):
-    global op_cache
-
+def run_op(idx, op_info):
     temp_dir = tempfile.mkdtemp()
-    key = parse_op_info_to_key(op_info)
-    if key in op_cache:
-        return
-    
     operator = parse_op_info_into_operator(op_info)
-    
     result = run_pipeline(operator, skew=True, cim_cfg=get_config(), save_dir=temp_dir)
+    return idx, result[1]
 
-    op_cache[key] = result
+def remove_reductant_op_info(op_info_list):
+    keys = set()
+    new_op_info = []
+    for op_info in  op_info_list:
+        key = parse_op_info_to_key(op_info)
+        if key not in keys:
+            new_op_info.append(op_info)
+            keys.add(key)
+    return new_op_info
 
-def run_model(onnx_path, save_dir):
-    op_info_list = onnx_parser.extract_op_info_from_onnx(onnx_path)
+def run_ops_parallel(op_list):
+    MAX_PROCESS_USE = int(os.environ.get("MAX_PROCESS_USE", 2))
+    cim_flops_list = [0] * len(op_list)
+    with multiprocessing.Pool(MAX_PROCESS_USE) as pool:
+        results = pool.istarmap(run_op, enumerate(op_list))
+        for idx,cim_flops in tqdm(results,total=len(op_list)):
+            cim_flops_list[idx] = cim_flops
+    return cim_flops_list
+
+def run_model(json_model_path, result_json_path):
+    with open(json_model_path, "r") as f:
+        op_info_list = json.load(f)
+
+    run_op_info_list = remove_reductant_op_info(op_info_list)
+    run_op_info_key_to_index = {parse_op_info_to_key(op_info):idx for idx,op_info in enumerate(run_op_info_list)}
+
+    run_cim_flops_list = run_ops_parallel(run_op_info_list)
+
+    cim_flops_list = []
     for op_info in op_info_list:
-        run_op(op_info, save_dir)
+        op_key = parse_op_info_to_key(op_info)
+        cim_flops = run_cim_flops_list[run_op_info_key_to_index[op_key]]
+        cim_flops_list.append(cim_flops)
+
+    # save cim_flops_list into json
+    new_op_info_list = []
+    for idx,op_info in enumerate(op_info_list):
+        op_info["cim_flops"] = cim_flops_list[idx]
+        new_op_info_list.append(op_info)
+    with open(os.path.join(result_json_path), "w") as f:
+        json.dump(new_op_info_list, f, indent=2)
+
+    return cim_flops_list
 
 if __name__=="__main__":
-    run_model("models/convnext_tiny/convnext_tiny.onnx", ".temp_save")
+    run_model("models/json/convnext_tiny.json", "result/convnext_tiny/cim_flops.json")

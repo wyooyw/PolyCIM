@@ -363,7 +363,7 @@ def filter_op_by_execution_time_pass(op_list):
             new_op_list.append(op_list[index])
             new_op_list_execution_time.append(exe_time_list[index])
         # print(f"{i}\n")
-        print(f"outer_count_val: {exe_time_list[index]}\n")
+        # print(f"outer_count_val: {exe_time_list[index]}\n")
         # op = op_list[index]
         # print(f"skewing: {op.history_schedules[0]}\n")
         # print(f"merge: {op.history_schedules[2]}\n")

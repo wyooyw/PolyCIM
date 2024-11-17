@@ -4,3 +4,6 @@ __pycache__/
 *.log
 islplot/
 *.onnx
+__pycache__/
+.package
+instructions

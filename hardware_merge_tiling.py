@@ -257,21 +257,15 @@ def filter_op_by_execution_time_pass(op_list):
         return op_list
 
     exe_time_list = []
-    n_div_list = []
-    time_list = []
 
     # filter op with n_div < 5
     op_list = [op for op in op_list if op.domain.dim(isl.dim_type.div) < 5]
 
     for idx,op in enumerate(tqdm(op_list)):
-        begin = time.time()
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
         exe_time = int(str(outer_domain.count_val()))
         exe_time_list.append(exe_time)
-        end = time.time()
-        time_list.append(end - begin)
-        n_div_list.append(outer_domain.dim(isl.dim_type.div))
 
     exe_time_list = np.array(exe_time_list)
     sorted_indices = np.argsort(exe_time_list)
@@ -284,13 +278,6 @@ def filter_op_by_execution_time_pass(op_list):
         if i < 5 or exe_time_list[index] == min_value:
             new_op_list.append(op_list[index])
             new_op_list_execution_time.append(exe_time_list[index])
-        # print(f"{i}\n")
-        print(f"outer_count_val: {exe_time_list[index]}\n")
-        # op = op_list[index]
-        # print(f"skewing: {op.history_schedules[0]}\n")
-        # print(f"merge: {op.history_schedules[2]}\n")
-        # print(f"tiling: {op.history_schedules[3]}\n")
-        # print("------------------------------------\n")
     new_op_list_execution_time = np.array(new_op_list_execution_time)
 
     end_time = time.time()
@@ -312,7 +299,69 @@ def filter_op_by_execution_time_pass(op_list):
 
         Pass time: {end_time - begin_time:.2f}s
 """)
-    return new_op_list
+    return new_op_list, new_op_list_execution_time
+
+def fast_count_val(op, merge_schedule ,tiling_schedule):
+    domain = utils.rename_dims(op.domain, isl.dim_type.set, "s")
+
+    dominate_iters_per_dim = utils.get_dominate_iters_of_pw_multi_aff_per_out(merge_schedule.as_pw_multi_aff())
+    dominate_merge_iters = set()
+    for dominate_iters in dominate_iters_per_dim:
+        if len(dominate_iters) >= 2:
+            dominate_merge_iters |= set(dominate_iters)
+
+    domain_names = domain.get_var_names(isl.dim_type.set)
+    name_to_pos = {name:pos for pos,name in enumerate(domain_names)}
+
+    new_domain = domain
+    for iter_name in dominate_merge_iters:
+        iter_pos = name_to_pos[iter_name]
+        dim_max_val = domain.dim_max_val(iter_pos).get_num_si()
+        dim_min_val = domain.dim_min_val(iter_pos).get_num_si()
+        new_domain = new_domain.drop_constraints_involving_dims(isl.dim_type.set, iter_pos, 1)
+        new_domain = new_domain.lower_bound_val(isl.dim_type.set, iter_pos, isl.Val(dim_min_val))
+        new_domain = new_domain.upper_bound_val(isl.dim_type.set, iter_pos, isl.Val(dim_max_val))
+    
+    domain_after_schedule = domain.apply(merge_schedule)
+    domain_after_tiling = domain_after_schedule.apply(tiling_schedule)
+
+    n_dim = domain_after_tiling.dim(isl.dim_type.set)
+    outer_domain = domain_after_tiling.project_out(isl.dim_type.set, n_dim - 2, 2)
+
+    count_val = domain_after_tiling.count_val()
+    return count_val
+
+def fast_count_val_v2(op, merge_schedule, macro_row, macro_col):
+    domain = utils.rename_dims(op.domain, isl.dim_type.set, "s")
+
+    dominate_iters_per_dim = utils.get_dominate_iters_of_pw_multi_aff_per_out(merge_schedule.as_pw_multi_aff())
+
+    domain_names = domain.get_var_names(isl.dim_type.set)
+    name_to_size = {iter_name:domain.dim_max_val(iter_pos).get_num_si()+1 for iter_pos,iter_name in enumerate(domain_names)}
+
+    size_0 = 1
+    for dominate_iter in dominate_iters_per_dim[-2]:
+        size_0 *= name_to_size[dominate_iter]
+
+    size_1 = 1
+    for dominate_iter in dominate_iters_per_dim[-1]:
+        size_1 *= name_to_size[dominate_iter]
+
+    # import pdb; pdb.set_trace()
+
+    size_middle_0 = math.ceil(size_0 / macro_row)
+    size_middle_1 = math.ceil(size_1 / macro_col)
+    size_middle_ub = size_middle_0 * size_middle_1
+
+    merge_iters = set(dominate_iters_per_dim[-2]) | set(dominate_iters_per_dim[-1])
+    keep_iters = list(set(domain_names) - set(merge_iters))
+    top_domain = domain.project_out_except(keep_iters, [isl.dim_type.set])
+    top_count = top_domain.count_val()
+
+    count_val_ub = size_middle_ub * top_count
+
+    
+    return count_val_ub
 
 def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     new_op_list = []
@@ -320,6 +369,8 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     time_schedule = 0
     time_apply = 0
 
+    time_list = []
+    dim_size_list = []
     min_compute_times = int(str(op_list[0].domain.count_val()))
     for op_idx,op in enumerate(tqdm(op_list)):
         
@@ -338,38 +389,26 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
 
         begin_time = time.time()
         for idx,(merge_schedule, tile_schedule) in enumerate(schedules):
-            # print(f"{idx=}")
-            # print(f"{merge_schedule=}")
-            # print(f"{tile_schedule=}")
-            # print("-------------------------------------")
-            if op_idx >= 50:
-                print(f"{op_idx=}, {idx=}")
-                print(f"    {op.domain=}")
-                print(f"    {merge_schedule=}")
-                print("")
-            # if op_idx>=108 and idx==5:
-            #     print(f"{op_idx=}, {idx=}")
-            #     merge_shedule = isl.BasicMap("{ [s0, s1, s2, s3, s4, s5, s6, s7, s8, s9] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = s1 and o1 = s2 and o2 = s3 and o3 = s4 and o4 = s5 and o5 = s6 and o6 = 7s7+s0 and o7 = 2s9 + s8 }")
-            #     import pdb; pdb.set_trace()
-            new_op = op.apply_schedule(merge_schedule, skip_simplify=True)
-            # new_op = new_op.convex_hull() 
-            new_op = new_op.apply_schedule(tile_schedule, skip_simplify=True)
-            # new_op = new_op.convex_hull() 
+            
+            new_op_after_merge = op.apply_schedule(merge_schedule, skip_simplify=True)
+            new_op_after_tiling = new_op_after_merge.apply_schedule(tile_schedule, skip_simplify=True)
+            new_op = new_op_after_tiling
             new_op_list.append(new_op)
 
             if len(new_op_list) % 8 == 0:
                 n_dim = new_op.domain.dim(isl.dim_type.set)
                 outer_domain = new_op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
                 exe_time = int(str(outer_domain.count_val()))
+                # exe_time = fast_count_val_v2(op, merge_schedule, macro_row, macro_col).get_num_si()
+                # print(f"{exe_time=}, {fast_count_val=}")
                 min_compute_times = min(min_compute_times, exe_time)
 
             # print(f"{min_compute_times=}")
             
         time_apply += (time.time() - begin_time)
-        
+
     print(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")
     print(f"    Schedule time: {time_schedule:.2f}s\n    Apply time: {time_apply:.2f}s\n ")
-    # exit()
     return new_op_list
 
 if __name__=="__main__":

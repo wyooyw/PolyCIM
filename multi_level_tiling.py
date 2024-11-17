@@ -95,12 +95,22 @@ def filter_factors(factors):
     """
     new_factors = []
     for factor in factors:
-        if factor[0] > factor[1]:
-            continue
-        
-        new_factors.append(factor)
+        if factor[0] in (1,2,4) or factor[1] in (1,2,4):
+            new_factors.append(factor)
     return new_factors
 
+def filter_factors_of_all_axis(combination_list):
+    new_combination_list = []
+    for all_axis_factor in combination_list:
+        count_tiling_axis = 0
+        num_axis = len(all_axis_factor)
+        for factor in all_axis_factor:
+            if factor[0]!=1 and factor[1]!=1:
+                count_tiling_axis += 1
+        
+        if count_tiling_axis <= num_axis // 2:
+            new_combination_list.append(all_axis_factor)
+    return new_combination_list
 
 def enumerate_tiling_factors(operator, tiling_factor):
     domain = operator.domain
@@ -112,13 +122,15 @@ def enumerate_tiling_factors(operator, tiling_factor):
     dim_factors = []
     for dim_size in domain_shape:
         factors = factorize(dim_size, tiling_factor)
-        # factors = filter_factors(factors)
+        # 
         factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
+        factors = filter_factors(factors)
         # print(f"{len(factors)=}, {factors=}")
         dim_factors.append(factors)
     
     # exit()
     combination_list = list(itertools.product(*dim_factors))
+    combination_list = filter_factors_of_all_axis(combination_list)
     # import pdb; pdb.set_trace()
     for combination in tqdm(combination_list):
         new_operator = multi_level_tiling(operator, tiling_factor, combination)

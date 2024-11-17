@@ -89,6 +89,16 @@ class BasicOperator:
             history_schedules=[*self.history_schedules,"convex_hull"]
         )
 
+    def copy(self):
+        return BasicOperator(
+            domain=self.domain,
+            access_I=self.access_I,
+            access_O=self.access_O,
+            access_W=self.access_W,
+            history_domains=[*self.history_domains],
+            history_schedules=[*self.history_schedules]
+        )
+
     def get_access_by_name(self, buffer_name):
         if buffer_name=="I":
             return self.access_I

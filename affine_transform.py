@@ -255,7 +255,7 @@ def find_bases_with_max_reuse(
         new_bases, new_reuse = find_base_with_max_reuse(
             n_dim,
             dim_sizes,
-            max_reuse_factor // search_status.max_reuse,
+            max_reuse_factor, #// search_status.max_reuse,
             hyperplanes,
             exclude_null_space_of=subspace,
             lex_lt_set=search_status.final_row_as_set,
@@ -467,13 +467,16 @@ def find_schedules_for_multi_array_reuse(
     return schedules
 
 
-def parse_operator(domain, access_relations, max_reuse_factor_for_arrays):
+def parse_operator(domain, access_relations):
     """
     n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays
     """
     n_dim = domain.dim(isl.dim_type.set)
     n_array = len(access_relations)
     dim_sizes = [domain.dim_max_val(i).get_num_si() + 1 for i in range(n_dim)]
+    
+    max_reuse_factor_for_arrays = (max(dim_sizes), max(dim_sizes))
+
     hyperplanes_for_arrays = []
     for access_relation in access_relations:
         assert (
@@ -504,19 +507,18 @@ def parse_operator(domain, access_relations, max_reuse_factor_for_arrays):
     )
 
 
-def find_schedules_for_operator(domain, access_relations, max_reuse_factor_for_arrays,
+def find_schedules_for_operator(domain, access_relations, 
     return_detail=False):
     n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays = (
         parse_operator(
             domain=domain,
             access_relations=access_relations,
-            max_reuse_factor_for_arrays=max_reuse_factor_for_arrays,
         )
     )
-    print(f"{n_dim=}")
-    print(f"{n_array=}")
-    print(f"{dim_sizes=}")
-    print(f"{hyperplanes_for_arrays=}")
+    # print(f"{n_dim=}")
+    # print(f"{n_array=}")
+    # print(f"{dim_sizes=}")
+    # print(f"{hyperplanes_for_arrays=}")
     # exit()
     # if return_detail is True, return (schedules, base_matrixs)
     schedules = find_schedules_for_multi_array_reuse(
@@ -543,7 +545,7 @@ def shift_to_positive(op):
 
     return new_op
 
-def auto_skewing_pass(op_list, max_reuse_factor_for_arrays=(16,16), return_detail=False):
+def auto_skewing_pass(op_list, return_detail=False):
     ori_op_list = []
     schedule_list = []
     base_matrix_list = []
@@ -552,7 +554,6 @@ def auto_skewing_pass(op_list, max_reuse_factor_for_arrays=(16,16), return_detai
         schedules = find_schedules_for_operator(
             domain=op.domain,
             access_relations=[op.access_I, op.access_O],
-            max_reuse_factor_for_arrays=max_reuse_factor_for_arrays,
             return_detail=return_detail
         )
         if return_detail:
@@ -560,9 +561,9 @@ def auto_skewing_pass(op_list, max_reuse_factor_for_arrays=(16,16), return_detai
 
         for idx,schedule in enumerate(schedules):
             new_op = op.apply_schedule(schedule)
-            new_op.history_schedules.append(base_matrixs[idx])
             new_op_list.append(new_op)
             if return_detail:
+                new_op.history_schedules.append(base_matrixs[idx])
                 ori_op_list.append(op)
                 schedule_list.append(schedule)
                 base_matrix_list.append(base_matrixs[idx])
@@ -594,9 +595,9 @@ def main():
     for new_op in new_ops:
         domain_min_per_iter = [new_op.domain.dim_min_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
         domain_max_per_iter = [new_op.domain.dim_max_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
-        print(f"{domain_min_per_iter=}")
-        print(f"{domain_max_per_iter=}")
-        print("-----------------------")
+        # print(f"{domain_min_per_iter=}")
+        # print(f"{domain_max_per_iter=}")
+        # print("-----------------------")
     # exit()
     domain = isl.BasicSet(
         "{ S[oh,ow,kh,kw]: 0<=oh<64 and 0<=ow<64 and 0<=kh<3 and 0<=kw<3 }"
@@ -708,7 +709,7 @@ def main():
     # print(current_bases)
 
     subspace = orthogonal_sub_space(current_bases)
-    print(f"{subspace=}")
+    # print(f"{subspace=}")
 
     base2 = find_base(
         n_dim=4,
@@ -719,7 +720,7 @@ def main():
     )
     # print(f"{foreach_nontrival_point(base2)=}")
     print("-------------------")
-    base2.foreach_point(print)
+    # base2.foreach_point(print)
 
 
 if __name__ == "__main__":
