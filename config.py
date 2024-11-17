@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+import os
 
 @dataclass
 class CIMConfig:
@@ -8,7 +9,8 @@ class CIMConfig:
     n_comp: int
     n_group: int
 
-config_json_path = "/home/wangyiou/Desktop/pim_compiler/playground/config.json"
+CONFIG_PATH = os.environ.get("CONFIG_PATH")
+config_json_path = os.path.join(CONFIG_PATH, f"config.json")_
 with open(config_json_path, "r") as f:
     config = json.load(f)
 
