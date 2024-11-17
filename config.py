@@ -10,7 +10,7 @@ class CIMConfig:
     n_group: int
 
 CONFIG_PATH = os.environ.get("CONFIG_PATH")
-config_json_path = os.path.join(CONFIG_PATH, f"config.json")_
+config_json_path = os.path.join(CONFIG_PATH, f"config.json")
 with open(config_json_path, "r") as f:
     config = json.load(f)
 
