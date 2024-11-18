@@ -107,15 +107,15 @@ def _find_base_cache(n_dim, dim_sizes, min_reuse_factor, hyperplanes):
         base = base.add_constraint(cons)
 
     for i in range(n_dim):
-        bound = dim_sizes[i] // min_reuse_factor
+        bound = dim_sizes[i] -1 #// min_reuse_factor
 
         cons_lb = isl.Constraint.inequality_alloc(base.get_space())
-        cons_lb = cons_lb.set_coefficient_val(isl.dim_type.set, i, 1)
+        cons_lb = cons_lb.set_coefficient_val(isl.dim_type.set, i, min_reuse_factor)
         cons_lb = cons_lb.set_constant_val(isl.Val(bound))
         base = base.add_constraint(cons_lb)
 
         cons_ub = isl.Constraint.inequality_alloc(base.get_space())
-        cons_ub = cons_ub.set_coefficient_val(isl.dim_type.set, i, -1)
+        cons_ub = cons_ub.set_coefficient_val(isl.dim_type.set, i, -min_reuse_factor)
         cons_ub = cons_ub.set_constant_val(isl.Val(bound))
         base = base.add_constraint(cons_ub)
 
@@ -164,7 +164,7 @@ def find_base_with_max_reuse(
     """
 
     # binary search to find the largest reuse factor
-    low = 2
+    low = 1
     high = max_reuse_factor
     base = None
 
@@ -180,7 +180,7 @@ def find_base_with_max_reuse(
     base = find_base(n_dim, dim_sizes, low, hyperplanes, exclude_null_space_of, lex_lt_set)
     # if second_array:
     #     import pdb; pdb.set_trace()
-
+    # import pdb; pdb.set_trace()
     if base is not None and empty_or_zero_point(base):
         base = None
 
