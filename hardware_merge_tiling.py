@@ -268,7 +268,7 @@ def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
         exe_time = int(str(outer_domain.count_val()))
         exe_time_list.append(exe_time)
-
+        print("Current min compute time: ", min(exe_time_list))
         if exe_time <= min_compute_times_limit:
             break
 
