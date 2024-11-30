@@ -95,6 +95,16 @@ def filter_factors(factors):
     """
     new_factors = []
     for factor in factors:
+        if factor[0] in (1,2) or factor[1] in (1,2):
+            new_factors.append(factor)
+    return new_factors
+
+def filter_factors_for_3x3_5x5(factors):
+    """
+    filter factor like [1, 1, 4], actually this is not tiling
+    """
+    new_factors = []
+    for factor in factors:
         if factor[0] in (1,2,4) or factor[1] in (1,2,4):
             new_factors.append(factor)
     return new_factors
@@ -124,6 +134,7 @@ def enumerate_tiling_factors(operator, tiling_factor):
         factors = factorize(dim_size, tiling_factor)
         # 
         factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
+        # factors = filter_factors(factors)
         factors = filter_factors(factors)
         # print(f"{len(factors)=}, {factors=}")
         dim_factors.append(factors)
@@ -225,8 +236,8 @@ def enumerate_tiling_factors_outer(operator, tiling_factor, inner_level=5):
         # factors = filter_factors(factors)
         factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
         # print(f"{len(factors)=}, {factors=}")
-        if len(factors) > 8:
-            factors = factors[::4]
+        # if len(factors) > 8:
+        #     factors = factors[::4]
         dim_factors.append(factors)
     # import pdb; pdb.set_trace()
     # exit()
