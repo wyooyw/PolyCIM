@@ -1,5 +1,6 @@
 import logging
 import os
+from tqdm import tqdm
 def get_log_level_from_env():
     log_level = os.getenv('LOG_LEVEL', 'INFO')
     return {
