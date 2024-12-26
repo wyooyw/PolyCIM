@@ -10,7 +10,9 @@ from tqdm import tqdm
 import utils.utils as utils
 from base_operator import BasicOperator
 from config import CIMConfig, get_config
+from utils.logger import get_logger, debug_tqdm
 
+logger = get_logger(__name__)
 
 def get_cim_operator(n_rows, n_cols):
     cim_operator = BasicOperator(
@@ -267,7 +269,7 @@ def get_macro_4d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     tile_domain_iters_def = ", ".join(tile_domain_iters)
     tile_range_iters_def = ", ".join(tile_range_iters)
     tile_def = f"{{ [{tile_domain_iters_def}] -> [{tile_range_iters_def}] }}"
-    print(f"{tile_def=}")
+    logger.debug(f"{tile_def=}")
     tile_schedule = isl.BasicMap(tile_def)
 
     # merge inner-group and outer-group
@@ -333,7 +335,7 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     tile_domain_iters_def = ", ".join(tile_domain_iters)
     tile_range_iters_def = ", ".join(tile_range_iters)
     tile_def = f"{{ [{tile_domain_iters_def}] -> [{tile_range_iters_def}] }}"
-    print(f"{tile_def=}")
+    logger.debug(f"{tile_def=}")
     tile_schedule = isl.BasicMap(tile_def)
 
     # merge inner-group and outer-group
@@ -416,7 +418,7 @@ def filter_op_by_execution_time_pass(op_list):
         return op_list
 
     exe_time_list = []
-    for op in tqdm(op_list):
+    for op in debug_tqdm(op_list):
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
         exe_time = int(str(outer_domain.count_val()))
@@ -434,7 +436,7 @@ def filter_op_by_execution_time_pass(op_list):
             new_op_list.append(op_list[index])
             new_op_list_execution_time.append(exe_time_list[index])
         # print(f"{i}\n")
-        print(f"outer_count_val: {exe_time_list[index]}\n")
+        logger.debug(f"outer_count_val: {exe_time_list[index]}\n")
         # op = op_list[index]
         # print(f"skewing: {op.history_schedules[0]}\n")
         # print(f"merge: {op.history_schedules[2]}\n")
@@ -442,7 +444,7 @@ def filter_op_by_execution_time_pass(op_list):
         # print("------------------------------------\n")
     new_op_list_execution_time = np.array(new_op_list_execution_time)
 
-    print(
+    logger.debug(
         f"""
 [filter_op_by_execution_time_pass]:
     {len(op_list)} ops input.
@@ -472,7 +474,7 @@ def hardware_merge_tiling_pass(op_list, cim_cfg=None):
     cim_cfg = get_config()
     new_op_list = []
     schedule_fail_op_cnt = 0
-    for op in tqdm(op_list):
+    for op in debug_tqdm(op_list):
         assert op.access_I.is_single_valued(), f"{op.access_I} should be single valued!"
         assert op.access_W.is_single_valued(), f"{op.access_W} should be single valued!"
         assert op.access_O.is_single_valued(), f"{op.access_O} should be single valued!"
@@ -514,7 +516,7 @@ def hardware_merge_tiling_pass(op_list, cim_cfg=None):
             ), f"{sizes=}. {sizes[-1]=} should be less than {cim_cfg.n_group_vcol=}"
 
             new_op_list.append(new_op)
-    print(
+    logger.debug(
         f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output."
     )
     return new_op_list

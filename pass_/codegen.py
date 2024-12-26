@@ -8,6 +8,9 @@ import utils.utils as utils
 from base_operator import (DataMovement, DataMovementOperator,
                            TensorAccessRelation)
 from config import get_config
+from utils.logger import get_logger, debug_tqdm
+
+logger = get_logger(__name__)
 
 unique_name_idx = 0
 char_set = "abcdefghijklmnopqrstuvwxyz"
@@ -293,7 +296,7 @@ class CodeGenerator:
             code, new_var = self.codegen_expr_or(var_list, depth)
             code_list.extend(code)
         else:
-            print(expr)
+            logger.debug(expr)
             assert False, f"{expr.get_op_type()}"
 
         return code_list, new_var
@@ -319,7 +322,7 @@ class CodeGenerator:
         elif expr.get_type() == isl._isl.ast_expr_type.int:
             return self.codegen_expression_int(expr, depth)
         else:
-            print(f"{expr.get_type()=}")
+            logger.debug(f"{expr.get_type()=}")
             assert False
 
     def codegen_cond_to_upperbound_expr(self, cond, depth):
@@ -371,7 +374,7 @@ class CodeGenerator:
     def codegen_block(self, node, depth):
         children = node.block_get_children()
         n_ast_node = children.n_ast_node()
-        # print(f"block {n_ast_node=}")
+        # logger.debug(f"block {n_ast_node=}")
         total_code_list = []
         for i in range(children.n_ast_node()):
             child = children.get_at(i)
@@ -382,7 +385,7 @@ class CodeGenerator:
     def codegen_call(self, expr, depth):
         call_name = expr.get_op_arg(0).id_get_id().get_name()
 
-        # print("codegen_call")
+        # logger.debug("codegen_call")
         call_args = []
         for arg_id in range(1, expr.get_op_n_arg()):
             arg = expr.get_op_arg(arg_id)
@@ -656,7 +659,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
         assign_schedule_to_level[assign_schedule] = level
 
     sorted_levels = sorted(list(level_to_assign_schedule.keys()))
-    print(f"{sorted_levels=}")
+    logger.debug(f"{sorted_levels=}")
 
     # insert dims
     for idx, level in enumerate(sorted_levels):
@@ -755,7 +758,7 @@ def data_movement_operator_to_dsl(op):
         assign_schedules=assign_schedule_list,
         levels=level_list,
     )
-    print("--------------------------------------------")
+    logger.debug("--------------------------------------------")
     # print(f"skewing: {op.history_schedules[0]}\n")
     # print(f"shift: {op.history_schedules[1]}\n")
     # print(f"merge: {op.history_schedules[2]}\n")
@@ -764,22 +767,22 @@ def data_movement_operator_to_dsl(op):
     # print(f"access_I: {op.access_I}\n")
     # print(f"access_O: {op.access_O}\n")
     # print(f"access_W: {op.access_W}\n")
-    print(f"Compute stmt: {comp_stmt_name}, {compute_domain=}\n")
-    print(f"{type(union_domain)}, {union_domain=}\n")
-    print(f"{type(union_schedule)}, {union_schedule=}\n")
+    logger.debug(f"Compute stmt: {comp_stmt_name}, {compute_domain=}\n")
+    logger.debug(f"{type(union_domain)}, {union_domain=}\n")
+    logger.debug(f"{type(union_schedule)}, {union_schedule=}\n")
     ast = utils.gen_ast(union_domain, union_schedule, None)
     # code = utils.gen_code(union_domain,union_schedule,None)
-    # print(code)
+    # logger.debug(code)
     code_generator = CodeGenerator(op, name_to_op)
     code = code_generator.codegen_str(ast, 4)
-    print(code)
+    logger.debug(code)
     # exit()
     return code
 
 
 def codegen_pass(op_list):
     new_op_list = []
-    for idx, op in tqdm(enumerate(op_list)):
+    for idx, op in debug_tqdm(enumerate(op_list)):
         if type(op) == DataMovementOperator:
             dsl = data_movement_operator_to_dsl(op)
             op.dsl = dsl
