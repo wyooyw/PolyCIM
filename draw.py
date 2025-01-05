@@ -151,7 +151,16 @@ def schedule_identity(software_op):
         software_op = new_software_op
     return software_op
 
-def extract_frame_info(software_op, cim_cfg):
+def get_macro_hash(macro):
+    """
+    macro is a 2d list, such as:
+    [[None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [None, None, None, None], [['0', '0'], None, None, None], [['1', '0'], ['0', '0'], None, None], [['2', '0'], ['1', '0'], None, None], [['3', '0'], ['2', '0'], None, None]]
+    Each element is None or a list of string.
+    make macro to a hash string.
+    """
+    return hash(str(macro))
+
+def extract_frame_info(software_op, cim_cfg, different_weight=False):
     # 
     # if not software_op.schedule.is_identity():
     # software_op = schedule_identity(software_op)
@@ -159,16 +168,24 @@ def extract_frame_info(software_op, cim_cfg):
     # get time stamp
     domain_set = software_op.domain.as_set()
     time_list = extract_time_list(domain_set, domain_set.n_dim()-2)
+
+    macro_hash_list = set()
     
     for timestamp in time_list:
 
-        yield timestamp, _extract_frame_info(domain = domain_set, 
+        frame_info = _extract_frame_info(domain = domain_set, 
                             acc_rel_input = software_op.access_I, 
                             acc_rel_macro = software_op.access_W, 
                             acc_rel_output = software_op.access_O, 
                             timestamp = timestamp, 
                             macro_j = cim_cfg.n_group_vcol, 
                             macro_k = cim_cfg.n_comp)
+        macro_hash = get_macro_hash(frame_info.macro)
+        if different_weight and macro_hash in macro_hash_list:
+            continue
+        else:
+            macro_hash_list.add(macro_hash)
+            yield timestamp, frame_info
     
 
 if __name__=="__main__":
