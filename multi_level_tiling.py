@@ -74,6 +74,70 @@ def multi_level_tiling(operator, tiling_level, tiling_factors):
     new_operator.history_schedules.append({"tiling_factors":tiling_factors})
     return new_operator
 
+def multi_level_splitting_var_level(operator, tiling_factors):
+    """
+    tiling_factors: 
+    [
+        [2,2], # for first dim, level = 2
+        [4], # for second dim, level = 1
+        [2,4,2] # for third dim, level = 3
+    ]
+    """
+    param_names = operator.domain.get_var_names(isl.dim_type.param)
+
+    domain=operator.domain
+
+    assert domain.is_box(), f"domain={domain} is not box"
+    n_iter = domain.dim(isl.dim_type.set)
+    assert len(tiling_factors)==n_iter, f"len(tiling_factors)={len(tiling_factors)} != n_iter={n_iter}"
+
+    domain_shape = utils.get_static_box_shape(domain)
+
+    # do checks
+    for i in range(n_iter):
+        assert len(tiling_factors[i]) >= 1
+        dim_size = domain_shape[i]
+        assert multiply(tiling_factors[i])==dim_size, f"multiply(tiling_factors[{i}])={multiply(tiling_factors[i])} != dim_size={dim_size}"
+
+    # do tiling
+    tiling_maps = []
+    remain_factors = [*domain_shape]
+    split_iter = 0
+    total_iter = n_iter
+    for i in range(n_iter):
+        level = len(tiling_factors[i])
+        for l in range(level - 1):
+            before_iter_names = [f"i{i}" for i in range(split_iter)]
+            split_iter_name = f"i{split_iter}"
+            after_iter_names = [f"i{i}" for i in range(split_iter + 1, total_iter)]
+
+            remain_factors[i] = remain_factors[i] // tiling_factors[i][l]
+            outer_iter = f"floor({split_iter_name}/{remain_factors[i]})"
+            inner_iter = f"{split_iter_name} % {remain_factors[i]}"
+            tiling_map_def = f"[{','.join(param_names)}] -> {{ [{','.join( before_iter_names + [split_iter_name] + after_iter_names )}] -> [{','.join( before_iter_names + [outer_iter, inner_iter] + after_iter_names )}] }}"
+            tiling_map = isl.BasicMap(tiling_map_def)
+            # print(f"{tiling_map_def=}")
+            tiling_maps.append(tiling_map)
+
+            split_iter += 1
+            total_iter += 1
+        
+        split_iter += 1
+
+    if len(tiling_maps) > 0:
+        tiling_map = tiling_maps[0].intersect_domain(domain)
+        for _tiling_map in tiling_maps[1:]:
+            tiling_map = tiling_map.apply_range(_tiling_map)
+        tiling_map = tiling_map.intersect_domain(domain)
+    else:
+        domain_iters = [f"i{i}" for i in range(total_iter)]
+        tiling_map = isl.BasicMap(f"[{','.join(param_names)}] -> {{ [{','.join(domain_iters)}] -> [{','.join(domain_iters)}] }}")
+        tiling_map = tiling_map.intersect_domain(domain)
+        
+    new_operator = operator.apply_schedule(tiling_map)
+    new_operator.history_schedules.append({"tiling_factors":tiling_factors})
+    return new_operator
+
 def factorize(N, T, depth=1, path=None, results=None):
     if path is None:
         path = []
