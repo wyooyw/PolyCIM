@@ -63,7 +63,7 @@ def pre_tiling(operator):
     for combination in combination_list:
         new_operator = multi_level_splitting_var_level(operator, combination)
         new_combination_list.append(new_operator)
-    return new_combination_list[len(new_combination_list)//3:]
+    return new_combination_list
     # for combination in combination_list:
     #     new_operator = multi_level_splitting_var_level(operator, combination)
     #     yield new_operator
