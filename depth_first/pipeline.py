@@ -23,7 +23,26 @@ from hardware_merge_tiling import (
 from config import get_config
 from draw import extract_frame_info
 from base_operator import BasicOperator
+import concurrent.futures
 
+execution_times = {}
+
+def timing_decorator(func):
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        execution_time = end_time - start_time
+        
+        # Update the cumulative execution time for the function
+        if func.__name__ not in execution_times:
+            execution_times[func.__name__] = 0
+        execution_times[func.__name__] += execution_time
+        
+        return result
+    return wrapper
+
+@timing_decorator
 def pre_tiling(operator):
     domain = operator.domain
     tiling_factor = 2
@@ -36,7 +55,7 @@ def pre_tiling(operator):
     for dim_size in domain_shape:
         factors = factorize(dim_size, tiling_factor)
         factors = [factor for factor in factors if factor[0]!=1 and factor[1]!=1]
-        factors.append([dim_size])
+        factors = [*factors,[dim_size]]
         dim_factors.append(factors)
 
     combination_list = list(itertools.product(*dim_factors))
@@ -44,7 +63,7 @@ def pre_tiling(operator):
     for combination in combination_list:
         new_operator = multi_level_splitting_var_level(operator, combination)
         new_combination_list.append(new_operator)
-    return new_combination_list
+    return new_combination_list[len(new_combination_list)//3:]
     # for combination in combination_list:
     #     new_operator = multi_level_splitting_var_level(operator, combination)
     #     yield new_operator
@@ -220,7 +239,9 @@ def satisfies_constraints(combination, operator):
 
     return True
 
+@timing_decorator
 def affine_transform(operator):
+    # print(f"{operator.domain=}")
     # 1. base construction
     bases = base_construction(operator)  
     # for base in bases:
@@ -233,17 +254,8 @@ def affine_transform(operator):
     #  constraint2: the selected bases are linear independent
     # find all selection combinations
     selected_bases_list = select_bases(bases, operator)
-    # selected_bases_list = [(
-    #     bases[6],
-    #     bases[8],
-    #     bases[1],
-    #     bases[3],
-    #     bases[4],
-    #     bases[5],
-        
-    # )]
-    # for base in selected_bases_list[0]:
-        # print(str(base))
+    # print(f"{len(selected_bases_list)=}")
+    # exit()
     
     # 3. affine transform
     new_op_list = []
@@ -281,6 +293,7 @@ def get_mapping_from_bases(bases):
         mapping[hardware_axis] = tuple(axis_list)
     return mapping
 
+@timing_decorator
 def coalesce_and_tiling(operator, bases, cim_cfg):
     mapping = get_mapping_from_bases(bases)
     # print(f"{mapping=}")
@@ -296,6 +309,24 @@ def coalesce_and_tiling(operator, bases, cim_cfg):
     # exit()
     return [new_op]
 
+def execute_with_timeout(func, *args, timeout=10):
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        future = executor.submit(func, *args)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            print("Function execution timed out!")
+            return None
+
+@timing_decorator
+def count_val_upto(domain, n):
+    return domain.count_val_upto(n)
+
+
+@timing_decorator
+def count_val(domain):
+    return domain.count_val()
+
 class SearchSpace:
     def __init__(self, cim_cfg):
         self.cim_cfg = cim_cfg
@@ -304,21 +335,19 @@ class SearchSpace:
         result = []
         min_compute_times = int(1e9)
         min_compute_op = None
-        for op1 in tqdm(self.pre_tiling(op)):
-            
-            for op2,bases in self.affine_transform(op1):
-                # print("bases:")
-                # for base in bases:
-                #     print(str(base))
+        for op1 in tqdm(self.pre_tiling(op), desc="pre_tiling"):            
+            for op2,bases in tqdm(self.affine_transform(op1), desc="affine_transform"):
                 begin_time = time.time()
                 for op3 in self.coalesce_and_tiling(op2, bases):
                     # result.append(op3)
                     n_dim = op3.domain.dim(isl.dim_type.set)
                     outer_domain = op3.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-                    exe_time = int(str(outer_domain.count_val()))
-                    # exe_time = int(str(outer_domain.count_val_upto(min_compute_times + 1)))
-                    if exe_time < min_compute_times:
-                        min_compute_times = exe_time
+                    
+                    # Use the execute_with_timeout function
+                    exe_time = count_val_upto(outer_domain, min_compute_times + 1)
+                    
+                    if exe_time is not None and exe_time < min_compute_times:
+                        min_compute_times = int(str(exe_time))
                         min_compute_op = op3
                         print(f"min_compute_times={min_compute_times}")
                 end_time = time.time()
@@ -337,36 +366,50 @@ class SearchSpace:
     def coalesce_and_tiling(self, op, bases):
         return coalesce_and_tiling(op, bases, self.cim_cfg)
 
-def main():
-    cim_cfg = get_config()
-    search_space = SearchSpace(cim_cfg)
-    # op = benchmark.get_op_conv2d(
-    #     b=1, oc=1, ic=1, oh=8, ow=8, kh=3, kw=3, stride=1
-    # )
-    op = BasicOperator(
-        domain = isl.BasicSet(
-            f"{{ [oh,ow,kh,kw]: 0<=oh<8 and 0<=ow<8 and 0<=kh<3 and 0<=kw<3 }}"
-        ),
-        access_I = isl.BasicMap("{ [oh,ow,kh,kw] -> I[oh + kh, ow + kw] }"),
-        access_O = isl.BasicMap("{ [oh,ow,kh,kw] -> O[oh, ow] }"),
-        access_W = isl.BasicMap("{ [oh,ow,kh,kw] -> W[kh, kw] }"),
-    )
-    min_compute_times, min_compute_op = search_space.search(op)
-
-    flops = int(str(op.domain.count_val()))
+def show_result(min_compute_times, cim_cfg, flops):
     flops_per_cim_compute = flops / min_compute_times
     peak_flops_per_cim_compute = cim_cfg.n_comp * cim_cfg.n_group_vcol
     use_rate_percent = flops_per_cim_compute / peak_flops_per_cim_compute * 100
+    print(f"min_compute_times: {min_compute_times}")
     print(f"cim: {cim_cfg.n_comp} comp, {cim_cfg.n_group_vcol} group_vcol")
     print(f"flops={flops}")
     print(f"flops_per_cim_compute={flops_per_cim_compute}")
     print(f"peak_flops_per_cim_compute={peak_flops_per_cim_compute}")
     print(f"use_rate={use_rate_percent:.2f}%")
-    
 
-    # union_domain = min_compute_op.domain
-    # union_schedule = union_domain.identity()
-    # code = utils.gen_code(union_domain,union_schedule,None)
+def run_op_list(op_list):
+    cim_cfg = get_config()
+    search_space = SearchSpace(cim_cfg)
+    for name,op in op_list.items():
+        print(f"{name=}")
+        min_compute_times, min_compute_op = search_space.search(op)
+        flops = int(str(op.domain.count_val()))
+        show_result(min_compute_times, cim_cfg, flops)
+        print("\n")
+
+@timing_decorator
+def main():
+    op_list = OrderedDict()
+    # op_list["C1"] = benchmark.get_op_dwconv2d(ic=1, oh=112, ow=112, kh=3, kw=3, stride=1, dilation=1)
+    # op_list["C2"] = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=3, kw=3, stride=1, dilation=1)
+    # op_list["C3"] = benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=1)
+    # op_list["C4"] = benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=3, kw=3, stride=1, dilation=1)
+    # op_list["C5"] = benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=5, kw=5, stride=1, dilation=1)
+    # op_list["C6"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=3, kw=3, stride=1, dilation=1)
+    # op_list["C7"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=5, kw=5, stride=1, dilation=1)
+    op_list["C8"] = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=7, kw=7, stride=1, dilation=1)
+    # op_list["C9"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=7, kw=7, stride=1, dilation=1)
+    # op_list["C10"] = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=51, kw=51, stride=1, dilation=1)
+    # op_list["C11"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=13, kw=13, stride=1, dilation=1)
+    # op_list["C12"] = benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2)
+    # op_list["C13"] = benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2)
+    # op_list["C14"] = benchmark.get_op_dwconv2d(b=1, oc=1, ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2)
+    # op_list["C15"] = benchmark.get_op_dwconv3d(ic=1, ox=28, oy=28, oz=28, kx=5, ky=5, kz=5, stride=1)
+
+    # op_list["test"] = benchmark.get_op_dwconv2d(ic=1, oh=16, ow=16, kh=3, kw=3, stride=1, dilation=1)
+    run_op_list(op_list)
+    # exit()
+
     # # print(code)
     # # import pdb; pdb.set_trace()
     # for idx, value in enumerate(extract_frame_info(min_compute_op, cim_cfg, different_weight=True)):
@@ -383,3 +426,6 @@ def main():
 if __name__ == "__main__":
     
     main()
+    print("\nCumulative Execution Times:")
+    for func_name, total_time in execution_times.items():
+        print(f"{func_name}: {total_time:.4f} seconds")
