@@ -14,7 +14,9 @@ from config import get_memory_sizes
 from utils.utils import (get_box_hull_shape, rename_all_dims_for_basic_map,
                          rename_all_dims_for_basic_set,
                          rename_out_dims_for_basic_map)
+from utils.logger import get_logger, debug_tqdm
 
+logger = get_logger(__name__)
 
 def find_domain_iters_exist_in_range(aff, return_name=True):
 
@@ -300,7 +302,7 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
         used_global_buffer_dynamic_shape[local_to_global_buf_axis_mapping[i]]
         for i in range(len(local_to_global_buf_axis_mapping))
     ]
-    # print(f"{local_buffer_dynamic_shape = }")
+    # logger.debug(f"{local_buffer_dynamic_shape = }")
     # check prefix_acc_rel is continous on given dim
 
     lower_bound_per_dim = [prefix_acc_rel.dim_min(i) for i in range(n_buf_dim)]
@@ -448,7 +450,7 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_for_weight(
         used_global_buffer_dynamic_shape[local_to_global_buf_axis_mapping[i]]
         for i in range(len(local_to_global_buf_axis_mapping))
     ]
-    # print(f"{local_buffer_dynamic_shape = }")
+    # logger.debug(f"{local_buffer_dynamic_shape = }")
     # check prefix_acc_rel is continous on given dim
 
     lower_bound_per_dim = [prefix_acc_rel.dim_min(i) for i in range(n_buf_dim)]
@@ -618,7 +620,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
         assign_schedule_to_level[assign_schedule] = level
 
     sorted_levels = sorted(list(level_to_assign_schedule.keys()))
-    print(f"{sorted_levels=}")
+    logger.debug(f"{sorted_levels=}")
 
     # insert dims
     for level in levels:
@@ -756,7 +758,7 @@ def insert_single_buffer_single_level(op, buffer_name, buffer_level):
 
 def insert_single_buffer_single_level_pass(op_list, buffer_name, buffer_level):
     new_codes = []
-    for op in tqdm(op_list):
+    for op in debug_tqdm(op_list):
         new_op = insert_single_buffer_single_level(op, buffer_name, buffer_level)
         new_codes.append(new_op)
     return new_codes
@@ -859,15 +861,15 @@ def insert_single_buffer_multi_level(
         attr={key: value for key, value in op.attr.items()},
     )
 
-    # print(f"domain: {op.domain}\n")
-    # print(f"access_I: {op.access_I}\n")
-    # print(f"access_O: {op.access_O}\n")
-    # print(f"access_W: {op.access_W}\n")
+    # logger.debug(f"domain: {op.domain}\n")
+    # logger.debug(f"access_I: {op.access_I}\n")
+    # logger.debug(f"access_O: {op.access_O}\n")
+    # logger.debug(f"access_W: {op.access_W}\n")
 
     for idx, data_movement in enumerate(data_movement_list):
         new_op.insert_buffer(buffer_name, data_movement)
-    #     print(f"{idx}. {data_movement.domain=}\n")
-    # print("\n-----------------------\n")
+    #     logger.debug(f"{idx}. {data_movement.domain=}\n")
+    # logger.debug("\n-----------------------\n")
 
     return new_op
 
@@ -877,7 +879,7 @@ def insert_single_buffer_multi_level_pass(op_list, buffer_name, buffer_levels):
     new_ops = insert_single_buffer_multi_level_pass(new_ops, buffer_name="W", buffer_levels=[0, 2])
     """
     new_codes = []
-    for op in tqdm(op_list):
+    for op in debug_tqdm(op_list):
         new_op = insert_single_buffer_multi_level(op, buffer_name, buffer_levels)
         new_codes.append(new_op)
     return new_codes
@@ -892,7 +894,7 @@ def get_valid_buffer_positions(acc_rel):
     dominate_iters_per_dim = get_dominate_iters_of_pw_multi_aff_per_out(
         acc_rel.as_pw_multi_aff(), return_name=False
     )
-    # print(f"{dominate_iters_per_dim=}")
+    # logger.debug(f"{dominate_iters_per_dim=}")
     dominate_iters = reduce(lambda x, y: x.union(y), dominate_iters_per_dim)
     assert type(dominate_iters) == set
     dominate_iters = sorted(list(dominate_iters))
@@ -974,7 +976,7 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
     weight_memory_names = ["__MACRO__"]
 
     new_ops = []
-    for op in tqdm(op_list):
+    for op in debug_tqdm(op_list):
         input_buffer_level_combinations = buffer_level_serching(
             op, "I", num_buffer_level=1, level_min=0, level_max=macro_compute_level + 1
         )
@@ -1134,7 +1136,7 @@ def memory_access_satisfy_constraint(op):
         size_limit = buffer_type_to_size[memory_type]
         if memory_type == "__PIM_INPUT_REG_BUFFER__" and use_size > size_limit:
             satisfy = False
-            print(f"Memory not satisfy! {memory_type=}, {use_size=}, {size_limit=}")
+            logger.debug(f"Memory not satisfy! {memory_type=}, {use_size=}, {size_limit=}")
             break
     return satisfy
 
@@ -1142,7 +1144,7 @@ def memory_access_satisfy_constraint(op):
 def filter_op_by_memory_access_cost_pass(op_list):
     op_list = [op for op in op_list if memory_access_satisfy_constraint(op)]
     memory_access_cost_list = [memory_access_cost(op) for op in op_list]
-    # print(f"{memory_access_cost_list=}")
+    # logger.debug(f"{memory_access_cost_list=}")
     # exit()
     memory_access_cost_list = np.array(memory_access_cost_list)
     sorted_indices = np.argsort(memory_access_cost_list)
@@ -1155,7 +1157,7 @@ def filter_op_by_memory_access_cost_pass(op_list):
         if i < 3 or memory_access_cost_list[index] == min_value:
             new_op_list.append(op_list[index])
             new_op_list_memory_access.append(memory_access_cost_list[index])
-            print(f"{i}. {memory_access_cost_list[index]=}")
+            logger.debug(f"{i}. {memory_access_cost_list[index]=}")
 
     return new_op_list
 
@@ -1186,7 +1188,7 @@ if __name__ == "__main__":
         ),
     )
     new_op = insert_single_buffer_multi_level(operator, "I", [4])
-    # print(code)
+    # logger.debug(code)
 
 
 def test():

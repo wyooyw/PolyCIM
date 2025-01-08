@@ -4,6 +4,7 @@ from tqdm import tqdm
 import utils.utils as utils
 from base_operator import (AccessRelation, BasicOperator, DataMovement,
                            DataMovementOperator, TensorAccessRelation)
+from utils.logger import debug_tqdm
 
 
 def pwaffs_to_map(affs):
@@ -134,7 +135,7 @@ def vectorize_data_movement_for_op(op):
 
 def tensorize_pass(op_list):
     new_op_list = []
-    for op in tqdm(op_list):
+    for op in debug_tqdm(op_list):
 
         new_op = tensorize_cim_compute(op)
         new_op = vectorize_data_movement_for_op(new_op)
