@@ -1,6 +1,10 @@
 from multi_level_tiling import enumerate_tiling_factors
 import benchmark
-from multi_level_tiling import factorize, multi_level_splitting_var_level
+from multi_level_tiling import (
+    factorize, 
+    multi_level_splitting_var_level, 
+    combine_tilesize_by_symmetry_info
+)
 import islpy as isl
 import utils
 import itertools
@@ -21,9 +25,19 @@ from hardware_merge_tiling import (
     _get_hardware_tiling_schedule
 )
 from config import get_config
-from draw import extract_frame_info
+from draw import (
+    draw,
+    extract_frame_info
+)
+from depth_first.count_minimal_macro import count_minimal_needed_macro
 from base_operator import BasicOperator
 import concurrent.futures
+import datetime
+import os
+from depth_first.timeout import timeout
+from functools import reduce
+import math
+from loop_padding import loop_padding_to_box_all, shift_to_zero
 
 execution_times = {}
 
@@ -42,8 +56,15 @@ def timing_decorator(func):
         return result
     return wrapper
 
+def get_symmetry_info(operator, dim_factors):
+    pass
+
+def get_tqdm(ls, desc=""):
+    # return tqdm(ls, desc=desc)
+    return ls
+
 @timing_decorator
-def pre_tiling(operator):
+def pre_tiling(operator, symmetry_info=None):
     domain = operator.domain
     tiling_factor = 2
 
@@ -54,15 +75,22 @@ def pre_tiling(operator):
     dim_factors = []
     for dim_size in domain_shape:
         factors = factorize(dim_size, tiling_factor)
-        factors = [factor for factor in factors if factor[0]!=1 and factor[1]!=1]
-        factors = [*factors,[dim_size]]
-        dim_factors.append(factors)
+        factors = [tuple(factor) for factor in factors if factor[0]!=1 and factor[1]!=1]
+        factors = reversed(factors)
+        factors = [*factors,(dim_size,)]
+        dim_factors.append(tuple(factors))
+    dim_factors = tuple(dim_factors)
 
-    combination_list = list(itertools.product(*dim_factors))
+    if symmetry_info is None:
+        combination_list = list(itertools.product(*dim_factors))
+    else:
+        combination_list = combine_tilesize_by_symmetry_info(dim_factors, symmetry_info)
+
     new_combination_list = []
-    for combination in combination_list:
+    for idx,combination in enumerate(combination_list):
         new_operator = multi_level_splitting_var_level(operator, combination)
-        new_combination_list.append(new_operator)
+        new_combination_list.append((new_operator, combination))
+
     return new_combination_list
     # for combination in combination_list:
     #     new_operator = multi_level_splitting_var_level(operator, combination)
@@ -120,32 +148,68 @@ def filter_cover_points(points):
             new_points.append(point)
     return new_points
 
+# def filter_times_points(points):
+#     """
+#     For any two points A and B, if there exists a positive integer k such that A = B*k, then A is not valid.
+#     """
+#     filtered_points = []
+#     for i, point_a in enumerate(points):
+#         is_valid = True
+#         for j, point_b in enumerate(points):
+#             if i == j:
+#                 continue
+#             if not nonzero_equal(point_a, point_b):
+#                 continue
+                
+#             # Check if point_b is a scalar multiple of point_a
+#             ratios = [a / b if b != 0 else None for a, b in zip(point_a, point_b)]
+#             ratios = [ratio for ratio in ratios if ratio is not None]
+#             assert len(ratios) > 0
+#             if all(ratio == ratios[0] for ratio in ratios) and ratios[0] >= 1:
+#                 is_valid = False
+#                 break
+
+#         if is_valid:
+#             filtered_points.append(point_a)
+#     return filtered_points
+
 def filter_times_points(points):
     """
     For any two points A and B, if there exists a positive integer k such that A = B*k, then A is not valid.
     """
     filtered_points = []
+    
     for i, point_a in enumerate(points):
-        is_valid = True
-        for j, point_b in enumerate(points):
-            if i == j:
-                continue
-            if not nonzero_equal(point_a, point_b):
-                continue
-                
-            # Check if point_b is a scalar multiple of point_a
-            ratios = [a / b if b != 0 else None for a, b in zip(point_a, point_b)]
-            ratios = [ratio for ratio in ratios if ratio is not None]
-            assert len(ratios) > 0
-            if all(ratio == ratios[0] for ratio in ratios) and ratios[0] >= 1:
-                is_valid = False
-                break
-
-        if is_valid:
+        nonzero_elements = [i for i in point_a if i!=0]
+        # gcd of nonzero_elements
+        gcd = reduce(lambda x,y: math.gcd(x,y), nonzero_elements)
+        if gcd == 1:
             filtered_points.append(point_a)
     return filtered_points
 
-def base_construction(operator):
+def filter_tile_direction_points(points, **kwargs):
+    assert "tile_sizes" in kwargs
+    tile_sizes = kwargs["tile_sizes"]
+    tile_pair = []
+    i_iter = 0
+    for tile_size in tile_sizes:
+        if len(tile_size) == 2:
+            tile_pair.append((i_iter, i_iter + 1))
+        i_iter += len(tile_size)
+    
+    new_points = []
+    for point in points:
+        nonzero = [int(i!=0) for i in point]
+        is_valid = True
+        for tile_out_iter,tile_in_iter in tile_pair:
+            if nonzero[tile_out_iter] == 1 and nonzero[tile_in_iter] == 1:
+                is_valid = False
+                break
+        if is_valid:
+            new_points.append(point)
+    return new_points
+
+def base_construction(operator, **kwargs):
     n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays = (
         parse_operator(
             domain=operator.domain,
@@ -165,8 +229,8 @@ def base_construction(operator):
         )
         # import pdb; pdb.set_trace()
         points = get_nontrival_points(reuse_bases)
-
         points = filter_times_points(points)
+        points = filter_tile_direction_points(points, **kwargs)
         points = filter_cover_points(points)
         # TODO: filter points
         for point in points:
@@ -240,13 +304,9 @@ def satisfies_constraints(combination, operator):
     return True
 
 @timing_decorator
-def affine_transform(operator):
-    # print(f"{operator.domain=}")
+def affine_transform(operator, **kwargs):
     # 1. base construction
-    bases = base_construction(operator)  
-    # for base in bases:
-    #     print(str(base))
-    # print("\n")
+    bases = base_construction(operator, **kwargs)  
     
     # 2. base selection
     # select n_dim base from bases that satisfy:
@@ -254,25 +314,28 @@ def affine_transform(operator):
     #  constraint2: the selected bases are linear independent
     # find all selection combinations
     selected_bases_list = select_bases(bases, operator)
-    # print(f"{len(selected_bases_list)=}")
-    # exit()
-    
+
     # 3. affine transform
     new_op_list = []
     for selected_bases in selected_bases_list:
         rev_selected_bases = tuple(list(selected_bases)[::-1])
         matrix = Matrix([base.corrdinate for base in rev_selected_bases])
-        # print("")
-        # print(f"{matrix=}")
+
         schedule = base_to_coor_transform_schedule(matrix)
-        # print("")
-        # print(f"{schedule=}")
-        new_op = operator.apply_schedule(schedule)
+
+        new_op = operator.apply_schedule(schedule, name="affine")
         new_op = shift_to_positive(new_op)
-        # print("")
-        # print(f"{new_op.domain=}")
+        new_op = loop_padding_to_box_all(new_op)
+
+        base_str = ""
+        for base in selected_bases:
+            base_str += str(base) + "\n"
+        new_op.history_schedules.append({"bases":base_str})
+        new_op.history_schedules.append({"matrix":matrix})
+
         new_op_list.append((new_op, selected_bases))
-    # exit()
+
+    
     return new_op_list
 
 def get_mapping_from_bases(bases):
@@ -290,11 +353,16 @@ def get_mapping_from_bases(bases):
         # h0: row, reuse output;
         # h1: col, reuse input
         hardware_axis = f"h{(1-array_id)}"
+
         mapping[hardware_axis] = tuple(axis_list)
+        # if array_id == 0:
+        #     mapping[hardware_axis] = tuple(axis_list)
+        # else:
+        #     mapping[hardware_axis] = tuple(reversed(axis_list))
     return mapping
 
 @timing_decorator
-def coalesce_and_tiling(operator, bases, cim_cfg):
+def coalesce_and_tiling(operator, bases, cim_cfg, return_schedule=False):
     mapping = get_mapping_from_bases(bases)
     # print(f"{mapping=}")
     coalescing_schedule = get_schedule_from_mapping(mapping, operator)
@@ -304,10 +372,12 @@ def coalesce_and_tiling(operator, bases, cim_cfg):
     ]
     tiling_schedule = _get_hardware_tiling_schedule(coalescing_schedule.range().dim(isl.dim_type.set), tiling_factor)
     # print(f"{tiling_schedule=}")
-    new_op = operator.apply_schedule(coalescing_schedule, skip_simplify=True)
-    new_op = new_op.apply_schedule(tiling_schedule, skip_simplify=True)
-    # exit()
-    return [new_op]
+    if return_schedule:
+        return [(coalescing_schedule, tiling_schedule)]
+    else:
+        new_op = operator.apply_schedule(coalescing_schedule, skip_simplify=True, name="coalescing")
+        new_op = new_op.apply_schedule(tiling_schedule, skip_simplify=True, name="tiling")
+        return [new_op]
 
 def execute_with_timeout(func, *args, timeout=10):
     with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -323,48 +393,123 @@ def count_val_upto(domain, n):
     return domain.count_val_upto(n)
 
 
-@timing_decorator
+@timeout(seconds=100)
 def count_val(domain):
-    return domain.count_val()
+    return int(str(domain.count_val()))
+
+def get_num_div(domain):
+    if type(domain) == isl.BasicSet:
+        return domain.dim(isl.dim_type.div)
+    elif type(domain) == isl.Set:
+        total_divs = 0
+        for bset in domain.get_basic_sets():
+            total_divs += bset.dim(isl.dim_type.div)
+        return total_divs
+    else:
+        raise ValueError(f"Unsupported domain type: {type(domain)}")
+
+def get_show_num_div(domain):
+    s = str(domain)
+    if "exists" not in s:
+        return 0
+
+    s = s.split("exists")[1]
+    s = s.split(":")[0]
+    # num of 'e' in s
+    return s.count("e")
+
+def count_cim_compute_from_bases(op, bases, cim_cfg):
+    n_dim = op.domain.dim(isl.dim_type.set)
+    dim_sizes = utils.get_box_hull_shape(op.domain)
+    
+    new_dim_sizes = []
+    for base in bases:
+        corrdinate = base.corrdinate
+        assert len(corrdinate)==n_dim
+        size_per_dim = [dim_size//abs(base_corr) for dim_size, base_corr in zip(dim_sizes, corrdinate) if base_corr!=0]
+        dim_size = max(size_per_dim)
+        new_dim_sizes.append(dim_size)
+    return new_dim_sizes
+
 
 class SearchSpace:
-    def __init__(self, cim_cfg):
+    def __init__(self, cim_cfg, pad_count, delay_apply, num_macros, enable_weight_rewrite):
         self.cim_cfg = cim_cfg
+        self.pad_count = pad_count
+        self.delay_apply = delay_apply
+        self.num_macros = num_macros
+        self.enable_weight_rewrite = enable_weight_rewrite
 
-    def search(self, op):
+    def search(self, op, **kwargs):
         result = []
         min_compute_times = int(1e9)
         min_compute_op = None
-        for op1 in tqdm(self.pre_tiling(op), desc="pre_tiling"):            
-            for op2,bases in tqdm(self.affine_transform(op1), desc="affine_transform"):
-                begin_time = time.time()
-                for op3 in self.coalesce_and_tiling(op2, bases):
-                    # result.append(op3)
-                    n_dim = op3.domain.dim(isl.dim_type.set)
-                    outer_domain = op3.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-                    
-                    # Use the execute_with_timeout function
-                    exe_time = count_val_upto(outer_domain, min_compute_times + 1)
+        stats = {"count_val": list()}
+        for op1,tile_sizes in get_tqdm(self.pre_tiling(op, symmetry_info=kwargs.get("symmetry_info", None)), desc="pre_tiling"):            
+            # print("a")
+            begin_time = time.time()
+            for op2,bases in get_tqdm(self.affine_transform(op1, tile_sizes=tile_sizes), desc="affine_transform"):
+
+                
+                for op3 in self.coalesce_and_tiling(op2, bases, return_schedule=self.delay_apply):
+
+                    if self.delay_apply:
+                        coalescing_schedule, tiling_schedule = op3
+                        domain = op2.domain
+                        domain = coalescing_schedule.intersect_domain(domain).range()
+                        domain = tiling_schedule.intersect_domain(domain).range()
+                    else:
+                        domain = op3.domain
+
+                    if self.pad_count:
+                        # get padding exe time
+                        box_hull_shape = utils.get_box_hull_shape(domain)
+                        outer_box_hull_shape = box_hull_shape[:-2]
+                        exe_time = reduce(lambda x,y: x*y, outer_box_hull_shape)
+                    else:
+                        # result.append(op3)
+                        n_dim = domain.dim(isl.dim_type.set)
+                        outer_domain = domain.project_out(isl.dim_type.set, n_dim - 2, 2)
+                        
+                        # Use the execute_with_timeout function
+                        exe_time = count_val(outer_domain)
+                        if isinstance(exe_time, Exception):
+                            print(f"error: {exe_time}")
+                            exit()
+
+                        if exe_time is None:
+                            print(f"timeout")
+                        else:
+                            assert isinstance(exe_time, int)
                     
                     if exe_time is not None and exe_time < min_compute_times:
-                        min_compute_times = int(str(exe_time))
+                        min_compute_times = exe_time
+                        if self.delay_apply:
+                            op3 = op2.apply_schedule(coalescing_schedule, skip_simplify=True, name="coalescing")
+                            op3 = op3.apply_schedule(tiling_schedule, skip_simplify=True, name="tiling")
                         min_compute_op = op3
                         print(f"min_compute_times={min_compute_times}")
-                end_time = time.time()
-                # print(f"time={end_time - begin_time}")
-                # print("\n")
-        return min_compute_times, min_compute_op
+                
+            end_time = time.time()
+            
+            # dump_schedules(min_compute_op)
+            # print(f"time={end_time - begin_time}")
+            # print("\n")
+            # print(f"min_compute_times={min_compute_times}")
+            # draw(min_compute_op, self.cim_cfg)
+            # exit()
+        return min_compute_times, min_compute_op, stats
         
 
-    def pre_tiling(self, op):
-        return pre_tiling(op)
+    def pre_tiling(self, op, symmetry_info):
+        return pre_tiling(op, symmetry_info=symmetry_info)
         # return [op]
 
-    def affine_transform(self, op):
-        return affine_transform(op)
+    def affine_transform(self, op, **kwargs):
+        return affine_transform(op, **kwargs)
 
-    def coalesce_and_tiling(self, op, bases):
-        return coalesce_and_tiling(op, bases, self.cim_cfg)
+    def coalesce_and_tiling(self, op, bases, return_schedule=False):
+        return coalesce_and_tiling(op, bases, self.cim_cfg, return_schedule)
 
 def show_result(min_compute_times, cim_cfg, flops):
     flops_per_cim_compute = flops / min_compute_times
@@ -377,37 +522,130 @@ def show_result(min_compute_times, cim_cfg, flops):
     print(f"peak_flops_per_cim_compute={peak_flops_per_cim_compute}")
     print(f"use_rate={use_rate_percent:.2f}%")
 
-def run_op_list(op_list):
+dump_index = 0
+def dump_schedules(op, **kwargs):
+    global dump_index
+    schedule_dict = OrderedDict()
+    schedule_dict["pre_tiling"] = None
+    schedule_dict["affine"] = None
+    schedule_dict["shift_to_positive"] = None
+    schedule_dict["coalescing"] = None
+    schedule_dict["tiling"] = None
+    for name_schedule in op.history_schedules:
+        if type(name_schedule) == dict and list(name_schedule.keys())[0] in schedule_dict:
+            name = list(name_schedule.keys())[0]
+            schedule = name_schedule[name]
+            schedule_dict[name] = str(schedule)
+    
+    init_domain = op.history_domains[0]
+    dump_code = "\"\"\"\n"
+    for key,value in kwargs.items():
+        dump_code += f"{key} = {value}\n"
+    dump_code += "\"\"\"\n"
+    dump_code += f"import islpy as isl\n"
+    dump_code += f"import time\n"
+    dump_code += f"domain = isl.BasicSet(\"{init_domain}\")\n\n"
+    for key, value in schedule_dict.items():
+        dump_code += f"schedule_{key} = isl.BasicMap(\"{value}\")\n"
+        dump_code += f"domain = schedule_{key}.intersect_domain(domain).range()\n\n"
+
+    dump_code += """
+n_dim = domain.dim(isl.dim_type.set)
+begin_time = time.time()
+outer_domain = domain.project_out(isl.dim_type.set, n_dim - 2, 2)
+val = outer_domain.count_val()
+dur_time = time.time() - begin_time
+print(f"outer_domain.count_val {val=}, {dur_time=}")
+    """
+    save_dir = "dump_code"
+    os.makedirs(save_dir, exist_ok=True)
+    with open(os.path.join(save_dir, f"dump_code_{dump_index}.py"), "w") as f:
+        f.write(dump_code)
+    dump_index += 1
+    print("dump_code saved to dump_code.py")
+    # exit()
+    return dump_code
+
+def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_weight_rewrite):
+    os.makedirs(save_dir, exist_ok=True)
     cim_cfg = get_config()
-    search_space = SearchSpace(cim_cfg)
+    search_space = SearchSpace(cim_cfg, 
+                              pad_count=pad_count, 
+                              delay_apply=delay_apply,
+                              num_macros=num_macros,
+                              enable_weight_rewrite=enable_weight_rewrite)
     for name,op in op_list.items():
+        if isinstance(op, tuple):
+            op, symmetry_info = op
+        else:
+            symmetry_info = None
         print(f"{name=}")
-        min_compute_times, min_compute_op = search_space.search(op)
+        min_compute_times, min_compute_op, stats = search_space.search(op, symmetry_info=symmetry_info)
         flops = int(str(op.domain.count_val()))
         show_result(min_compute_times, cim_cfg, flops)
         print("\n")
+        # save stats["count_val"] into a csv file
+        # header: count_time, exe_time
+        # with open(os.path.join(save_dir, f"{name}.csv"), "w") as f:
+        #     f.write("count_time,exe_time,num_div,num_show_div\n")
+        #     for count_time, exe_time, num_div, num_show_div in stats["count_val"]:
+        #         f.write(f"{count_time:.2f},{exe_time},{num_div},{num_show_div}\n")
 
 @timing_decorator
 def main():
-    op_list = OrderedDict()
-    # op_list["C1"] = benchmark.get_op_dwconv2d(ic=1, oh=112, ow=112, kh=3, kw=3, stride=1, dilation=1)
-    # op_list["C2"] = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=3, kw=3, stride=1, dilation=1)
-    # op_list["C3"] = benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=1)
-    # op_list["C4"] = benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=3, kw=3, stride=1, dilation=1)
-    # op_list["C5"] = benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=5, kw=5, stride=1, dilation=1)
-    # op_list["C6"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=3, kw=3, stride=1, dilation=1)
-    # op_list["C7"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=5, kw=5, stride=1, dilation=1)
-    op_list["C8"] = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=7, kw=7, stride=1, dilation=1)
-    # op_list["C9"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=7, kw=7, stride=1, dilation=1)
-    # op_list["C10"] = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=51, kw=51, stride=1, dilation=1)
-    # op_list["C11"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=13, kw=13, stride=1, dilation=1)
-    # op_list["C12"] = benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2)
-    # op_list["C13"] = benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2)
-    # op_list["C14"] = benchmark.get_op_dwconv2d(b=1, oc=1, ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2)
-    # op_list["C15"] = benchmark.get_op_dwconv3d(ic=1, ox=28, oy=28, oz=28, kx=5, ky=5, kz=5, stride=1)
+    pad_count = True
+    delay_apply = True
+    num_macros = 16
+    enable_weight_rewrite = True
 
-    # op_list["test"] = benchmark.get_op_dwconv2d(ic=1, oh=16, ow=16, kh=3, kw=3, stride=1, dilation=1)
-    run_op_list(op_list)
+    op_list = OrderedDict()
+    op_list["C1"] = benchmark.get_op_dwconv2d(ic=1, oh=112, ow=112, kh=3, kw=3, stride=1, dilation=1)
+    op_list["C2"] = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=3, kw=3, stride=1, dilation=1)
+    op_list["C3"] = benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=1)
+    op_list["C4"] = benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=3, kw=3, stride=1, dilation=1)
+    op_list["C5"] = benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=5, kw=5, stride=1, dilation=1)
+    op_list["C6"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=5, kw=5, stride=1, dilation=1)
+    op_list["C7"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=3, kw=3, stride=1, dilation=1)
+    op_list["C8"] = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=7, kw=7, stride=1, dilation=1)
+    op_list["C9"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=7, kw=7, stride=1, dilation=1)
+    # op_list["C10"] = (
+    #     benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=51, kw=51, stride=1, dilation=1, virtual_axis=False),
+    #     # symmetry_info
+    #     ((1,3),(2,4))
+    # )
+    # op_list["C11"] = benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=13, kw=13, stride=1, dilation=1)
+    # op_list["C12"] = (
+    #     benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2, virtual_axis=False),
+    #     # symmetry_info
+    #     ((1,3),(2,4))
+    # )
+    # op_list["C13"] = (
+    #     benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2, virtual_axis=False),
+    #     # symmetry_info
+    #     ((1,3),(2,4))
+    # )
+    # # op_list["C14"] = benchmark.get_op_dwconv2d(b=1, oc=1, ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2)
+    # op_list["C15"] = (
+    #     benchmark.get_op_dwconv3d(ic=1, ox=28, oy=28, oz=28, kx=5, ky=5, kz=5, stride=1),
+    #     # symmetry_info
+    #     ((1,4),(2,5),(3,6))
+    # )
+
+    # op_list["test"] = (
+    #     benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=1, virtual_axis=False),
+    #     # symmetry_info
+    #     ((1,3),(2,4))
+    # )
+    # op_list["test"] = (
+    #     benchmark.get_op_dwconv2d(ic=4, oh=16, ow=16, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
+    #     # None
+    #     # symmetry_info
+    #     ((1,3),(2,4))
+    # )
+
+    curr_time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    save_dir = os.path.join(".save", curr_time_str)
+    run_op_list(op_list, save_dir, pad_count=pad_count, delay_apply=delay_apply, num_macros=num_macros, enable_weight_rewrite=enable_weight_rewrite)
     # exit()
 
     # # print(code)
@@ -421,11 +659,66 @@ def main():
     #         break
     #     else:
     #         continue
-        
+
+def test_single_op():
+    op = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=7, kw=7, stride=1, dilation=1) 
+    domain = op.domain.as_set()
+
+    total_begin_time = time.time()
+
+    schedule_tiling = isl.BasicMap("{ [i0, i1, i2, i3, i4, i5] -> [o0, o1, o2, o3, o4, o5, o6, o7] : i0 = 0 and i1 = 0 and o0 = 0 and o1 = 0 and o6 = i4 and o7 = i5 and (i2 + o3) mod 2 = 0 and (i3 + o5) mod 2 = 0 and 0 <= i2 <= 55 and 0 <= i3 <= 55 and 0 <= i4 <= 6 and 0 <= i5 <= 6 and -1 + i2 <= 2o2 <= i2 and 0 <= o3 <= 1 and -1 + i3 <= 2o4 <= i3 and 0 <= o5 <= 1 }")
+    domain = schedule_tiling.intersect_domain(domain).range()
+
+    schedule_affine = isl.BasicMap("{ [i0, i1, i2, i3, i4, i5, i6, i7] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = i2 and o1 = i4 and o2 = 2i2 + i6 and o3 = 2i4 + i7 and o4 = i0 and o5 = i1 and o6 = i3 and o7 = i5 }")
+    domain = schedule_affine.intersect_domain(domain).range()
+    print(f"0 {domain=}, {domain.dim(isl.dim_type.div)=}")
+
+    schedule_coalesce = isl.BasicMap("{ [s0, s1, s2, s3, s4, s5, s6, s7] -> [o0, o1, o2, o3, o4, o5] : o0 = s4 and o1 = s5 and o2 = s6 and o3 = s7 and o4 = 61s2 + s3 and o5 = 28s0 + s1 }")
+    domain = schedule_coalesce.intersect_domain(domain).range()
+    # print(f"1 {domain=}, {domain.dim(isl.dim_type.div)=}")
+    # domain = domain.make_disjoint()
+    # print(f"2 {domain=}, {domain.dim(isl.dim_type.div)=}")
+    # domain = domain.compute_divs()
+    # print(f"3 {domain=}, {domain.dim(isl.dim_type.div)=}")
+
+    schedule_tiling = isl.BasicMap("{ [s0, s1, s2, s3, s4, s5] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = s0 and o1 = s1 and o2 = s2 and o3 = s3 and (-s4 + o6) mod 32 = 0 and (-s5 + o7) mod 8 = 0 and -31 + s4 <= 32o4 <= s4 and -7 + s5 <= 8o5 <= s5 and 0 <= o6 <= 31 and 0 <= o7 <= 7 }")
+    domain = schedule_tiling.intersect_domain(domain).range()
+
+    begin_time = time.time()
+    # print(f"A {domain=}, {domain.dim(isl.dim_type.div)=}")
+    domain = domain.make_disjoint()
+    # print(f"B {domain=}, {domain.dim(isl.dim_type.div)=}")
+    domain = domain.compute_divs()
+    # print(f"C {domain=}, {domain.dim(isl.dim_type.div)=}")
+    dur_time = time.time() - begin_time
+    # exit()
+    # print(f"domain.compute_divs {dur_time=}")
+
+    n_dim = domain.dim(isl.dim_type.set)
+    begin_time = time.time()
+    outer_domain = domain.project_out(isl.dim_type.set, n_dim - 2, 2)
+    # outer_domain = outer_domain.make_disjoint()
+    # outer_domain = outer_domain.compute_divs()
+    val = outer_domain.count_val()
+    dur_time = time.time() - begin_time
+    print(f"outer_domain.count_val {val=}, {dur_time=}")
+
+    total_end_time = time.time()
+    print(f"total_time={total_end_time - total_begin_time}")
+    # total_existential_quantifiers = 0
+    # for i,basic_set in enumerate(outer_domain.get_basic_sets()):
+    #     print(f"basic_set {i} : \n {basic_set}")
+    #     existential_quantifiers = basic_set.dim(isl.dim_type.div)
+    #     total_existential_quantifiers += existential_quantifiers
+    # print(f"{total_existential_quantifiers=}")
+    # print(domain)
+    # print(f"{outer_domain.count_val()=}")
+    # show attr of isl.dim_type
+    # print(f"{domain=}")
+    # exit()
 
 if __name__ == "__main__":
     
     main()
-    print("\nCumulative Execution Times:")
-    for func_name, total_time in execution_times.items():
-        print(f"{func_name}: {total_time:.4f} seconds")
+    # test_single_op()
+

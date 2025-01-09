@@ -1,10 +1,11 @@
 import pytest
-from multi_level_tiling import multi_level_tiling, multi_level_splitting_var_level
+from multi_level_tiling import multi_level_tiling, multi_level_splitting_var_level, combine_tilesize_by_symmetry_info
 from utils import (
     get_box_hull_shape
 )
 import islpy as isl
 from base_operator import BasicOperator
+import itertools
 
 def get_op_simple_conv2d(oh,ow,kh,kw):
     op = BasicOperator(
@@ -43,6 +44,74 @@ def test_multi_level_tiling_var_level(tiling_factors, golden_domain_shape):
     new_op = multi_level_splitting_var_level(op, tiling_factors)
     domain_shape = get_box_hull_shape(new_op.domain)
     assert domain_shape == golden_domain_shape
-    
+
+@pytest.mark.parametrize(
+    "dim_factors, symmetry_info, golden_tile_sizes",
+    [
+        ( # test case 1
+            ( # dim_factors
+                ( (3,2),(2,3),(6,) ), # dim 0
+                ( (3,2),(2,3),(6,) ), # dim 1
+            ),
+            # symmetry_info
+            ( (0,),(1,), ),
+            # golden
+            6
+        ),
+        ( # test case 2
+            ( # dim_factors
+                ( (3,2),(2,3),(6,) ), # dim 0
+                ( (3,2),(2,3),(6,) ), # dim 1
+                ( (3,2),(2,3),(6,) ), # dim 2
+            ),
+            # symmetry_info
+            ( (0,),(1,),(2,), ),
+            # golden
+            10
+        ),
+        ( # test case 3
+            ( # dim_factors
+                ( (3,2),(2,3),(6,) ), # dim 0
+                ( (3,2),(2,3),(6,) ), # dim 1
+                ( (2,2),(4,) ), # dim 2
+                ( (2,2),(4,) ), # dim 3
+            ),
+            # symmetry_info
+            ( (0,2),(1,3),),
+            # golden
+            21
+        ),
+        ( # test case 4
+            ( # dim_factors
+                ( (3,2),(2,3),(6,) ), # dim 0
+                ( (3,2),(2,3),(6,) ), # dim 1
+                ( (3,2),(2,3),(6,) ), # dim 2
+                ( (2,2),(4,) ), # dim 3
+                ( (2,2),(4,) ), # dim 4
+                ( (2,2),(4,) ), # dim 5
+            ),
+            # symmetry_info
+            ( (0,3),(1,4),(2,5),),
+            # golden
+            56
+        )
+    ]
+)
+def test_combine_tilesize_by_symmetry_info(dim_factors, symmetry_info, golden_tile_sizes):
+    tile_sizes = combine_tilesize_by_symmetry_info(dim_factors, symmetry_info)
+
+
+    all_combinations = list(itertools.product(*dim_factors))
+    assert set(tile_sizes).issubset(set(all_combinations))
+
+    if golden_tile_sizes is None:
+        pass
+    elif type(golden_tile_sizes) == int:
+        assert len(tile_sizes) == golden_tile_sizes
+    elif type(golden_tile_sizes) == tuple:
+        assert tile_sizes == golden_tile_sizes
+    else:
+        raise ValueError(f"Invalid golden_tile_sizes type: {type(golden_tile_sizes)}")
+
 if __name__ == "__main__":
     test_multi_level_tiling_var_level()

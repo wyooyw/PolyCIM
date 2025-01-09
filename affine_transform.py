@@ -541,7 +541,7 @@ def shift_to_positive(op):
     shift_domain = ",".join([f"i{i}" for i in range(domain.dim(isl.dim_type.set))])
     shift_range = ",".join([f"i{i} + {shift[i]}" for i in range(domain.dim(isl.dim_type.set))])
     shift = isl.BasicMap(f"{{ [{shift_domain}] -> [{shift_range}] }}")
-    new_op = op.apply_schedule(shift)
+    new_op = op.apply_schedule(shift, name="shift_to_positive")
 
     return new_op
 
@@ -686,16 +686,18 @@ def main():
     # print(len(result))
     # exit()
 
+def main():
     bases = find_base(
-        n_dim=2,
+        n_dim=3,
+        dim_sizes=(8, 2, 5),
         min_reuse_factor=1,
-        dim_sizes=(8, 3),
-        hyperplanes=((1,1),),
+        hyperplanes=((2,1,0),),
         exclude_null_space_of=None,
+        lex_lt_set=None
     )
-    # print(bases)
-    # bases.foreach_point(print)
-    # exit()
+    print(bases)
+    bases.foreach_point(print)
+    exit()
 
     bases = foreach_nontrival_point(bases)
     # bases = Matrix(bases)
@@ -717,6 +719,7 @@ def main():
         dim_sizes=[64, 64, 4, 4],
         hyperplanes=[[0, 1, 0, 1], [1, 0, 1, 0]],
         exclude_null_space_of=subspace,
+        
     )
     # print(f"{foreach_nontrival_point(base2)=}")
     print("-------------------")

@@ -46,7 +46,7 @@ class BasicOperator:
         self.access_O = utils.rename_all_dims_for_basic_map(self.access_O)
         self.access_W = utils.rename_all_dims_for_basic_map(self.access_W)
 
-    def apply_schedule(self, schedule, skip_simplify=False):
+    def apply_schedule(self, schedule, skip_simplify=False, name=None):
         assert type(schedule)==isl.BasicMap, f"{type(schedule)}"
 
         # transform by scheudle
@@ -76,7 +76,7 @@ class BasicOperator:
             access_O=access_O,
             access_W=access_W,
             history_domains=[*self.history_domains, self.domain],
-            history_schedules=[*self.history_schedules, schedule]
+            history_schedules=[*self.history_schedules, {name: schedule}]
         )
 
     def convex_hull(self):

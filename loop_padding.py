@@ -48,3 +48,41 @@ def loop_padding_pass(op_list, padding_inner_size):
         new_op = loop_padding(op, padding_inner_size)
         new_op_list.append(new_op)
     return new_op_list
+
+def shift_to_zero(op, skip_simplify=False):
+    domain = op.domain
+    min_val = [domain.dim_min_val(i).get_num_si() for i in range(domain.dim(isl.dim_type.set))]
+    shift = [-val for val in min_val]
+
+    shift_domain = ",".join([f"i{i}" for i in range(domain.dim(isl.dim_type.set))])
+    shift_range = ",".join([f"i{i} + {shift[i]}" if shift[i] >=0 else f"i{i} - {abs(shift[i])}" for i in range(domain.dim(isl.dim_type.set))])
+    shift = isl.BasicMap(f"{{ [{shift_domain}] -> [{shift_range}] }}")
+    new_op = op.apply_schedule(shift, name="shift_to_positive", skip_simplify=skip_simplify)
+
+    min_vals = [new_op.domain.dim_min_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
+    assert all(min_val==0 for min_val in min_vals), f"{min_vals=}, {shift_range=}"
+    
+    return new_op
+    
+def loop_padding_to_box_all(op):
+    op = shift_to_zero(op, skip_simplify=True)
+    domain = op.domain
+    n_dim = domain.dim(isl.dim_type.set)
+    box_hull_shape = utils.get_box_hull_shape(domain)
+    dim_names = [domain.get_dim_name(isl.dim_type.set, i) for i in range(n_dim)]
+    constraints = []
+    for i in range(n_dim):
+        constraint = f"0 <= {dim_names[i]} < {box_hull_shape[i]}"
+        constraints.append(constraint)
+
+    domain_padding_str = "{ [" + ", ".join(dim_names) + "]: " + " and ".join(constraints) + "}"
+    domain_padding = isl.BasicSet(domain_padding_str)
+
+    return BasicOperator(
+        domain = domain_padding,
+        access_I = op.access_I,
+        access_O = op.access_O,
+        access_W = op.access_W,
+        history_domains = [*op.history_domains, domain_padding],
+        history_schedules = [*op.history_schedules, {"padding":box_hull_shape}]
+    )

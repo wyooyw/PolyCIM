@@ -7,30 +7,31 @@ class FrameInfo:
         self.output = output
         self.macro = macro
 
-    def print(self):
+    def print(self, brief=False):
         j = len(self.output)
         k = len(self.input)
         # Prepare data
         self.input_for_print = [None for _ in range(k)]
         for i in range(k):
             if self.input[i] is not None:
-                self.input_for_print[i] = f"I[{','.join(self.input[i])}]"
+                self.input_for_print[i] = "*" if brief else f"I[{','.join(self.input[i])}]"
             else:
                 self.input_for_print[i] = "0"
         self.output_for_print = [None for _ in range(j)]
         for i in range(j):
             if self.output[i] is not None:
-                self.output_for_print[i] = f"O[{','.join(self.output[i])}]"
+                self.output_for_print[i] = "*" if brief else  f"O[{','.join(self.output[i])}]"
             else:
                 self.output_for_print[i] = "0"
         self.macro_for_print = [[None for _ in range(j)] for _ in range(k)]
         for i1 in range(k):
             for i2 in range(j):
                 if self.macro[i1][i2] is not None:
-                    self.macro_for_print[i1][i2] = f"W[{','.join(self.macro[i1][i2])}]"
+                    self.macro_for_print[i1][i2] = "*" if brief else f"W[{','.join(self.macro[i1][i2])}]"
                 else:
                     self.macro_for_print[i1][i2] = "0"
 
+        gap = "{:2}" if brief else "{:12}"
         # Print
         print("Input:")
         for i in range(k):
@@ -39,11 +40,11 @@ class FrameInfo:
         print("\nMacro:")
         for i1 in range(k):
             for i2 in range(j):
-                print("{:16}".format(self.macro_for_print[i1][i2]), end="")
+                print(gap.format(self.macro_for_print[i1][i2]), end="")
             print("")
         print("\nOutput:")
         for i in range(j):
-            print("{:16}".format(self.output_for_print[i]), end="")
+            print(gap.format(self.output_for_print[i]), end="")
         print("\n")
 
 class VideoInfo:
@@ -186,7 +187,17 @@ def extract_frame_info(software_op, cim_cfg, different_weight=False):
         else:
             macro_hash_list.add(macro_hash)
             yield timestamp, frame_info
-    
+
+def draw(min_compute_op, cim_cfg):
+    for idx, value in enumerate(extract_frame_info(min_compute_op, cim_cfg, different_weight=True)):
+        timestamp, frame_info = value
+        print(f"Index: {idx}.    Timestamp: {timestamp}")
+        frame_info.print(brief=True)
+        c = input("continue?(y/n):")
+        if c=="n":
+            break
+        else:
+            continue
 
 if __name__=="__main__":
     domain = isl.Set(" { feature[ic = 0, ih, iw = 0] : (ih) mod 2 = 0 and 0 <= ih <= 1 }")

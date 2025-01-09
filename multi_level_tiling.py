@@ -134,10 +134,93 @@ def multi_level_splitting_var_level(operator, tiling_factors):
         tiling_map = isl.BasicMap(f"[{','.join(param_names)}] -> {{ [{','.join(domain_iters)}] -> [{','.join(domain_iters)}] }}")
         tiling_map = tiling_map.intersect_domain(domain)
         
-    new_operator = operator.apply_schedule(tiling_map)
+    new_operator = operator.apply_schedule(tiling_map, name="pre_tiling")
     new_operator.history_schedules.append({"tiling_factors":tiling_factors})
     return new_operator
 
+def combine_tilesize_by_symmetry_info(dim_factors, symmetry_info):
+    """
+    symmetry_info: 2d tuple of integers
+     ((1, 3), (2, 4))
+    """
+    # check symmetry_info is a box
+    assert type(symmetry_info) == tuple
+    assert all(type(group) == tuple for group in symmetry_info)
+    assert all(type(dim) == int for group in symmetry_info for dim in group)
+
+    assert len(symmetry_info) >= 2
+    assert all(len(symmetry_info[i]) == len(symmetry_info[0]) for i in range(len(symmetry_info[0])))
+    
+
+    # get symmetry dim and non-symmetry dim
+    n_dims = len(dim_factors)
+    symmetry_dims = [symmetry_info[i][j] for i in range(len(symmetry_info)) for j in range(len(symmetry_info[i]))]
+    non_symmetry_dims = [i for i in range(n_dims) if i not in symmetry_dims]
+    assert len(symmetry_dims)==len(set(symmetry_dims))
+    assert len(symmetry_dims) + len(non_symmetry_dims) == n_dims
+
+    # dim_group_product_factors: product of the tile size of dims in one group
+    # for example: dim 0 and dim 1 are in the same group, 
+    #   dim 0 has 3 tile size selections, 
+    #   dim 1 has 2 tile size selections, 
+    #   then the product of the tile size of dims in this group is 3*2=6
+    # use index to represet the tile size
+    dim_indices = symmetry_info[0]
+    dim_group_factors = []
+    for dim_index in dim_indices:
+        dim_group_factors.append(list(range(len(dim_factors[dim_index]))))
+    dim_group_product_factors = list(itertools.product(*dim_group_factors))
+    n_tilesize_per_group = len(dim_group_product_factors)
+
+    n_groups = len(symmetry_info)
+    # assert n_groups==2
+
+    # symmetry tile_size_combinations: combination of tile size of symmetry indices.
+    # - element in tile_size_combinations: different tile size strategy
+    # - each strategy is a 2d tuple, same shape as symmetry_info
+    # - each element in the tuple is an integer, which is the index of the tile size in the dim_factors
+    symmetry_tile_size_combinations = []
+    def nested_for(depth, depth_end, begin, end, indices):
+        if depth == depth_end:
+            tile_size_combination = []
+            for i in indices:
+                tile_size_combination.extend(dim_group_product_factors[i])
+            symmetry_tile_size_combinations.append(tuple(tile_size_combination))
+            return
+        for i in range(begin, end):
+            nested_for(depth+1, depth_end, i, end, [*indices, i])
+    nested_for(0, n_groups, 0, n_tilesize_per_group, [])
+    # for tile_size_combination_index_0 in range(0, n_tilesize_per_group):
+    #     for tile_size_combination_index_1 in range(tile_size_combination_index_0, n_tilesize_per_group):
+    #         tile_size_combination = (*dim_group_product_factors[tile_size_combination_index_0], *dim_group_product_factors[tile_size_combination_index_1])
+    #         symmetry_tile_size_combinations.append(tile_size_combination)
+
+    # get non-symmetry tile size combinations
+    non_symmetry_dim_factor_indices = [list(range(len(dim_factors[i]))) for i in non_symmetry_dims]
+    non_symmetry_tile_size_combinations = list(itertools.product(*non_symmetry_dim_factor_indices))
+    
+    # combine symmetry and non-symmetry tile size combinations
+    tile_size_combinations = []
+    tile_idx_combinations = list(itertools.product(symmetry_tile_size_combinations, non_symmetry_tile_size_combinations))
+    for symmetry_tile_size_combination, non_symmetry_tile_size_combination in tile_idx_combinations:
+        tile_size_combination = dict()
+        assert len(symmetry_dims) == len(symmetry_tile_size_combination)
+        for dim, tile_size_idx in zip(symmetry_dims, symmetry_tile_size_combination):
+            tile_size = dim_factors[dim][tile_size_idx]
+            tile_size_combination[dim] = tile_size
+        for dim, tile_size_idx in zip(non_symmetry_dims, non_symmetry_tile_size_combination):
+            tile_size = dim_factors[dim][tile_size_idx]
+            tile_size_combination[dim] = tile_size
+        tile_size_combination = tuple(tile_size_combination[i] for i in range(n_dims))
+        tile_size_combinations.append(tile_size_combination)
+    assert len(tile_size_combinations)==len(set(tile_size_combinations))
+
+    # check
+    all_combinations = list(itertools.product(*dim_factors))
+    assert set(tile_size_combinations).issubset(set(all_combinations))
+
+    return tile_size_combinations
+    
 def factorize(N, T, depth=1, path=None, results=None):
     if path is None:
         path = []
@@ -199,11 +282,10 @@ def enumerate_tiling_factors(operator, tiling_factor):
         # 
         factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
         # factors = filter_factors(factors)
-        factors = filter_factors(factors)
+        factors = filter_factors_for_3x3_5x5(factors)
         # print(f"{len(factors)=}, {factors=}")
         dim_factors.append(factors)
     
-    # exit()
     combination_list = list(itertools.product(*dim_factors))
     combination_list = filter_factors_of_all_axis(combination_list)
     # import pdb; pdb.set_trace()
@@ -318,3 +400,21 @@ def memory_tiling_pass(op_list):
             new_op_list.append(new_op)
 
     return new_op_list
+
+
+if __name__=="__main__":
+    op = BasicOperator(
+        domain = isl.BasicSet(
+            f"{{ [oh,ow,kh,kw]: 0<=oh<8 and 0<=ow<8 and 0<=kh<3 and 0<=kw<3 }}"
+        ),
+        access_I = isl.BasicMap(f"{{ [oh,ow,kh,kw] -> I[oh + kh, ow + kw] }}"),
+        access_O = isl.BasicMap("{ [oh,ow,kh,kw] -> O[oh, ow] }"),
+        access_W = isl.BasicMap("{ [oh,ow,kh,kw] -> W[kh, kw] }"),
+    )
+    tiling_factors = [
+        [2,4],
+        [4,2],
+        [2,4],
+        [2,4],
+    ]
+    multi_level_tiling()
