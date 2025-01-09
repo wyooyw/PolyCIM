@@ -148,31 +148,6 @@ def filter_cover_points(points):
             new_points.append(point)
     return new_points
 
-# def filter_times_points(points):
-#     """
-#     For any two points A and B, if there exists a positive integer k such that A = B*k, then A is not valid.
-#     """
-#     filtered_points = []
-#     for i, point_a in enumerate(points):
-#         is_valid = True
-#         for j, point_b in enumerate(points):
-#             if i == j:
-#                 continue
-#             if not nonzero_equal(point_a, point_b):
-#                 continue
-                
-#             # Check if point_b is a scalar multiple of point_a
-#             ratios = [a / b if b != 0 else None for a, b in zip(point_a, point_b)]
-#             ratios = [ratio for ratio in ratios if ratio is not None]
-#             assert len(ratios) > 0
-#             if all(ratio == ratios[0] for ratio in ratios) and ratios[0] >= 1:
-#                 is_valid = False
-#                 break
-
-#         if is_valid:
-#             filtered_points.append(point_a)
-#     return filtered_points
-
 def filter_times_points(points):
     """
     For any two points A and B, if there exists a positive integer k such that A = B*k, then A is not valid.
@@ -244,19 +219,6 @@ def base_construction(operator, **kwargs):
         bases[base] = None
 
     bases = list(bases.keys())
-    # filter bases
-    # new_bases = []
-    # for i,base in enumerate(bases):
-    #     can_cover = False
-    #     for j,subset_base in enumerate(bases):
-    #         if i == j:
-    #             continue
-    #         if cover(base, subset_base):
-    #             can_cover = True
-    #             break
-    #     if not can_cover:
-    #         new_bases.append(base)
-    # bases = new_bases
 
     return bases
 
@@ -355,10 +317,7 @@ def get_mapping_from_bases(bases):
         hardware_axis = f"h{(1-array_id)}"
 
         mapping[hardware_axis] = tuple(axis_list)
-        # if array_id == 0:
-        #     mapping[hardware_axis] = tuple(axis_list)
-        # else:
-        #     mapping[hardware_axis] = tuple(reversed(axis_list))
+
     return mapping
 
 @timing_decorator
@@ -659,63 +618,6 @@ def main():
     #         break
     #     else:
     #         continue
-
-def test_single_op():
-    op = benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=7, kw=7, stride=1, dilation=1) 
-    domain = op.domain.as_set()
-
-    total_begin_time = time.time()
-
-    schedule_tiling = isl.BasicMap("{ [i0, i1, i2, i3, i4, i5] -> [o0, o1, o2, o3, o4, o5, o6, o7] : i0 = 0 and i1 = 0 and o0 = 0 and o1 = 0 and o6 = i4 and o7 = i5 and (i2 + o3) mod 2 = 0 and (i3 + o5) mod 2 = 0 and 0 <= i2 <= 55 and 0 <= i3 <= 55 and 0 <= i4 <= 6 and 0 <= i5 <= 6 and -1 + i2 <= 2o2 <= i2 and 0 <= o3 <= 1 and -1 + i3 <= 2o4 <= i3 and 0 <= o5 <= 1 }")
-    domain = schedule_tiling.intersect_domain(domain).range()
-
-    schedule_affine = isl.BasicMap("{ [i0, i1, i2, i3, i4, i5, i6, i7] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = i2 and o1 = i4 and o2 = 2i2 + i6 and o3 = 2i4 + i7 and o4 = i0 and o5 = i1 and o6 = i3 and o7 = i5 }")
-    domain = schedule_affine.intersect_domain(domain).range()
-    print(f"0 {domain=}, {domain.dim(isl.dim_type.div)=}")
-
-    schedule_coalesce = isl.BasicMap("{ [s0, s1, s2, s3, s4, s5, s6, s7] -> [o0, o1, o2, o3, o4, o5] : o0 = s4 and o1 = s5 and o2 = s6 and o3 = s7 and o4 = 61s2 + s3 and o5 = 28s0 + s1 }")
-    domain = schedule_coalesce.intersect_domain(domain).range()
-    # print(f"1 {domain=}, {domain.dim(isl.dim_type.div)=}")
-    # domain = domain.make_disjoint()
-    # print(f"2 {domain=}, {domain.dim(isl.dim_type.div)=}")
-    # domain = domain.compute_divs()
-    # print(f"3 {domain=}, {domain.dim(isl.dim_type.div)=}")
-
-    schedule_tiling = isl.BasicMap("{ [s0, s1, s2, s3, s4, s5] -> [o0, o1, o2, o3, o4, o5, o6, o7] : o0 = s0 and o1 = s1 and o2 = s2 and o3 = s3 and (-s4 + o6) mod 32 = 0 and (-s5 + o7) mod 8 = 0 and -31 + s4 <= 32o4 <= s4 and -7 + s5 <= 8o5 <= s5 and 0 <= o6 <= 31 and 0 <= o7 <= 7 }")
-    domain = schedule_tiling.intersect_domain(domain).range()
-
-    begin_time = time.time()
-    # print(f"A {domain=}, {domain.dim(isl.dim_type.div)=}")
-    domain = domain.make_disjoint()
-    # print(f"B {domain=}, {domain.dim(isl.dim_type.div)=}")
-    domain = domain.compute_divs()
-    # print(f"C {domain=}, {domain.dim(isl.dim_type.div)=}")
-    dur_time = time.time() - begin_time
-    # exit()
-    # print(f"domain.compute_divs {dur_time=}")
-
-    n_dim = domain.dim(isl.dim_type.set)
-    begin_time = time.time()
-    outer_domain = domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-    # outer_domain = outer_domain.make_disjoint()
-    # outer_domain = outer_domain.compute_divs()
-    val = outer_domain.count_val()
-    dur_time = time.time() - begin_time
-    print(f"outer_domain.count_val {val=}, {dur_time=}")
-
-    total_end_time = time.time()
-    print(f"total_time={total_end_time - total_begin_time}")
-    # total_existential_quantifiers = 0
-    # for i,basic_set in enumerate(outer_domain.get_basic_sets()):
-    #     print(f"basic_set {i} : \n {basic_set}")
-    #     existential_quantifiers = basic_set.dim(isl.dim_type.div)
-    #     total_existential_quantifiers += existential_quantifiers
-    # print(f"{total_existential_quantifiers=}")
-    # print(domain)
-    # print(f"{outer_domain.count_val()=}")
-    # show attr of isl.dim_type
-    # print(f"{domain=}")
-    # exit()
 
 if __name__ == "__main__":
     
