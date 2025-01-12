@@ -97,8 +97,10 @@ def extract_val_from_singleton_set(singleton_set):
         val = [str(multi_val.get_val(i)) for i in range(len(multi_val))] 
         result.append(val)
     singleton_set.foreach_point(record)
-    assert len(result) > 0
-    return result[0]
+    if len(result) > 0:
+        return result[0]
+    else:
+        return None
 
 def _extract_frame_info(domain, acc_rel_input, acc_rel_macro, acc_rel_output, timestamp, macro_j, macro_k):
     """
@@ -134,9 +136,9 @@ def _extract_frame_info(domain, acc_rel_input, acc_rel_macro, acc_rel_output, ti
         pos_j = int(str(multi_val.get_val(domain_n_dim-1)))
         pos_k = int(str(multi_val.get_val(domain_n_dim-2)))
         # print("j:",pos_j," k:", pos_k)
-        input_data[pos_k] = extract_val_from_singleton_set(input_point_data)
+        input_data[pos_k] = extract_val_from_singleton_set(input_point_data) if input_data[pos_k] is None else input_data[pos_k]
         macro_data[pos_k][pos_j] = extract_val_from_singleton_set(macro_point_data)
-        output_data[pos_j] = extract_val_from_singleton_set(output_point_data)
+        output_data[pos_j] = extract_val_from_singleton_set(output_point_data) if output_data[pos_j] is None else output_data[pos_j]
     domain.foreach_point(record)
     # return None
     return FrameInfo(input_data, output_data, macro_data)
