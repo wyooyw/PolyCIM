@@ -18,7 +18,7 @@ def get_op_dwconv2d(
             domain = isl.BasicSet(
                 f"{{ [ic,oh,ow,kh,kw]: 0<=ic<{ic} and 0<=oh<{oh} and 0<=ow<{ow} and 0<=kh<{kh} and 0<=kw<{kw} }}"
             ),
-            access_I = isl.BasicMap("{ [ic,oh,ow,kh,kw] -> I[ic, oh + kh, ow + kw] }"),
+            access_I = isl.BasicMap(f"{{ [ic,oh,ow,kh,kw] -> I[ic, oh * {stride} + kh * {dilation}, ow * {stride} + kw * {dilation} ] }}"),
             access_O = isl.BasicMap("{ [ic,oh,ow,kh,kw] -> O[ic, oh, ow] }"),
             access_W = isl.BasicMap("{ [ic,oh,ow,kh,kw] -> W[ic, kh, kw] }"),
         )
