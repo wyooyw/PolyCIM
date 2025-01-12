@@ -8,6 +8,9 @@ class FrameInfo:
         self.macro = macro
 
     def print(self, brief=False):
+        print(self.get_str(brief=brief))
+
+    def get_str(self, brief=False):
         j = len(self.output)
         k = len(self.input)
         # Prepare data
@@ -32,20 +35,23 @@ class FrameInfo:
                     self.macro_for_print[i1][i2] = "0"
 
         gap = "{:2}" if brief else "{:12}"
+        
+        s = ""
         # Print
-        print("Input:")
+        s += "Input:\n"
         for i in range(k):
-            print("{:16}".format(self.input_for_print[i]), end="\n")
-        print("\n")
-        print("\nMacro:")
+            s += gap.format(self.input_for_print[i])
+        s += "\n"
+        s += "\nMacro:\n"
         for i1 in range(k):
             for i2 in range(j):
-                print(gap.format(self.macro_for_print[i1][i2]), end="")
-            print("")
-        print("\nOutput:")
+                s += gap.format(self.macro_for_print[i1][i2])
+            s += "\n"
+        s += "\nOutput:\n"
         for i in range(j):
-            print(gap.format(self.output_for_print[i]), end="")
-        print("\n")
+            s += gap.format(self.output_for_print[i])
+        s += "\n"
+        return s
 
 class VideoInfo:
     def __init__(self, frame_info_list):
@@ -192,7 +198,7 @@ def draw(min_compute_op, cim_cfg):
     for idx, value in enumerate(extract_frame_info(min_compute_op, cim_cfg, different_weight=True)):
         timestamp, frame_info = value
         print(f"Index: {idx}.    Timestamp: {timestamp}")
-        frame_info.print(brief=True)
+        frame_info.print(brief=False)
         c = input("continue?(y/n):")
         if c=="n":
             break
