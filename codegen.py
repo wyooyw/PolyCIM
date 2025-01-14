@@ -71,6 +71,11 @@ class CodeGenerator:
         return special_reg_defs
 
     def codegen_special_settings(self, depth):
+        use_group = self.op.attr["n_use_group"]
+        cim_cfg = get_config()
+        assert (
+            use_group > cim_cfg.n_group // 2 and use_group <= cim_cfg.n_group
+        ), f"{use_group=}, {cim_cfg.n_group=}"
         special_regs_setting = [
             CodeStmt(
                 code="SpecialRegSet(SPECIAL_REG_INPUT_BIT_WIDTH, 8);", depth=depth
@@ -81,12 +86,16 @@ class CodeGenerator:
             CodeStmt(
                 code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 32);", depth=depth
             ),
-            CodeStmt(code="SpecialRegSet(SPECIAL_REG_GROUP_SIZE, 16);", depth=depth),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_ACTIVATION_GROUP_NUM, 16);", depth=depth
+                code=f"SpecialRegSet(SPECIAL_REG_GROUP_SIZE, {cim_cfg.n_macro_per_group});",
+                depth=depth,
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM, 128);",
+                code=f"SpecialRegSet(SPECIAL_REG_ACTIVATION_GROUP_NUM, {use_group});",
+                depth=depth,
+            ),
+            CodeStmt(
+                code=f"SpecialRegSet(SPECIAL_REG_ACTIVATION_ELEMENT_COL_NUM, {cim_cfg.n_group_vcol});",
                 depth=depth,
             ),
             CodeStmt(
