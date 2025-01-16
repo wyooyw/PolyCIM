@@ -72,22 +72,18 @@ class CCodeGenerator(Codegen):
         code = CodeStmt(code=f"int {new_var} = 0 - {arg_list[0]};", depth=depth)
         return code, new_var
 
-    def _codegen_expr_select(self, expr, depth):
-        assert expr.get_op_n_arg() == 3, f"{expr.get_op_n_arg()=}"
-        cond = expr.get_op_arg(0)
-        true_expr = expr.get_op_arg(1)
-        false_expr = expr.get_op_arg(2)
-
-        cond_code_list, cond_var = self.codegen_expression(cond, depth)
-        true_code_list, true_var = self.codegen_expression(true_expr, depth)
-        false_code_list, false_var = self.codegen_expression(false_expr, depth)
+    def _codegen_expr_select(self, arg_list, depth):
+        assert len(arg_list) == 3, f"{len(arg_list)=}"
+        cond_var = arg_list[0]
+        true_var = arg_list[1]
+        false_var = arg_list[2]
 
         new_var = alloc_unique_var()
         code = CodeStmt(
             code=f"int {new_var} = {cond_var} ? {true_var} : {false_var};",
             depth=depth,
         )
-        return [*cond_code_list, *true_code_list, *false_code_list, code], new_var
+        return [code], new_var
 
     def codegen_expr_ge(self, arg_list, depth):
         return self.codegen_expr_binary(">=", arg_list, depth)
@@ -152,7 +148,7 @@ class CCodeGenerator(Codegen):
             code, new_var = self._codegen_expr_rem(var_list, depth)
             code_list.extend(code)
         elif expr.get_op_type() == isl._isl.ast_expr_op_type.select:
-            code, new_var = self._codegen_expr_select(expr, depth)
+            code, new_var = self._codegen_expr_select(var_list, depth)
             code_list.extend(code)
         elif expr.get_op_type() == isl._isl.ast_expr_op_type.ge:
             code, new_var = self.codegen_expr_ge(var_list, depth)
