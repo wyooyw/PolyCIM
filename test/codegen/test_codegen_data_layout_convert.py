@@ -3,6 +3,7 @@ import numpy as np
 from codegen_.codegen_data_layout_convert import data_layout_convert
 import benchmark
 import utils
+import pytest
 
 def test_codegen_data_layout_convert_transpose():
     accrel_lhs = isl.Map("{ [i, j] -> A[i, j] : 0 <= i < 4 and 0 <= j < 4 }")
@@ -28,19 +29,27 @@ def test_codegen_data_layout_convert_flatten():
     output_data = data_layout_convert(accrel_input, accrel_output, input_data)
     assert np.allclose(output_data, golden_data), f"{output_data=}, {golden_data=}"
 
-def test_codegen_data_layout_convert_im2col():
-    batch = 1
-    out_channel = 1
-    in_channel = 1
-    out_size = 2
-    ker_size = 3
+@pytest.mark.parametrize(
+    "batch, out_channel, in_channel, out_size, ker_size", 
+    [
+        (2, 3, 4, 5, 6),
+        (6, 5, 4, 3, 2),
+        (8, 8, 8, 32, 3),
+    ]
+)
+def test_codegen_data_layout_convert_im2col(
+    batch, out_channel, in_channel, out_size, ker_size
+):
     op = benchmark.get_op_conv2d(b=batch, oc=out_channel, ic=in_channel, oh=out_size, ow=out_size, kh=ker_size, kw=ker_size, stride=1, virtual_axis=False)
 
     # do the im2col
     im2col_spatial_size = out_size * out_size
     im2col_kernel_size = in_channel * ker_size * ker_size
     coalescing_schedule = isl.BasicMap(f"{{ [b,oc,ic,oh,ow,kh,kw] -> [b,oc,s,r] : s = oh * {out_size} + ow and r = ic * {ker_size * ker_size} + kh * {ker_size} + kw }}")
-    op = op.apply_schedule(coalescing_schedule, skip_simplify=True)
+    reverse_schedule = isl.BasicMap(
+        f"{{ [b, oc, s, r] -> [b, oc, ic, oh, ow, kh, kw] : oh = floor(s/{out_size}) and ow = s%{out_size} and ic = floor(r/{ker_size *ker_size}) and kh = floor((r%{ker_size *ker_size})/{ker_size}) and kw = r%{ker_size} }}"
+    )
+    op = op.apply_schedule(coalescing_schedule, reverse_schedule=reverse_schedule, skip_simplify=True)
 
     in_size = out_size + (ker_size - 1)
     input_data = np.arange(batch * in_channel * in_size * in_size).astype(np.int32).reshape(batch, in_channel, in_size, in_size)
@@ -53,16 +62,10 @@ def test_codegen_data_layout_convert_im2col():
                 im2col_input_golden_data[b, oh * out_size + ow, :] = input_kernel.reshape(-1)
     
     accrel_input = op.access_I
-    # print(f"{accrel_input.as_pw_multi_aff()=}\n")
-    # print(f"{accrel_input=}\n")
-    # access_I = op.access_I.compute_divs()
-    # access_I = access_I.coalesce().remove_redundancies()
-    # print(f"{access_I.as_pw_multi_aff()=}\n")
-    # exit()
-    accrel_output = isl.Map(f"{{ [b,oc,s,r] -> X[b,s,r] }}")
+    accrel_output = isl.Map(f"{{ [b,oc,s,r] -> Inew[b,s,r] }}")
     accrel_output = accrel_output.intersect_domain(op.domain)
     output_data = data_layout_convert(accrel_input, accrel_output, input_data)
     assert np.allclose(output_data, im2col_input_golden_data), f"{output_data=}, {im2col_input_golden_data=}"
 
 if __name__ == "__main__":
-    test_codegen_data_layout_convert_im2col()
+    test_codegen_data_layout_convert_im2col(1, 1, 1, 8, 3)
