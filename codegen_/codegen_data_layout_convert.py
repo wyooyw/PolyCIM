@@ -5,7 +5,7 @@ from codegen_.codegen import CodeStmt
 import os
 import numpy as np
 import tempfile
-
+import time
 class DataLayoutConvertCodegen(CCodeGenerator):
     def __init__(self, accrel_lhs, accrel_rhs):
         super().__init__()
@@ -184,17 +184,27 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
     try:
         code_path = os.path.join(temp_dir_path, "codegen_test.cpp")
         data_layout_convert_codegen(accrel_output, accrel_input, code_path, output_path, input_path)
-
+        
+        begin_time = time.time()
         exe_path = os.path.join(temp_dir_path, "codegen_test.out")
-        cmd = f"g++ {code_path} -I /usr/include/eigen3/ -o {exe_path}"
+        cmd = f"g++ {code_path} -O3 -I /usr/include/eigen3/ -o {exe_path}"
+        print(f"Begin to compile using:\n{cmd}")
         os.system(cmd)
+        print(f"Compile finished")
+        end_time = time.time()
+        print(f"time: {end_time - begin_time}\n")
 
         # prepare the input file
         np.savetxt(input_path, input_data.reshape(-1), fmt="%d")
-        
+
         # run the exe   
+        begin_time = time.time()
         cmd = f"{exe_path}"
+        print(f"Begin to run using:\n{cmd}")
         os.system(cmd)
+        print(f"Run finished")
+        end_time = time.time()
+        print(f"time: {end_time - begin_time}")
 
         # check the output
         output_data = np.loadtxt(output_path, dtype=input_data.dtype).reshape(output_shape)
