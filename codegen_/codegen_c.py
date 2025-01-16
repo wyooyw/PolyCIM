@@ -7,7 +7,16 @@ from codegen_.codegen import (
 import islpy as isl
 class CCodeGenerator(Codegen):
     def __init__(self):
-        pass
+        self.var_to_const = {}
+
+    def get_var(self, var):
+        if var in self.var_to_const:
+            return self.var_to_const[var]
+        else:
+            return var
+
+    def set_var_const(self, var, const):
+        self.var_to_const[var] = const
 
     def codegen_buffer_define(self, depth):
         raise NotImplementedError
@@ -159,14 +168,18 @@ class CCodeGenerator(Codegen):
     def codegen_expression_id(self, expr, depth):
         new_var = alloc_unique_var()
         old_var = expr.id_get_id().get_name()
-        code = CodeStmt(code=f"int {new_var} = {old_var};", depth=depth)
-        return [code], new_var
+        # code = CodeStmt(code=f"int {new_var} = {old_var};", depth=depth)
+        # return [code], new_var
+        self.set_var_const(new_var, old_var)
+        return [], old_var
 
     def codegen_expression_int(self, expr, depth):
         new_var = alloc_unique_var()
         int_val = expr.int_get_val()
-        code = CodeStmt(code=f"int {new_var} = {int_val};", depth=depth)
-        return [code], new_var
+        # code = CodeStmt(code=f"int {new_var} = {int_val};", depth=depth)
+        # return [code], new_var
+        self.set_var_const(new_var, int_val)
+        return [], str(int_val)
 
     def codegen_expression(self, expr, depth):
         assert isinstance(expr, isl._isl.AstExpr), f"{type(expr)=}"
