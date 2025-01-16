@@ -115,6 +115,7 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
 
     def codegen_str(self, node, lhs_path, rhs_path , indent_unit=4):
         code_includes = self.codegen_includes(0)
+        code_helper_functions = self.codegen_helper_functions(0)
         code_function_load_and_save_from_file = self.codegen_function_load_and_save_from_file(0)
         code_load_from_file = self.codegen_load_from_file(self.name_rhs, rhs_path, 1)
         code_save_to_file = self.codegen_save_to_file(self.name_lhs, lhs_path, 1)
@@ -125,6 +126,7 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
         code_str = ""
         for code_stmt in (
             code_includes
+            + code_helper_functions
             + code_function_load_and_save_from_file
             + main_begin
             + buffer_define_code_list

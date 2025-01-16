@@ -43,6 +43,14 @@ class CCodeGenerator(Codegen):
         )
         return [*pre_code, code], new_var
 
+    def _codegen_expr_fdiv_q(self, arg_list, depth):
+        assert len(arg_list) == 2, f"{len(arg_list)=}"
+        new_var = alloc_unique_var()
+        code = CodeStmt(
+            code=f"int {new_var} = fdiv_q({arg_list[0]}, {arg_list[1]});", depth=depth
+        )
+        return [code], new_var
+
     def _codegen_expr_add(self, arg_list, depth):
         return self.codegen_expr_binary("+", arg_list, depth)
 
@@ -133,10 +141,12 @@ class CCodeGenerator(Codegen):
             code_list.append(code)
         elif expr.get_op_type() in (
             isl._isl.ast_expr_op_type.pdiv_q,
-            isl._isl.ast_expr_op_type.fdiv_q,
-            isl._isl.ast_expr_op_type.div,
+            # isl._isl.ast_expr_op_type.div,
         ):
             code, new_var = self._codegen_expr_div(var_list, depth)
+            code_list.extend(code)
+        elif expr.get_op_type() == isl._isl.ast_expr_op_type.fdiv_q:
+            code, new_var = self._codegen_expr_fdiv_q(var_list, depth)
             code_list.extend(code)
         elif expr.get_op_type() == isl._isl.ast_expr_op_type.pdiv_r:
             code, new_var = self._codegen_expr_rem(var_list, depth)
@@ -358,6 +368,23 @@ class CCodeGenerator(Codegen):
         main_begin = CodeStmt(code="int main() {", depth=depth)
         main_end = CodeStmt(code="}", depth=depth)
         return [main_begin], [main_end]
+
+    def codegen_fdiv_q(self, depth):
+        code_str = """
+// fdiv_q is not supported in C, so we need to use floor to implement it
+int fdiv_q(int dividend, int divisor) {
+    int quotient = dividend / divisor;
+    if ((dividend % divisor != 0) && ((dividend < 0) != (divisor < 0))) {
+        quotient--;
+    }
+    return quotient;
+}"""
+        code_fdiv_q = CodeStmt(code=code_str, depth=depth)
+        return [code_fdiv_q]
+
+    def codegen_helper_functions(self, depth):
+        code_fdiv_q = self.codegen_fdiv_q(depth)
+        return code_fdiv_q
 
     def codegen_str(self, node, indent_unit=4):
         # special_reg_defs = self.codegen_special_defs(0)
