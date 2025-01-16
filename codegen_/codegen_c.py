@@ -137,7 +137,7 @@ class CCodeGenerator(Codegen):
             code_list.append(code)
         elif expr.get_op_type() in (
             isl._isl.ast_expr_op_type.pdiv_q,
-            # isl._isl.ast_expr_op_type.div,
+            isl._isl.ast_expr_op_type.div,
         ):
             code, new_var = self._codegen_expr_div(var_list, depth)
             code_list.extend(code)
