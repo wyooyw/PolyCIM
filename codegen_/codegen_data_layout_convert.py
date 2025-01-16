@@ -9,6 +9,7 @@ import time
 class DataLayoutConvertCodegen(CCodeGenerator):
     def __init__(self, accrel_lhs, accrel_rhs):
         super().__init__()
+        self.domain = accrel_lhs.domain().intersect(accrel_rhs.domain())
         self.accrel_lhs = accrel_lhs
         self.accrel_rhs = accrel_rhs
         self.shape_lhs = utils.get_box_hull_shape(accrel_lhs.range())
@@ -159,14 +160,26 @@ def data_layout_convert_codegen(accrel_lhs, accrel_rhs, save_path, lhs_path, rhs
     compute_domain = domain.set_tuple_name(stmt_name)
 
     ast = utils.gen_ast(compute_domain, compute_schedule, None)
-    utils.print_code(compute_domain, compute_schedule, None)
+    # utils.print_code(compute_domain, compute_schedule, None)
 
     code_generator = DataLayoutConvertCodegen(accrel_lhs, accrel_rhs)
     code = code_generator.codegen_str(ast, lhs_path, rhs_path, 4)
     with open(save_path, "w") as f:
         f.write(code)
 
+
+def simplify_access(access):
+    access_domain = access.domain()
+    access_domain = access_domain.compute_divs().coalesce().remove_redundancies()
+
+    access = access.intersect_domain(access_domain)
+    access = access.make_disjoint().compute_divs().coalesce().remove_redundancies()
+    return access
+
 def data_layout_convert(accrel_input, accrel_output, input_data):
+    accrel_input = simplify_access(accrel_input)
+    accrel_output = simplify_access(accrel_output)
+
     temp_dir = tempfile.TemporaryDirectory()
     temp_dir_path = ".temp" #temp_dir.name
     print(f"{temp_dir_path=}")
