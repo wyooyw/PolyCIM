@@ -21,7 +21,8 @@ import numpy as np
 import time
 from sympy import Matrix
 from hardware_merge_tiling import (
-    get_schedule_from_mapping,
+    get_coalescing_schedule_from_mapping,
+    get_reverse_coalescing_schedule_from_mapping,
     _get_hardware_tiling_schedule
 )
 from config import get_config
@@ -426,7 +427,8 @@ def coalesce_and_tiling(operator, bases, cim_cfg, return_schedule=False):
     mapping = get_mapping_from_bases(bases)
     operator.history_schedules.append({"s2h_mapping":mapping})
     # print(f"{mapping=}")
-    coalescing_schedule = get_schedule_from_mapping(mapping, operator)
+    coalescing_schedule = get_coalescing_schedule_from_mapping(mapping, operator)
+    reverse_coalescing_schedule = get_reverse_coalescing_schedule_from_mapping(mapping, operator)
     # print(f"{coalescing_schedule=}")
     tiling_factor = [
         cim_cfg.n_comp, cim_cfg.n_group_vcol
@@ -436,7 +438,11 @@ def coalesce_and_tiling(operator, bases, cim_cfg, return_schedule=False):
     if return_schedule:
         return [(coalescing_schedule, tiling_schedule)]
     else:
-        new_op = operator.apply_schedule(coalescing_schedule, skip_simplify=True, name="coalescing")
+        new_op = operator.apply_schedule(coalescing_schedule, 
+            # reverse_schedule=reverse_coalescing_schedule, 
+            skip_simplify=True, 
+            name="coalescing"
+        )
         new_op = new_op.apply_schedule(tiling_schedule, skip_simplify=True, name="tiling")
         return [new_op]
 
