@@ -8,20 +8,27 @@ class CIMConfig:
     n_group_vcol: int
     n_comp: int
     n_group: int
+    n_macro_per_group: int
 
-CONFIG_PATH = os.environ.get("CONFIG_PATH")
-config_json_path = os.path.join(CONFIG_PATH)
-with open(config_json_path, "r") as f:
-    config = json.load(f)
+config = None
+def get_raw_config():
+    global config
+    if config is None:
+        CONFIG_PATH = os.environ.get("CONFIG_PATH")
+        config_json_path = os.path.join(CONFIG_PATH)
+        with open(config_json_path, "r") as f:
+            config = json.load(f)
+    return config
 
 def get_config():
-    global config
+    config = get_raw_config()
 
     config_macro = config["macro"]
-    
-    n_group = 1
+    n_group = config_macro["n_group"]
     n_row = config_macro["n_row"]
     n_macro = config_macro["n_macro"]
+    assert n_macro >= n_group and n_macro % n_group == 0, f"{n_macro=}, {n_group=}"
+
     n_macro_per_group = n_macro // n_group
 
     n_bcol = config_macro["n_bcol"]
@@ -29,12 +36,13 @@ def get_config():
     n_group_vcol = n_vcol * n_macro_per_group
 
     n_comp = config_macro["n_comp"]
-
+    n_macro_per_group=n_macro // n_group
     return CIMConfig(
         n_row=n_row,
         n_group_vcol=n_group_vcol,
         n_comp=n_comp,
-        n_group=n_group
+        n_group=n_group,
+        n_macro_per_group=n_macro_per_group
     )
 
 def get_memory_sizes():
@@ -51,7 +59,7 @@ def get_memory_sizes():
         },
         {
     """
-    global config
+    config = get_raw_config()
 
     memory_list = config["memory_list"]
     memory_type_to_sizes = {}
@@ -61,7 +69,7 @@ def get_memory_sizes():
     return memory_type_to_sizes
 
 def get_memory_base(memory_type):
-    global config
+    config = get_raw_config()
 
     memory_list = config["memory_list"]
     for memory in memory_list:

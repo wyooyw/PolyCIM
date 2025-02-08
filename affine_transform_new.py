@@ -27,8 +27,31 @@ def get_areas_by_sizes(lengths):
     areas = [volumn//size for size in lengths]
     return areas
 
+def get_areas_by_sizes_inner(lengths):
+    lengths = [max(l-1,1) for l in lengths]
+    volumn = reduce(lambda x, y: x*y, lengths)
+    areas = [volumn//size for size in lengths]
+    return areas
+
+def get_cross_by_sizes(lengths):
+    volumn = reduce(lambda x, y: x*y, lengths)
+    cross = []
+    for i in range(len(lengths)):
+        cross_row = []
+        for j in range(len(lengths)):
+            if i == j:
+                cross_row.append(0)
+            else:
+                cross_row.append(volumn//lengths[i]//lengths[j])
+        assert len(cross_row)==len(lengths)
+        cross.append(cross_row)
+    assert len(cross)==len(lengths)
+    return cross
+
 def make_ilp(n, hyperplanes, lengths, exclude_null_space_of):
-    areas = get_areas_by_sizes(lengths)
+    # areas = get_areas_by_sizes(lengths)
+    areas = get_areas_by_sizes_inner(lengths)
+    cross = get_cross_by_sizes(lengths)
 
     model = pulp.LpProblem('linear_programming', LpMaximize)
     solver = getSolver('PULP_CBC_CMD')
@@ -50,8 +73,32 @@ def make_ilp(n, hyperplanes, lengths, exclude_null_space_of):
         p = [LpVariable(f'p{i}', cat = 'Integer') for i in range(row)]
         q = [LpVariable(f'q{i}', cat = 'Integer') for i in range(row)]
 
+    # cross term
+    e = []
+    # for i in range(n):
+    #     e_row = []
+    #     for j in range(i+1):
+    #         e_row.append(None)
+    #     for j in range(i+1, n):
+    #         e_ij = LpVariable(f'e{i}{j}', cat = 'Integer')
+    #         model += e_ij >= 0
+    #         model += e_ij <= 1
+    #         model += e_ij <= a[i]
+    #         model += e_ij <= a[j]
+    #         model += e_ij >= a[i] + a[j] - 1
+    #         e_row.append(e_ij)
+    #     assert len(e_row)==n
+    #     e.append(e_row)
+    # assert len(e)==n
+
+    # model += sum(a) <= 2
+
     # declare objective
-    model += -sum([areas[i] * y[i] for i in range(n)])
+    model += -(
+        sum([areas[i] * y[i] for i in range(n)]) 
+        # -sum(cross[i][j] * e[i][j] for i in range(n) for j in range(i+1,n))
+    )
+    # import pdb; pdb.set_trace()
 
     # abs constraints
     # y = |x|
@@ -118,22 +165,22 @@ def make_ilp(n, hyperplanes, lengths, exclude_null_space_of):
         row = exclude_null_space_of.rows
         col = exclude_null_space_of.cols
         for r in range(row):
-            model += sum(exclude_null_space_of[r][c] * x[c] for c in range(col)) == z[r]
-            mdoel += z[r] <= (1-p[r]) * M - 1
-            mdoel += -z[r] <= (1-q[r]) * M - 1
+            model += sum(exclude_null_space_of[r, c] * x[c] for c in range(col)) == z[r]
+            model += z[r] <= (1-p[r]) * M - 1
+            model += -z[r] <= (1-q[r]) * M - 1
 
         for i in range(row):
-            model += p[row] >= 0
-            model += p[row] <= 1
-            model += q[row] >= 0
-            model += q[row] <= 1
+            model += p[i] >= 0
+            model += p[i] <= 1
+            model += q[i] >= 0
+            model += q[i] <= 1
         
         model += sum(p) + sum(q) >= 1
 
-        return model, solver, {"x":x, "y":y, "a":a,"b":b,"c":c,"d":d,"u":u,"v":v, "z":z, "p":p, "q":q}
+        return model, solver, {"x":x, "y":y, "a":a,"b":b,"c":c,"d":d,"u":u,"v":v, "z":z, "p":p, "q":q,"e":e}
 
 
-    return model, solver, {"x":x, "y":y, "a":a,"b":b,"c":c,"d":d,"u":u,"v":v}
+    return model, solver, {"x":x, "y":y, "a":a,"b":b,"c":c,"d":d,"u":u,"v":v,"e":e}
 
 def find_base(n_dim, dim_sizes, hyperplanes, exclude_null_space_of):
     model, solver, decision_vars = make_ilp(n_dim, hyperplanes, dim_sizes, exclude_null_space_of)
@@ -141,6 +188,7 @@ def find_base(n_dim, dim_sizes, hyperplanes, exclude_null_space_of):
 
     # solve 
     results = model.solve(solver=solver)
+    
 
     # print results
     if LpStatus[results] == 'Optimal': 
@@ -149,7 +197,15 @@ def find_base(n_dim, dim_sizes, hyperplanes, exclude_null_space_of):
         # print(f'Solution: ')
         x = decision_vars['x']
         # y = decision_vars['y']
-        # a = decision_vars['a']
+        a = decision_vars['a']
+        a = [int(value(xi)) for xi in a]
+        e = decision_vars['e']
+        print(f"{a=}")
+        # for i in range(n_dim):
+        #     for j in range(i+1, n_dim):
+        #         if e[i][j] is not None: 
+        #             print(f"e[{i}][{j}] = {int(value(e[i][j]))}")
+
         # b = decision_vars['b']
         # c = decision_vars['c']
         # d = decision_vars['d']
@@ -159,7 +215,10 @@ def find_base(n_dim, dim_sizes, hyperplanes, exclude_null_space_of):
         # print(f"  b = {[value(bi) for bi in b]}")
         # print(f"  c = {[value(ci) for ci in c]}")
         # print(f"  d = {[value(di) for di in d]}")
-        return [int(value(xi)) for xi in x], int(value(model.objective))
+
+        ret = [int(value(xi)) for xi in x], int(value(model.objective))
+        # import pdb; pdb.set_trace()
+        return ret
     elif LpStatus[results] == 'Infeasible':
         print('Problem is infeasible - no solution exists')
         return None, 0
@@ -213,53 +272,52 @@ def find_bases_with_max_reuse(
     else:
         orth_subspace = None
     
-    bases, reuse = find_base_with_max_reuse(
+    base, reuse = find_base_with_max_reuse(
         n_dim, dim_sizes, max_reuse_factor, hyperplanes, orth_subspace
     )
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     
     # import pdb; pdb.set_trace()
-    if bases is None:
+    if base is None:
         return result
 
-    for base in foreach_nontrival_point(bases):
-        search_status = SearchStatus(
-            bases=pre_bases.col_join(Matrix([base])), 
-            max_reuse=reuse,
-            final_row_as_set=list_to_set(base)
-        )
-        queue.put(search_status)
+    # for base in foreach_nontrival_point(bases):
+    search_status = SearchStatus(
+        bases=pre_bases.col_join(Matrix([base])), 
+        max_reuse=reuse,
+        final_row_as_set=list_to_set(base)
+    )
+    queue.put(search_status)
 
     while not queue.empty():
         search_status = queue.get()
+        result.append(search_status)
+        
         if search_status.bases.rows == n_dim:
-            result.append(search_status)
             continue
 
         subspace = orthogonal_sub_space(search_status.bases)
         if subspace.rows == 0:
-            result.append(search_status)
             continue
 
-        new_bases, new_reuse = find_base_with_max_reuse(
+        new_base, new_reuse = find_base_with_max_reuse(
             n_dim,
             dim_sizes,
             max_reuse_factor, #// search_status.max_reuse,
             hyperplanes,
-            exclude_null_space_of=subspace,
-            lex_lt_set=search_status.final_row_as_set,
+            subspace,
+            # lex_lt_set=search_status.final_row_as_set,
         )
-        if new_bases is None:
-            result.append(search_status)
+        if new_base is None:
             continue
 
-        for new_base in foreach_nontrival_point(new_bases):
-            new_search_status = SearchStatus(
-                bases=search_status.bases.col_join(Matrix([new_base])),
-                max_reuse=search_status.max_reuse * new_reuse,
-                final_row_as_set=list_to_set(new_base),
-            )
-            queue.put(new_search_status)
+        # for new_base in foreach_nontrival_point(new_bases):
+        new_search_status = SearchStatus(
+            bases=search_status.bases.col_join(Matrix([new_base])),
+            max_reuse=search_status.max_reuse * new_reuse,
+            final_row_as_set=list_to_set(new_base),
+        )
+        queue.put(new_search_status)
     # import pdb; pdb.set_trace()
     return result
 

@@ -196,11 +196,11 @@ def extract_frame_info(software_op, cim_cfg, different_weight=False):
             macro_hash_list.add(macro_hash)
             yield timestamp, frame_info
 
-def draw(min_compute_op, cim_cfg):
-    for idx, value in enumerate(extract_frame_info(min_compute_op, cim_cfg, different_weight=True)):
+def draw(min_compute_op, cim_cfg, brief=False, different_weight=True):
+    for idx, value in enumerate(extract_frame_info(min_compute_op, cim_cfg, different_weight=different_weight)):
         timestamp, frame_info = value
         print(f"Index: {idx}.    Timestamp: {timestamp}")
-        frame_info.print(brief=False)
+        frame_info.print(brief=brief)
         c = input("continue?(y/n):")
         if c=="n":
             break

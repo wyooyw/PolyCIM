@@ -78,6 +78,7 @@ class DataLayoutConvertCodegen(CCodeGenerator):
         code_includes = [
             CodeStmt(code="#include <unsupported/Eigen/CXX11/Tensor>", depth=depth),
             CodeStmt(code="#include <fstream>", depth=depth),
+            CodeStmt(code="#include <algorithm>", depth=depth),
         ]
         return code_includes
 

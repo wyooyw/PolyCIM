@@ -407,7 +407,7 @@ def compare_conv1d_45degree(cim_row, cim_col, oh, ow, oc, ic, kh):
 
 def main_convnext():
     cim_config_list = [
-       (32,8),(64,8)
+       (32,8) ,(64,8)
     ]
     # oh=oh, ow=ow, oc=oc, ic=ic, kh=kh, kw=kw, dilation
     op_config_list = [
@@ -456,8 +456,11 @@ def main_SLaK():
     # oh=oh, ow=ow, oc=oc, ic=ic, kh=kh, kw=kw, dilation
     op_config_list = [
         {"oh":56,"ow":56, "oc":1, "ic":1, "kh":51, "kw":51, "dilation":1},
+        {"oh":56,"ow":56, "oc":1, "ic":1, "kh":5, "kw":5, "dilation":1},
         {"oh":28,"ow":28, "oc":1, "ic":1, "kh":49, "kw":49, "dilation":1},
+        {"oh":28,"ow":28, "oc":1, "ic":1, "kh":5, "kw":5, "dilation":1},
         {"oh":14,"ow":14, "oc":1, "ic":1, "kh":47, "kw":47, "dilation":1},
+        {"oh":14,"ow":14, "oc":1, "ic":1, "kh":5, "kw":5, "dilation":1},
         {"oh":7,"ow":7, "oc":1, "ic":1, "kh":13, "kw":13, "dilation":1},
         {"oh":7,"ow":7, "oc":1, "ic":1, "kh":5, "kw":5, "dilation":1},
     ]
@@ -474,12 +477,12 @@ def main_SLaK():
 
 def main_EfficientNet():
     cim_config_list = [
-        (32,4),#(32,8),(64,8)
+        (32,8),(64,8)
     ]
     # oh=oh, ow=ow, oc=oc, ic=ic, kh=kh, kw=kw, dilation
     op_config_list = [
         {"oh":112,"ow":112, "oc":1, "ic":1, "kh":3, "kw":3, "dilation":1},
-        # {"oh":56,"ow":56, "oc":1, "ic":1, "kh":3, "kw":3, "dilation":1},
+        {"oh":56,"ow":56, "oc":1, "ic":1, "kh":3, "kw":3, "dilation":1},
         # {"oh":56,"ow":56, "oc":1, "ic":1, "kh":5, "kw":5,"stride":2, "dilation":1},
         {"oh":28,"ow":28, "oc":1, "ic":1, "kh":5, "kw":5, "dilation":1},
         # {"oh":28,"ow":28, "oc":1, "ic":1, "kh":3, "kw":3, "stride":2, "dilation":1},
@@ -503,23 +506,23 @@ def main_EfficientNet():
 
 if __name__ == "__main__":
     # use argparser to judge which function to execute
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("--model", type=str,
-    #                    choices=["convnext", "RepLKNet", "SLaK", "EfficientNet"],
-    #                    help="Model to evaluate: convnext, RepLKNet, or SLaK")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--model", type=str,
+                       choices=["convnext", "RepLKNet", "SLaK", "EfficientNet"],
+                       help="Model to evaluate: convnext, RepLKNet, or SLaK")
 
-    # args = parser.parse_args()
-    
-    # if args.model == "convnext":
-    #     main_convnext()
-    # elif args.model == "RepLKNet":
-    #     main_RepLKNet()
-    # elif args.model == "SLaK":
-    #     main_SLaK()
-    # elif args.model == "EfficientNet":
-    #     main_EfficientNet()
-    # else:
-    #     print("Invalid model name")
+    args = parser.parse_args()
+    # main_RepLKNet()
+    if args.model == "convnext":
+        main_convnext()
+    elif args.model == "RepLKNet":
+        main_RepLKNet()
+    elif args.model == "SLaK":
+        main_SLaK()
+    elif args.model == "EfficientNet":
+        main_EfficientNet()
+    else:
+        print("Invalid model name")
 
     # args = {
     #     "cim_row": 32,
@@ -538,8 +541,8 @@ if __name__ == "__main__":
     # args = {
     #     "cim_row": 32,
     #     "cim_col": 8,
-    #     "oh": 28,
-    #     "ow": 28,
+    #     "oh": 56,
+    #     "ow": 56,
     #     "oc": 1,
     #     "ic": 1,
     #     "kh": 5,
@@ -548,18 +551,18 @@ if __name__ == "__main__":
     # }
     # print(compare_conv2d(**args))
     
-    args = {
-        "cim_row": 32,
-        "cim_col": 8,
-        "oh": 28,
-        "ow": 28,
-        "oz": 28,
-        "kh": 5,
-        "kw": 5,
-        "kz": 5,
-        "dilation": 1
-    }
-    print(compare_conv3d(**args))
+    # args = {
+    #     "cim_row": 32,
+    #     "cim_col": 8,
+    #     "oh": 28,
+    #     "ow": 28,
+    #     "oz": 28,
+    #     "kh": 5,
+    #     "kw": 5,
+    #     "kz": 5,
+    #     "dilation": 1
+    # }
+    # print(compare_conv3d(**args))
     
     # args_conv1d = {
     #     "cim_row": 64,

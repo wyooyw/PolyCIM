@@ -1,7 +1,7 @@
 import islpy as isl
 import utils
 from base_operator import BasicOperator
-from itertools import combinations
+from itertools import combinations, permutations
 import math
 from collections import OrderedDict
 import pdb
@@ -9,6 +9,8 @@ import numpy as np
 from tqdm import tqdm
 import time
 from functools import reduce
+import os
+from depth_first.timeout import timeout
 
 def get_cim_operator(n_rows, n_cols):
     cim_operator = BasicOperator(
@@ -65,7 +67,11 @@ def generate_combinations(elements):
     all_combinations = []
     n = len(elements)
     for r in range(1, n+1):
-        combinations_r = combinations(elements, r)
+        if int(os.environ.get("NEW_ALGO", 0))==1:
+            combinations_r = permutations(elements, r)
+        else:
+            combinations_r = combinations(elements, r)
+        
         all_combinations.extend(combinations_r)
     return all_combinations
 
@@ -292,6 +298,10 @@ def hardware_merge_tiling(op, macro_row, macro_col, min_compute_times):
     # exit()
     return all_schedules
 
+@timeout(seconds=10)
+def count_val(domain):
+    return int(str(domain.count_val()))
+    
 def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
     begin_time = time.time()
 
@@ -306,13 +316,18 @@ def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
 
     # filter op with n_div < 5
     op_list = [op for op in op_list if op.domain.dim(isl.dim_type.div) < 5]
-
+    min_exe_time = 999999999
     for idx,op in enumerate(tqdm(op_list, desc="filter op by outer execute time")):
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-        exe_time = int(str(outer_domain.count_val()))
+        # exe_time = int(str(outer_domain.count_val()))
+        exe_time = count_val(outer_domain)
+        if exe_time is None:
+            exe_time = 999999999
         exe_time_list.append(exe_time)
-        print("Current min compute time: ", min(exe_time_list))
+        if exe_time < min_exe_time:
+            min_exe_time = exe_time
+            print("Current min compute time: ", min_exe_time)
         if exe_time <= min_compute_times_limit:
             break
 
@@ -449,11 +464,12 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
             if len(new_op_list) % 8 == 0:
                 n_dim = new_op.domain.dim(isl.dim_type.set)
                 outer_domain = new_op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-                exe_time = int(str(outer_domain.count_val()))
-                min_compute_times = min(min_compute_times, exe_time)
-                if min_compute_times <= min_compute_times_limit:
-                    early_stop = True
-                    break
+                exe_time = count_val(outer_domain)
+                if exe_time is not None:
+                    min_compute_times = min(min_compute_times, exe_time)
+                    if min_compute_times <= min_compute_times_limit:
+                        early_stop = True
+                        break
 
             # print(f"{min_compute_times=}")
             

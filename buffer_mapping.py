@@ -7,11 +7,11 @@ import islpy as isl
 import numpy as np
 from tqdm import tqdm
 
-import utils.utils as utils
+import utils
 from base_operator import (AccessRelation, BasicOperator, DataMovement,
                            DataMovementOperator)
 from config import get_memory_sizes
-from utils.utils import (get_box_hull_shape, rename_all_dims_for_basic_map,
+from utils import (get_box_hull_shape, rename_all_dims_for_basic_map,
                          rename_all_dims_for_basic_set,
                          rename_out_dims_for_basic_map)
 
@@ -83,13 +83,27 @@ def build_domain_aligned_buffer_exclude_iters(
     access_relation = rename_out_dims_for_basic_map(access_relation)
     return access_relation
 
+def init_force_iters(domain_iter_names, force_iters=None):
+    if force_iters is None:
+        force_iters = []
+    
+    new_force_iters = []
+    for i in force_iters:
+        if type(i) == int:
+            new_force_iters.append(domain_iter_names[i])
+        else:
+            assert type(i) == str
+            assert i in domain_iter_names
+            new_force_iters.append(i)
+    return new_force_iters
 
-def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel):
+def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominate_iters=None, force_nondominate_iters=None):
     """
     1.get domain aligned buffer
     2.map this aligned buffer to origin buffer
     if a domain's iter not exist in buffer's iter, then no need to map it to buffer.
     """
+        
     buffer_name = acc_rel.get_tuple_name(isl.dim_type.out)
     align_buffer_name = f"{buffer_name}_aligned"
 
@@ -97,9 +111,16 @@ def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel):
     n_domain_dim = acc_rel.dim(isl.dim_type.in_)
 
     domain_iter_names = acc_rel.get_var_names(isl.dim_type.in_)
+    force_dominate_iters = init_force_iters(domain_iter_names, force_dominate_iters)
+    force_nondominate_iters = init_force_iters(domain_iter_names, force_nondominate_iters)
+    
     involve_dims = get_dominate_iters_of_pw_multi_aff(
         acc_rel.as_pw_multi_aff(), return_name=True
     )
+    involve_dims = involve_dims | set(force_dominate_iters)
+    involve_dims = involve_dims - set(force_nondominate_iters)
+    import pdb; pdb.set_trace()
+
     domain_iter_names_not_exist_in_lb_ub = list(
         set(domain_iter_names) - set(involve_dims)
     )
@@ -134,6 +155,7 @@ def map_domain_aligned_buffer_to_origin_buffer_for_weight(
     involve_dims = get_dominate_iters_of_pw_multi_aff(
         acc_rel.as_pw_multi_aff(), return_name=True
     )
+    # import pdb; pdb.set_trace()
     force_involve_dims = domain_iter_names[-force_inner_level:]
     involve_dims = involve_dims | set(force_involve_dims)
 
@@ -734,6 +756,7 @@ def insert_single_buffer_single_level(op, buffer_name, buffer_level):
         access_I=assign_global_buffer_acc_rel.intersect_domain(assign_domain),
         access_O=assign_local_buffer_acc_rel.intersect_domain(assign_domain),
         level=buffer_level,
+        type_=buffer_name,
     )
     new_op.insert_buffer(buffer_name, datamove)
 
@@ -777,7 +800,7 @@ def parse_buffer_levels(op, buffer_levels):
 
 
 def insert_single_buffer_multi_level(
-    op, buffer_name, buffer_levels, memory_types, force_inner_level=5
+    op, buffer_name, buffer_levels, memory_types, force_inner_level=5, force_dominate_iters=None, force_nondominate_iters=None
 ):
     buffer_levels = parse_buffer_levels(op, buffer_levels)
 
@@ -792,20 +815,30 @@ def insert_single_buffer_multi_level(
                 force_inner_level=force_inner_level,
             )
         )
+        # 
+        pass
 
     else:
         map_buf_align_to_ori, aligned_acc_rel = (
             map_domain_aligned_buffer_to_origin_buffer_v2(
-                op.domain, op.get_access_by_name(buffer_name)
+                op.domain, 
+                op.get_access_by_name(buffer_name),
+                force_dominate_iters,
+                force_nondominate_iters
             )
         )
-
+    
+    aligned_acc_rel_range_size = utils.get_box_hull_shape(aligned_acc_rel.range())
+    print(f"{buffer_name=}, {aligned_acc_rel_range_size=}")
+    # import pdb; pdb.set_trace()
     compute_acc_rel = aligned_acc_rel
     data_movement_list = []
 
-    assert len(memory_types) == len(buffer_levels)
+    assert (
+        len(memory_types) == len(buffer_levels) + 1
+    ), f"{memory_types=}, {buffer_levels=}"
     memory_types = [*memory_types]
-    memory_types.insert(0, "__GLOBAL__")
+    # memory_types.insert(0, "__INPUT_MEMORY__")
 
     for idx, buffer_level in enumerate(buffer_levels):
         if "W" in buffer_name:
@@ -830,17 +863,30 @@ def insert_single_buffer_multi_level(
             assign_local_buffer_acc_rel,
             buffer_level,
         )
-        datamove = DataMovement(
-            domain=assign_domain,
-            access_I=AccessRelation(
+        if buffer_name in ["I", "W"]:
+            access_I = AccessRelation(
                 assign_global_buffer_acc_rel.intersect_domain(assign_domain),
                 memory_types[idx],
-            ),
-            access_O=AccessRelation(
+            )
+            access_O = AccessRelation(
                 assign_local_buffer_acc_rel.intersect_domain(assign_domain),
                 memory_types[idx + 1],
-            ),
+            )
+        elif buffer_name == "O":
+            access_O = AccessRelation(
+                assign_global_buffer_acc_rel.intersect_domain(assign_domain),
+                memory_types[idx],
+            )
+            access_I = AccessRelation(
+                assign_local_buffer_acc_rel.intersect_domain(assign_domain),
+                memory_types[idx + 1],
+            )
+        datamove = DataMovement(
+            domain=assign_domain,
+            access_I=access_I,
+            access_O=access_O,
             level=buffer_level,
+            type_=buffer_name,
         )
         data_movement_list.append(datamove)
 
@@ -854,6 +900,7 @@ def insert_single_buffer_multi_level(
         history_domains=op.history_domains,
         history_schedules=op.history_schedules,
         data_movement=op.data_movement if hasattr(op, "data_movement") else None,
+        attr={key: value for key, value in op.attr.items()},
     )
 
     # print(f"domain: {op.domain}\n")
@@ -973,7 +1020,7 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
     new_ops = []
     for op in tqdm(op_list):
         input_buffer_level_combinations = buffer_level_serching(
-            op, "I", num_buffer_level=2, level_min=0, level_max=macro_compute_level + 1
+            op, "I", num_buffer_level=1, level_min=0, level_max=macro_compute_level + 1
         )
         # input_buffer_level_combinations = input_buffer_level_combinations[2:]
         weight_buffer_level = get_macro_level(op, "W", macro_compute_level)
@@ -983,7 +1030,7 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
                 op, "I", buffer_levels, input_memory_names
             )
             new_op = insert_single_buffer_multi_level(
-                new_op, "W", [weight_buffer_level], weight_memory_names
+                new_op, "W", [], weight_memory_names
             )
             new_op = new_op.convex_hull()
             # import pdb; pdb.set_trace()
@@ -993,22 +1040,47 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
 
 def memory_access_cost(op):
     bandwidth_factor = {
-        ("__GLOBAL__", "__INPUT_MEMORY__"): 4,
-        ("__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"): 1,
-        ("__PIM_INPUT_REG_BUFFER__"): 1,
-        ("__GLOBAL__", "__MACRO__"): 4,
+        # ("__GLOBAL__", "__INPUT_MEMORY__"): 4,
+        ("__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"): 1024,
+        # ("__PIM_INPUT_REG_BUFFER__"): 1,
+        # ("__GLOBAL__", "__MACRO__"): 4
     }
     total_cost = 0
     # cost of moving I and W
     for buffer_name in ["I", "W"]:
         for datamove in op.data_movement[buffer_name]:
             # TODO: consider data type, int8 / int32
-            data_volumn = datamove.domain.count_val()
+            # data_volumn = datamove.domain.count_val()
+
+            domain = datamove.domain
+            domain_size = domain.dim(isl.dim_type.set)
+
+            n_access_O_dim = datamove.access_O.offsets.dim(isl.dim_type.out)
+            n_access_I_dim = datamove.access_I.offsets.dim(isl.dim_type.out)
+            n_inner_level = n_access_O_dim
+
+            outer_domain = domain.project_out(
+                isl.dim_type.set, domain_size - n_inner_level, n_inner_level
+            )
+            outer_domain_time = outer_domain.count_val()
+
+            access_O_sizes = [
+                int(str(datamove.access_O.offsets.range().dim_max_val(i)))
+                for i in range(n_access_O_dim)
+            ]
+            access_I_sizes = [
+                int(str(datamove.access_I.offsets.range().dim_max_val(i)))
+                for i in range(n_access_I_dim)
+            ]
+            assert access_O_sizes == access_I_sizes[n_access_I_dim - n_inner_level :]
+            tensorize_data_volumn = reduce(lambda x, y: x * y, access_O_sizes)
+
             src_memory_type = datamove.access_I.memory_type
             dst_memory_type = datamove.access_O.memory_type
             bandwidth = bandwidth_factor[(src_memory_type, dst_memory_type)]
-            cost = data_volumn * bandwidth
-            total_cost += cost
+            tensorize_time = math.ceil(tensorize_data_volumn / bandwidth)
+
+            total_cost += tensorize_time * outer_domain_time
 
     # TODO: cost of moving O
 
@@ -1104,7 +1176,7 @@ def memory_access_satisfy_constraint(op):
     satisfy = True
     for memory_type, use_size in buffer_type_to_use_size.items():
         size_limit = buffer_type_to_size[memory_type]
-        if use_size > size_limit:
+        if memory_type == "__PIM_INPUT_REG_BUFFER__" and use_size > size_limit:
             satisfy = False
             print(f"Memory not satisfy! {memory_type=}, {use_size=}, {size_limit=}")
             break
@@ -1114,7 +1186,8 @@ def memory_access_satisfy_constraint(op):
 def filter_op_by_memory_access_cost_pass(op_list):
     op_list = [op for op in op_list if memory_access_satisfy_constraint(op)]
     memory_access_cost_list = [memory_access_cost(op) for op in op_list]
-
+    # print(f"{memory_access_cost_list=}")
+    # exit()
     memory_access_cost_list = np.array(memory_access_cost_list)
     sorted_indices = np.argsort(memory_access_cost_list)
 

@@ -25,7 +25,7 @@ class CCodeGenerator(Codegen):
         assert len(arg_list) == 2, f"{len(arg_list)=}"
         new_var = alloc_unique_var()
         code = CodeStmt(
-            code=f"int {new_var} = max({arg_list[0]}, {arg_list[1]});", depth=depth
+            code=f"int {new_var} = std::max({arg_list[0]}, {arg_list[1]});", depth=depth
         )
         return code, new_var
 
@@ -39,7 +39,7 @@ class CCodeGenerator(Codegen):
         assert len(arg_list) == 2, f"{len(arg_list)=}"
         new_var = alloc_unique_var()
         code = CodeStmt(
-            code=f"int {new_var} = min({arg_list[0]}, {arg_list[1]});", depth=depth
+            code=f"int {new_var} = std::min({arg_list[0]}, {arg_list[1]});", depth=depth
         )
         return [*pre_code, code], new_var
 
@@ -249,6 +249,32 @@ class CCodeGenerator(Codegen):
         ]
         return total_code_list
 
+    def codegen_if(self, node, depth):
+        cond = node.if_get_cond()
+        cond_codes, cond_var = self.codegen_expression(cond, depth)
+        
+        then_body = node.if_get_then_node()
+        then_body_codes = self.codegen(then_body, depth + 1)
+
+        total_code_list = [
+            *cond_codes,
+            CodeStmt(code=f"if ({cond_var}) {{", depth=depth),
+            *then_body_codes,
+            CodeStmt(code="}", depth=depth),
+        ]
+
+        if node.if_has_else():
+            else_body = node.if_get_else_node()
+            else_body_codes = self.codegen(else_body, depth + 1)
+            total_code_list.extend([
+                CodeStmt(code="else {", depth=depth),
+                *else_body_codes,
+                CodeStmt(code="}", depth=depth),
+            ])
+
+        return total_code_list
+
+
     def codegen_block(self, node, depth):
         children = node.block_get_children()
         n_ast_node = children.n_ast_node()
@@ -357,6 +383,8 @@ class CCodeGenerator(Codegen):
             return self.codegen_block(node, depth)
         elif node.get_type() == isl._isl.ast_node_type.user:
             return self.codegen_user(node, depth)
+        elif node.get_type() == isl._isl.ast_node_type.if_:
+            return self.codegen_if(node, depth)
         else:
             assert False, f"{node.get_type()=}"
 
