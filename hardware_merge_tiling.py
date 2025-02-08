@@ -1,7 +1,7 @@
 import islpy as isl
 import utils
 from base_operator import BasicOperator
-from itertools import combinations
+from itertools import combinations, permutations
 import math
 from collections import OrderedDict
 import pdb
@@ -9,6 +9,8 @@ import numpy as np
 from tqdm import tqdm
 import time
 from functools import reduce
+import os
+from depth_first.timeout import timeout
 
 def get_cim_operator(n_rows, n_cols):
     cim_operator = BasicOperator(
@@ -65,7 +67,11 @@ def generate_combinations(elements):
     all_combinations = []
     n = len(elements)
     for r in range(1, n+1):
-        combinations_r = combinations(elements, r)
+        if int(os.environ.get("NEW_ALGO", 0))==1:
+            combinations_r = permutations(elements, r)
+        else:
+            combinations_r = combinations(elements, r)
+        
         all_combinations.extend(combinations_r)
     return all_combinations
 
@@ -113,7 +119,7 @@ def get_all_software_to_hardware_index_mapping(h2s_mapping):
     dfs(0, visited_s_axis)
     return all_mapping
 
-def get_schedule_from_mapping(mapping, software_op):
+def get_coalescing_schedule_from_mapping(mapping, software_op):
     """
     mapping:  {'h0': ('s1',), 'h1': ('s4', 's5')}
     scheudle: { [s0, s1, s2, s3, s4, s5] -> [s0, s2, s3, s1, 3s4 + s5] }
@@ -160,6 +166,50 @@ def get_schedule_from_mapping(mapping, software_op):
     schedule = isl.BasicMap("{ [%s] -> [%s] }" % (",".join(s_axis_sorted), ",".join(schedule_range)))
 
     return schedule
+
+def get_reverse_coalescing_schedule_from_mapping(mapping, software_op):
+    """
+    mapping:  {'h0': ('s4', 's5')}
+    scheudle: { [s0, s1, s2, s3, s4, s5] -> [s0, s1, s2, s3, 3s4 + s5] }
+    reverse_scheudle: { [s0, s1, s2, s3, s45] -> [s0, s1, s2, s3, s4, s5] : s4 = floor(s45/3) and s5 = s45%3 }
+    """
+    new_domain = utils.rename_all_dims_for_basic_set(software_op.domain,'s')
+    domain_iter_names = new_domain.get_var_names(isl.dim_type.set)
+    # print(mapping)
+    # shape = utils.get_box_hull_shape(new_domain)
+    bounds = {iter_name: 
+                (int(str(new_domain.dim_min_val(i))),int(str(new_domain.dim_max_val(i))))
+                     for i,iter_name in enumerate(domain_iter_names)}
+    factors = {iter_name: ub+1 for iter_name, (lb, ub) in bounds.items()}
+
+    schedule_domain = []
+    s_axis_in_mapping = set([item for value in mapping.values() for item in value])
+    s_axis_not_in_mapping = set(bounds.keys()) - s_axis_in_mapping
+    s_axis_not_in_mapping = sort_by_name(s_axis_not_in_mapping)
+    schedule_domain.extend(s_axis_not_in_mapping)
+
+    h_axis_sorted = sort_by_name(mapping.keys())
+    schedule_domain.extend(h_axis_sorted)
+
+    schedule_range = sort_by_name(domain_iter_names)
+
+    constraints = []
+    for h_axis in h_axis_sorted:
+        s_axis_list = mapping[h_axis]
+        mod_factor = factors[s_axis_list[0]]
+        div_factor = 1
+        for s_axis in s_axis_list[1:]:
+            mod_factor *= factors[s_axis]
+            div_factor *= factors[s_axis]
+        for i,s_axis in enumerate(s_axis_list):
+            constraints.append(f"{s_axis} = floor(({h_axis}%{mod_factor})/{div_factor})")
+            mod_factor //= factors[s_axis]
+            if i < len(s_axis_list) - 1:
+                div_factor //= factors[s_axis_list[i+1]]
+
+    schedule = isl.BasicMap("{ [%s] -> [%s] : %s }" % (",".join(schedule_domain), ",".join(schedule_range), " and ".join(constraints)))
+    return schedule
+
 
 def _get_hardware_tiling_schedule(n_software_dim, tiling_factor):
     assert type(tiling_factor)==list
@@ -238,7 +288,7 @@ def hardware_merge_tiling(op, macro_row, macro_col, min_compute_times):
         return None
     all_mapping = get_all_software_to_hardware_index_mapping(mapping)
     all_mapping = filter_all_mapping_by_compute_times(op.domain, all_mapping, min_compute_times)
-    all_schedules = [get_schedule_from_mapping(mapping, op) for mapping in all_mapping]
+    all_schedules = [get_coalescing_schedule_from_mapping(mapping, op) for mapping in all_mapping]
     for schedule in all_schedules:
         assert schedule.intersect_domain(op.domain).reverse().is_single_valued(), f"{schedule} should not be single valued!"
     
@@ -248,6 +298,10 @@ def hardware_merge_tiling(op, macro_row, macro_col, min_compute_times):
     # exit()
     return all_schedules
 
+@timeout(seconds=10)
+def count_val(domain):
+    return int(str(domain.count_val()))
+    
 def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
     begin_time = time.time()
 
@@ -262,13 +316,18 @@ def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
 
     # filter op with n_div < 5
     op_list = [op for op in op_list if op.domain.dim(isl.dim_type.div) < 5]
-
+    min_exe_time = 999999999
     for idx,op in enumerate(tqdm(op_list, desc="filter op by outer execute time")):
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-        exe_time = int(str(outer_domain.count_val()))
+        # exe_time = int(str(outer_domain.count_val()))
+        exe_time = count_val(outer_domain)
+        if exe_time is None:
+            exe_time = 999999999
         exe_time_list.append(exe_time)
-        print("Current min compute time: ", min(exe_time_list))
+        if exe_time < min_exe_time:
+            min_exe_time = exe_time
+            print("Current min compute time: ", min_exe_time)
         if exe_time <= min_compute_times_limit:
             break
 
@@ -405,11 +464,12 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
             if len(new_op_list) % 8 == 0:
                 n_dim = new_op.domain.dim(isl.dim_type.set)
                 outer_domain = new_op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-                exe_time = int(str(outer_domain.count_val()))
-                min_compute_times = min(min_compute_times, exe_time)
-                if min_compute_times <= min_compute_times_limit:
-                    early_stop = True
-                    break
+                exe_time = count_val(outer_domain)
+                if exe_time is not None:
+                    min_compute_times = min(min_compute_times, exe_time)
+                    if min_compute_times <= min_compute_times_limit:
+                        early_stop = True
+                        break
 
             # print(f"{min_compute_times=}")
             

@@ -6,6 +6,7 @@ from draw import (
     extract_val_from_singleton_set,
     FrameInfo
 )
+import utils
 from utils import get_static_box_shape, get_mpf_lb_up_from_domain
 import islpy as isl
 def get_pieces_from_pw_multi_aff(pw_multi_aff):
@@ -27,6 +28,8 @@ def get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name=True):
     #         dominate_dims.add(dim_names[i] if return_name else i)
 
     dominate_dims2 = set()
+
+    # import pdb; pdb.set_trace()
     for cond, multi_aff in get_pieces_from_pw_multi_aff(pw_multi_aff):
         for dim in range(n_dim_range):
             aff = multi_aff.get_at(dim)
@@ -125,20 +128,36 @@ def extract_frame_info(software_op, cim_cfg, compress_iter_ids):
             macro_hash_list.add(macro_hash)
             yield timestamp, frame_info
 
-def count_minimal_needed_macro(op, cim_cfg):
-    cnt = 0
-    access_W = op.access_W
-    not_involve_dims = get_non_dominate_iters_of_pw_multi_aff(access_W.as_pw_multi_aff(), return_name=False)
-    trival_dims = get_static_bound_dims(op) - not_involve_dims
-    # trival_dims = set()
-    for value in extract_frame_info(op, cim_cfg, compress_iter_ids = not_involve_dims | trival_dims):
-        cnt += 1
+# def count_minimal_needed_macro(op, cim_cfg):
+#     cnt = 0
+#     access_W = op.access_W
+#     not_involve_dims = get_non_dominate_iters_of_pw_multi_aff(access_W.as_pw_multi_aff(), return_name=False)
+#     trival_dims = get_static_bound_dims(op) - not_involve_dims
+#     # trival_dims = set()
+#     for value in extract_frame_info(op, cim_cfg, compress_iter_ids = not_involve_dims | trival_dims):
+#         cnt += 1
     
-    n_dim = op.domain.dim(isl.dim_type.set)
-    for iter_id in trival_dims:
-        # outer = op.domain.project_out(isl.dim_type.set, iter_id + 1, n_dim-iter_id-1)
-        dim_size = op.domain.dim_max_val(iter_id) - op.domain.dim_min_val(iter_id) + 1
-        cnt *= dim_size
+#     n_dim = op.domain.dim(isl.dim_type.set)
+#     for iter_id in trival_dims:
+#         # outer = op.domain.project_out(isl.dim_type.set, iter_id + 1, n_dim-iter_id-1)
+#         dim_size = op.domain.dim_max_val(iter_id) - op.domain.dim_min_val(iter_id) + 1
+#         cnt *= dim_size
+    
+#     return cnt
+
+
+def count_minimal_needed_macro(op, cim_cfg):
+    domain = op.domain
+    n_dim = domain.dim(isl.dim_type.set)
+    shape = utils.get_box_hull_shape(domain)
+    intra_macro_iters = [n_dim - 2, n_dim - 1]
+    inter_macro_iters = [n_dim - 4, n_dim - 3]
+    cnt = shape[inter_macro_iters[0]] * shape[inter_macro_iters[1]]
+
+    access_W = op.access_W
+    dominate_weight_iters = get_dominate_iters_of_pw_multi_aff(access_W.as_pw_multi_aff(), return_name=False)
+    dominate_weight_iters = set(dominate_weight_iters) - set(intra_macro_iters)- set(inter_macro_iters)
+    for dominate_weight_iter in dominate_weight_iters:
+        cnt *= shape[dominate_weight_iter]
     
     return cnt
-

@@ -7,53 +7,10 @@ from tqdm import tqdm
 import utils
 from base_operator import (DataMovement, DataMovementOperator,
                            TensorAccessRelation)
-
-unique_name_idx = 0
-char_set = "abcdefghijklmnopqrstuvwxyz"
-
-
-def alloc_unique_var():
-    global unique_name_idx
-
-    idx = unique_name_idx
-    char_set_len = len(char_set)
-    name = ""
-    while True:
-        char = idx % char_set_len
-        idx = idx // char_set_len
-        name += char_set[char]
-        if idx == 0:
-            break
-
-    unique_name_idx += 1
-    return name + "_"
-
-
-unique_stmt_idx = 0
-char_stmt_set = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-
-def alloc_unique_stmt():
-    global unique_stmt_idx
-
-    idx = unique_stmt_idx
-    char_set_len = len(char_stmt_set)
-    name = ""
-    while True:
-        char = idx % char_set_len
-        idx = idx // char_set_len
-        name += char_stmt_set[char]
-        if idx == 0:
-            break
-
-    unique_stmt_idx += 1
-    return name + "_"
-
-
-@dataclass
-class CodeStmt:
-    code: str
-    depth: int
+from config import get_config
+from codegen_.codegen import (
+    CodeStmt, alloc_unique_var, alloc_unique_stmt
+)
 
 
 class CodeGenerator:
@@ -63,7 +20,7 @@ class CodeGenerator:
 
     def codegen_special_defs(self, depth):
         with open(
-            "/home/wangyiou/project/cim_compiler_frontend/playground/op/bit_sparse/bit_sparse_conv2d_group/lib/def_special_regs.cim",
+            "/home/wangyiou/project/CIMCompiler/cim_compiler/op/common/def_special_regs.cim",
             "r",
         ) as f:
             special_reg_defs = CodeStmt(code=f.read(), depth=depth)
@@ -298,16 +255,18 @@ class CodeGenerator:
         return code_list, new_var
 
     def codegen_expression_id(self, expr, depth):
-        new_var = alloc_unique_var()
+        # new_var = alloc_unique_var()
         old_var = expr.id_get_id().get_name()
-        code = CodeStmt(code=f"{new_var} = {old_var};", depth=depth)
-        return [code], new_var
-
+        # code = CodeStmt(code=f"{new_var} = {old_var};", depth=depth)
+        # return [code], new_var
+        return [], old_var
+        
     def codegen_expression_int(self, expr, depth):
-        new_var = alloc_unique_var()
+        # new_var = alloc_unique_var()
         int_val = expr.int_get_val()
-        code = CodeStmt(code=f"{new_var} = {int_val};", depth=depth)
-        return [code], new_var
+        # code = CodeStmt(code=f"{new_var} = {int_val};", depth=depth)
+        # return [code], new_var
+        return [], str(int_val)
 
     def codegen_expression(self, expr, depth):
         assert isinstance(expr, isl._isl.AstExpr), f"{type(expr)=}"
@@ -598,7 +557,7 @@ def extract_buffer_defines(op):
     _update_memory_type(W_name, op.access_W.memory_type)
     _update_memory_type(O_name, op.access_O.memory_type)
 
-    for buffer in ["I", "W"]:
+    for buffer in ["I", "W", "O"]:
         for data_movement in op.data_movement[buffer]:
             assert type(data_movement) == DataMovement
 
@@ -641,14 +600,14 @@ def insert_many_const_dim_in_range(map_, pos, size, si):
     return map_
 
 
-def align_compute_and_assign_schedules(compute_schedule, assign_schedules, levels):
+def align_compute_and_assign_schedules(compute_schedule, assign_schedules, levels, type_list):
     level_to_assign_schedule = dict()
     assign_schedule_to_level = dict()
-    for assign_schedule, level in zip(assign_schedules, levels):
+    for assign_schedule, level, type_ in zip(assign_schedules, levels, type_list):
         if level in level_to_assign_schedule:
-            level_to_assign_schedule[level].append(assign_schedule)
+            level_to_assign_schedule[level].append([assign_schedule, type_])
         else:
-            level_to_assign_schedule[level] = [assign_schedule]
+            level_to_assign_schedule[level] = [[assign_schedule, type_]]
 
         assign_schedule_to_level[assign_schedule] = level
 
@@ -661,9 +620,12 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
 
         # insert constant dims for assign schedules at current level
         for i in range(len(assign_schedules_at_level)):
-            assign_schedules_at_level[i] = insert_const_dim_in_range(
-                assign_schedules_at_level[i], level + idx, i
-            )
+            assign_schedule, type_ = assign_schedules_at_level[i]
+            if type_ in ["I", "W"]:
+                assign_schedule = insert_const_dim_in_range(
+                    assign_schedule, level + idx, i
+                )
+                assign_schedules_at_level[i] = [assign_schedule, type_]
 
         # insert dims for other schedule
         const = len(assign_schedules_at_level)
@@ -672,13 +634,22 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
                 continue
             assign_schedules_at_other_level = level_to_assign_schedule[other_level]
             for i in range(len(assign_schedules_at_other_level)):
-                assign_schedules_at_other_level[i] = insert_const_dim_in_range(
-                    assign_schedules_at_other_level[i], level + idx, const
+                assign_schedules_at_other_level[i][0] = insert_const_dim_in_range(
+                    assign_schedules_at_other_level[i][0], level + idx, const
                 )
 
         compute_schedule = insert_const_dim_in_range(
             compute_schedule, level + idx, const
         )
+
+        # insert constant dims for assign schedules at current level
+        for i in range(len(assign_schedules_at_level)):
+            assign_schedule, type_ = assign_schedules_at_level[i]
+            if type_ in ["O"]:
+                assign_schedule = insert_const_dim_in_range(
+                    assign_schedule, level + idx, const + i
+                )
+                assign_schedules_at_level[i] = [assign_schedule, type_]
 
         pass
 
@@ -686,7 +657,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
     max_range_size = compute_schedule.dim(isl.dim_type.out)
     for level in sorted_levels:
         assign_schedules_at_level = level_to_assign_schedule[level]
-        for assign_schedule in assign_schedules_at_level:
+        for assign_schedule,type_ in assign_schedules_at_level:
             range_size = assign_schedule.dim(isl.dim_type.out)
             max_range_size = max(max_range_size, range_size)
 
@@ -697,17 +668,17 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
     for level in sorted_levels:
         assign_schedules_at_level = level_to_assign_schedule[level]
         for i in range(len(assign_schedules_at_level)):
-            assign_schedule = assign_schedules_at_level[i]
+            assign_schedule,type_ = assign_schedules_at_level[i]
             cur_range_size = assign_schedule.dim(isl.dim_type.out)
             assign_schedule = insert_many_const_dim_in_range(
                 assign_schedule, cur_range_size, max_range_size - cur_range_size, 0
             )
-            assign_schedules_at_level[i] = assign_schedule
+            assign_schedules_at_level[i] = [assign_schedule, type_]
 
     union_schedule = compute_schedule
     for level in sorted_levels:
         assign_schedules_at_level = level_to_assign_schedule[level]
-        for assign_schedule in assign_schedules_at_level:
+        for assign_schedule, _ in assign_schedules_at_level:
             union_schedule = union_schedule.add_map(assign_schedule)
 
     # import pdb; pdb.set_trace()
@@ -729,6 +700,7 @@ def data_movement_operator_to_dsl(op):
     assign_domain_list = []
     assign_schedule_list = []
     level_list = []
+    type_list = []
     for name, data_movement_list in op.data_movement.items():
         for data_movement in data_movement_list:
             stmt_name = alloc_unique_stmt()
@@ -738,6 +710,7 @@ def data_movement_operator_to_dsl(op):
             assign_domain_list.append(assign_domain)
             assign_schedule_list.append(assign_schedule)
             level_list.append(data_movement.level)
+            type_list.append(data_movement.type_)
 
             name_to_op[stmt_name] = data_movement
 
@@ -751,6 +724,7 @@ def data_movement_operator_to_dsl(op):
         compute_schedule=compute_schedule,
         assign_schedules=assign_schedule_list,
         levels=level_list,
+        type_list=type_list,
     )
     print("--------------------------------------------")
     # print(f"skewing: {op.history_schedules[0]}\n")

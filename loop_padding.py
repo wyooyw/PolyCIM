@@ -77,8 +77,8 @@ def loop_padding_to_box_all(op):
 
     domain_padding_str = "{ [" + ", ".join(dim_names) + "]: " + " and ".join(constraints) + "}"
     domain_padding = isl.BasicSet(domain_padding_str)
-
-    return BasicOperator(
+    
+    op = BasicOperator(
         domain = domain_padding,
         access_I = op.access_I,
         access_O = op.access_O,
@@ -86,3 +86,4 @@ def loop_padding_to_box_all(op):
         history_domains = [*op.history_domains, domain_padding],
         history_schedules = [*op.history_schedules, {"padding":box_hull_shape}]
     )
+    return op

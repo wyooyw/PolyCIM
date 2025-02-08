@@ -192,6 +192,23 @@ def get_range_dim_dynamic_size(acc_rel, pos):
     
     return dim_size
 
+def get_mpf_lb_up_from_domain(domain, level):
+    """
+    basic_set: [i0, i1, ..., i_{n-level-1}, i_{n-level}, ..., i_{n-1}]
+    set upper bound for [i_{n-level}, ..., i_{n-1}]
+    """
+    n_dim = domain.dim(isl.dim_type.set)
+
+    basic_map = isl.Map.from_domain(domain)
+    basic_map = basic_map.move_dims(
+        isl.dim_type.out, 0, isl.dim_type.in_, level, 1
+    )
+    # if level==4:
+    dim_min_pw_aff = basic_map.dim_min(0)
+    dim_max_pw_aff = basic_map.dim_max(0)
+
+    return dim_min_pw_aff, dim_max_pw_aff
+
 def get_dynamic_shape_from_dynamic_map(isl_map):
     """
     range shape contains variable in domain

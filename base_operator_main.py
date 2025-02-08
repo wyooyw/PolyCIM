@@ -1,6 +1,6 @@
 import islpy as isl
 
-import utils
+import utils.utils as utils
 
 
 class AccessRelation:
@@ -13,7 +13,7 @@ class AccessRelation:
         return AccessRelation(self.offsets.convex_hull(), self.memory_type)
 
     def __repr__(self):
-        return f"({self.memory_type}){self.offsets}"
+        return f"{self.offsets}"
 
 
 class TensorAccessRelation(AccessRelation):
@@ -59,7 +59,7 @@ class BasicOperator:
         self.access_O = utils.rename_all_dims_for_basic_map(self.access_O)
         self.access_W = utils.rename_all_dims_for_basic_map(self.access_W)
 
-    def apply_schedule(self, schedule, reverse_schedule=None, skip_simplify=False, name=None):
+    def apply_schedule(self, schedule, skip_simplify=False):
         assert type(schedule) == isl.BasicMap, f"{type(schedule)}"
 
         # transform by scheudle
@@ -69,16 +69,9 @@ class BasicOperator:
         ), f"{concrete_schedule.reverse()}"
         domain = concrete_schedule.range()
 
-        if reverse_schedule is None:
-            reverse_schedule = concrete_schedule.reverse()
-        else:
-            assert reverse_schedule.dim(isl.dim_type.in_) == concrete_schedule.dim(isl.dim_type.out)
-            assert reverse_schedule.dim(isl.dim_type.out) == concrete_schedule.dim(isl.dim_type.in_)
-            reverse_schedule = reverse_schedule.intersect_domain(domain)
-
-        access_I = reverse_schedule.apply_range(self.access_I)
-        access_O = reverse_schedule.apply_range(self.access_O)
-        access_W = reverse_schedule.apply_range(self.access_W)
+        access_I = concrete_schedule.reverse().apply_range(self.access_I)
+        access_O = concrete_schedule.reverse().apply_range(self.access_O)
+        access_W = concrete_schedule.reverse().apply_range(self.access_W)
 
         assert type(access_I) == isl.BasicMap, f"{type(access_I)}"
         assert type(access_O) == isl.BasicMap, f"{type(access_I)}"
@@ -100,7 +93,7 @@ class BasicOperator:
             access_O=access_O,
             access_W=access_W,
             history_domains=[*self.history_domains, self.domain],
-            history_schedules=[*self.history_schedules, {name: schedule}],
+            history_schedules=[*self.history_schedules, schedule],
             attr={key: value for key, value in self.attr.items()},
         )
 
@@ -113,16 +106,6 @@ class BasicOperator:
             history_domains=[*self.history_domains, self.domain],
             history_schedules=[*self.history_schedules, "convex_hull"],
             attr={key: value for key, value in self.attr.items()},
-        )
-
-    def copy(self):
-        return BasicOperator(
-            domain=self.domain,
-            access_I=self.access_I,
-            access_O=self.access_O,
-            access_W=self.access_W,
-            history_domains=[*self.history_domains],
-            history_schedules=[*self.history_schedules],
         )
 
     def get_access_by_name(self, buffer_name):
@@ -179,8 +162,6 @@ class DataMovement:
             else access_O
         )
         self.level = level
-
-        assert type_ in ["I", "O", "W"]
         self.type_ = type_
 
     def convex_hull(self):
@@ -189,7 +170,6 @@ class DataMovement:
             self.access_I.convex_hull(),
             self.access_O.convex_hull(),
             self.level,
-            self.type_,
         )
 
 

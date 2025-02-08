@@ -1,7 +1,7 @@
 import islpy as isl
 from tqdm import tqdm
 
-import utils
+import utils.utils as utils
 from base_operator import (AccessRelation, BasicOperator, DataMovement,
                            DataMovementOperator, TensorAccessRelation)
 
@@ -79,11 +79,25 @@ def tensorize_cim_compute(op):
 def vectorize_data_movement(data_movement):
     domain = data_movement.domain
     domain_size = domain.dim(isl.dim_type.set)
-    n_inner_level = 1
+
+    n_access_O_dim = data_movement.access_O.offsets.dim(isl.dim_type.out)
+    n_access_I_dim = data_movement.access_I.offsets.dim(isl.dim_type.out)
+    n_inner_level = n_access_O_dim
 
     outer_domain = domain.project_out(
         isl.dim_type.set, domain_size - n_inner_level, n_inner_level
     )
+
+    access_O_sizes = [
+        data_movement.access_O.offsets.range().dim_max_val(i)
+        for i in range(n_access_O_dim)
+    ]
+    access_I_sizes = [
+        data_movement.access_I.offsets.range().dim_max_val(i)
+        for i in range(n_access_I_dim)
+    ]
+    assert access_O_sizes == access_I_sizes[n_access_I_dim - n_inner_level :]
+
     access_I = transform_access(data_movement.access_I, n_inner_level)
     access_O = transform_access(data_movement.access_O, n_inner_level)
 
@@ -92,7 +106,6 @@ def vectorize_data_movement(data_movement):
         access_I=access_I,
         access_O=access_O,
         level=data_movement.level,
-        type_=data_movement.type_,
     )
 
 

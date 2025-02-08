@@ -21,17 +21,22 @@ def parse_conv_attr(model, node):
     output_tensor = node.output[0]
     output_tensor_shape = list(get_tensor_shape(model.graph, output_tensor))
 
-    return {
-        "type": "conv2d",
-        "dilations": dilations,
-        "group": group,
-        "kernel_shape": kernel_shape,
-        "pads": pads,
-        "strides": strides,
-        "input_tensor_shape": input_tensor_shape,
-        "weight_tensor_shape": weight_tensor_shape,
-        "output_tensor_shape": output_tensor_shape
-    }
+    if group > 1 and all(s==1 for s in strides):
+
+        return {
+            "type": "conv2d",
+            "dilations": str(dilations),
+            "group": str(group),
+            "kernel_shape": str(kernel_shape),
+            "pads": str(pads),
+            "strides": str(strides),
+            "input_tensor_shape": str(input_tensor_shape),
+            "weight_tensor_shape": str(weight_tensor_shape),
+            "output_tensor_shape": str(output_tensor_shape)
+        }
+
+    else:
+        return {}
 
 def extract_op_info_from_onnx(onnx_path):
     # 加载ONNX模型
@@ -78,9 +83,12 @@ def get_onnx_files(directory):
 
 def extract_op_info_from_onnx_to_json(onnx_dir, json_dir):
     for onnx_path in tqdm(get_onnx_files(onnx_dir)):
+        print(f"{onnx_path=}")
         extract_op_info_from_onnx_model_to_json(onnx_path, json_dir)
 
 if __name__ == "__main__":
     extract_op_info_from_onnx_to_json("models/onnx", "models/json")
-    # op_info_list = extract_op_info_from_onnx("models/convnext_tiny/convnext_tiny.onnx")
-    # op_list = parse_op_info_into_operator(op_info_list)
+    # import onnx
+    # from onnx import shape_inference
+    # path = "models/onnx/EfficientNet.onnx" #the path of your onnx model
+    # onnx.save(onnx.shape_inference.infer_shapes(onnx.load(path)), path)

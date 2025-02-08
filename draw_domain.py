@@ -50,7 +50,7 @@ def simplify_basic_map(isl_basic_map, multi_value=False):
 
 def conv1d_tile(schedule=False):
     operator = BasicOperator(
-        domain = isl.BasicSet("{ [i,k]: 0<=i<8 and 0<=k<3 }"),
+        domain = isl.BasicSet("{ [i,k]: 0<=i<4 and 0<=k<3 }"),
         access_I = isl.BasicMap("{ [i,k] -> I[i+k] }"),
         access_O = isl.BasicMap("{ [i,k] -> O[i] }"),
         access_W = isl.BasicMap("{ [i,k] -> W[k] }"),
