@@ -9,6 +9,7 @@ class CIMConfig:
     n_comp: int
     n_group: int
     n_macro_per_group: int
+    n_macro: int
 
 config = None
 def get_raw_config():
@@ -42,7 +43,8 @@ def get_config():
         n_group_vcol=n_group_vcol,
         n_comp=n_comp,
         n_group=n_group,
-        n_macro_per_group=n_macro_per_group
+        n_macro_per_group=n_macro_per_group,
+        n_macro=n_macro
     )
 
 def get_memory_sizes():

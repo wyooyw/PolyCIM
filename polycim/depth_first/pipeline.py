@@ -40,6 +40,10 @@ from functools import reduce
 import math
 from polycim.passes.loop_padding import loop_padding_to_box_all, shift_to_zero
 from polycim.depth_first.mapping_multiple_macro import mapping_multiple_macro
+from polycim.codegen_.codegen_cimdsl import codegen_pass
+from polycim.passes.tensorize import tensorize_pass
+from polycim.passes.backend import backend_compile_and_profile_pass
+
 execution_times = {}
 
 def timing_decorator(func):
@@ -677,7 +681,9 @@ cim_cfg = CIMConfig(
     n_row={cim_cfg.n_row},
     n_group_vcol={cim_cfg.n_group_vcol},
     n_comp={cim_cfg.n_comp},
-    n_group={cim_cfg.n_group}
+    n_group={cim_cfg.n_group},
+    n_macro_per_group={cim_cfg.n_macro_per_group},
+    n_macro={cim_cfg.n_macro}
 )\n
 """
     dump_code += cim_config_str
@@ -779,6 +785,15 @@ def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_we
             new_op = mapping_multiple_macro(min_compute_ops[0], cim_cfg, enable_weight_rewrite=enable_weight_rewrite)
         # print("\n")
         dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_cfg, flops)        
+        
+        new_op = tensorize_pass([new_op])[0]
+        new_op = codegen_pass([new_op])[0]
+        result_list = backend_compile_and_profile_pass(
+            [new_op], 
+            save_dir=os.path.join(save_dir, name),
+            config_file=os.environ.get("CONFIG_PATH")
+        )
+        
         # save stats["count_val"] into a csv file
         # header: count_time, exe_time
         # with open(os.path.join(save_dir, f"{name}.csv"), "w") as f:
@@ -797,74 +812,74 @@ def main():
     dim_types_for_dwconv2d = ["c", "oh", "ow", "kh", "kw"]
 
     op_list = OrderedDict()
-    # op_list["C1"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=112, ow=112, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    # }
+    op_list["C1"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=112, ow=112, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
     op_list["C2"] = {
         "op": benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
         "symmetry_info": symmetry_info_for_dwconv2d,
         "dim_types": dim_types_for_dwconv2d,
     }
-    # op_list["C3"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=1, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    # }
-    # op_list["C4"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    # }
-    # op_list["C5"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=5, kw=5, stride=1, dilation=1, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    # }
-    # op_list["C6"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=8, ow=7, kh=5, kw=5, stride=1, dilation=1, virtual_axis=False),
-    #     # "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    # }
-    # op_list["C7"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    # }
-    # op_list["C8"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=7, kw=7, stride=1, dilation=1, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    # }
-    # op_list["C9"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=8, ow=7, kh=7, kw=7, stride=1, dilation=1, virtual_axis=False),
-    #     # "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    # }
-    # op_list["C10"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=51, kw=51, stride=1, dilation=1, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    #     "not_tiling": [3,4]
-    # }
-    # op_list["C11"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=8, ow=7, kh=13, kw=13, stride=1, dilation=1, virtual_axis=False),
-    #     # "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d
-    # }
-    # op_list["C12"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    #     "max_tiling_level": 3
-    # }
-    # op_list["C13"] = {
-    #     "op": benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2, virtual_axis=False),
-    #     "symmetry_info": symmetry_info_for_dwconv2d,
-    #     "dim_types": dim_types_for_dwconv2d,
-    #     "max_tiling_level": 3
-    # }
+    op_list["C3"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
+    op_list["C4"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
+    op_list["C5"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=14, ow=14, kh=5, kw=5, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
+    op_list["C6"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=5, kw=5, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
+    op_list["C7"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
+    op_list["C8"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=7, kw=7, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
+    op_list["C9"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=8, ow=7, kh=7, kw=7, stride=1, dilation=1, virtual_axis=False),
+        # "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
+    op_list["C10"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=56, ow=56, kh=51, kw=51, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+        "not_tiling": [3,4]
+    }
+    op_list["C11"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=13, kw=13, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d
+    }
+    op_list["C12"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+        "max_tiling_level": 3
+    }
+    op_list["C13"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+        "max_tiling_level": 3
+    }
     # # op_list["C14"] = benchmark.get_op_dwconv2d(b=1, oc=1, ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2)
     # op_list["C15"] = {
     #     "op": benchmark.get_op_dwconv3d(ic=1, ox=28, oy=28, oz=28, kx=5, ky=5, kz=5, stride=1),

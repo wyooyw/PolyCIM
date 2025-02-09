@@ -48,7 +48,7 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     op.set_attr("n_use_group", n_use_group)
     
     dominate_input_iters = get_dominate_iters_of_pw_multi_aff(op.access_I.as_pw_multi_aff(), return_name=False)
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     # share_input_iters = get_non_dominate_iters_of_pw_multi_aff(op.access_I.as_pw_multi_aff(), return_name=False)
     # share_output_iters = get_non_dominate_iters_of_pw_multi_aff(op.access_O.as_pw_multi_aff(), return_name=False)
     
@@ -94,13 +94,7 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
         print(f"{weight_data_movement.level=}")
         print(f"{access_I=}")
         print(f"{access_O=}\n")
-    new_op = tensorize_pass([new_op])[0]
-    new_op = codegen_pass([new_op])[0]
-    result_list = backend_compile_and_profile_pass(
-        [new_op], 
-        save_dir=".temp", 
-        config_file=os.environ.get("CONFIG_PATH")
-    )
+    return new_op
     import pdb; pdb.set_trace()
     pass
     # iter_share_input_macros = 

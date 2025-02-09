@@ -13,7 +13,8 @@ def polycim(cim_row, cim_col, operator):
         n_row=1,
         n_group_vcol=cim_col,
         n_comp=cim_row,
-        n_group=1
+        n_group=1,
+        n_macro=1
     )
     flops = operator.domain.count_val().get_num_si()
     op,cim_flops = run_pipeline(operator, skew=skew, cim_cfg=cim_cfg, save_dir=".temp_save")
