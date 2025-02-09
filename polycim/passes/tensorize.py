@@ -1,8 +1,8 @@
 import islpy as isl
 from tqdm import tqdm
 
-import utils
-from base_operator import (AccessRelation, BasicOperator, DataMovement,
+import polycim.utils.utils as utils
+from polycim.op.base_operator import (AccessRelation, BasicOperator, DataMovement,
                            DataMovementOperator, TensorAccessRelation)
 
 

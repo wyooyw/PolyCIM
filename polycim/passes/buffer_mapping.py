@@ -7,11 +7,11 @@ import islpy as isl
 import numpy as np
 from tqdm import tqdm
 
-import utils
-from base_operator import (AccessRelation, BasicOperator, DataMovement,
+import polycim.utils.utils as utils
+from polycim.op.base_operator import (AccessRelation, BasicOperator, DataMovement,
                            DataMovementOperator)
-from config import get_memory_sizes
-from utils import (get_box_hull_shape, rename_all_dims_for_basic_map,
+from polycim.config import get_memory_sizes
+from polycim.utils.utils import (get_box_hull_shape, rename_all_dims_for_basic_map,
                          rename_all_dims_for_basic_set,
                          rename_out_dims_for_basic_map)
 

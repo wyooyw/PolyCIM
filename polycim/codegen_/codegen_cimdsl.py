@@ -4,11 +4,11 @@ from dataclasses import dataclass
 import islpy as isl
 from tqdm import tqdm
 
-import utils
-from base_operator import (DataMovement, DataMovementOperator,
+import polycim.utils.utils as utils
+from polycim.op.base_operator import (DataMovement, DataMovementOperator,
                            TensorAccessRelation)
-from config import get_config
-from codegen_.codegen import (
+from polycim.config import get_config
+from polycim.codegen_.codegen import (
     CodeStmt, alloc_unique_var, alloc_unique_stmt
 )
 

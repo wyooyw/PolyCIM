@@ -1,13 +1,14 @@
 import islpy as isl
-from depth_first.count_minimal_macro import (
+from polycim.depth_first.count_minimal_macro import (
     get_non_dominate_iters_of_pw_multi_aff,
     get_dominate_iters_of_pw_multi_aff,
 )
-import utils
-from buffer_mapping import insert_single_buffer_multi_level
-from codegen_.codegen_cimdsl import codegen_pass
-from tensorize import tensorize_pass
-from backend import backend_compile_and_profile_pass
+import polycim.utils.utils as utils
+from polycim.passes.buffer_mapping import insert_single_buffer_multi_level
+from polycim.codegen_.codegen_cimdsl import codegen_pass
+from polycim.passes.tensorize import tensorize_pass
+from polycim.passes.backend import backend_compile_and_profile_pass
+import os
 
 def get_scalar_iters(domain):
     shape = utils.get_box_hull_shape(domain)
@@ -98,7 +99,7 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     result_list = backend_compile_and_profile_pass(
         [new_op], 
         save_dir=".temp", 
-        config_file="/home/wangyiou/Desktop/pim_compiler/playground/config.json"
+        config_file=os.environ.get("CONFIG_PATH")
     )
     import pdb; pdb.set_trace()
     pass

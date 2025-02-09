@@ -19,8 +19,13 @@ class ProfileResult:
 
 def backend_compile_and_profile_pass(op_list, save_dir, config_file):
     assert save_dir is not None
-    assert os.path.exists(save_dir), f"{save_dir=}"
-    assert os.path.isdir(save_dir), f"{save_dir=}"
+    # assert os.path.exists(save_dir), f"{save_dir=}"
+    # assert os.path.isdir(save_dir), f"{save_dir=}"
+    if os.path.exists(save_dir):
+        assert os.path.isdir(save_dir), f"{save_dir=}"
+    else:
+        os.makedirs(save_dir, exist_ok=True)
+
     assert os.path.exists(config_file), f"{config_file=}"
     assert os.path.isfile(config_file), f"{config_file=}"
     

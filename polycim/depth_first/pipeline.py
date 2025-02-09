@@ -1,15 +1,15 @@
-from multi_level_tiling import enumerate_tiling_factors
-import benchmark
-from multi_level_tiling import (
+from polycim.passes.multi_level_tiling import enumerate_tiling_factors
+import polycim.op.benchmark as benchmark
+from polycim.passes.multi_level_tiling import (
     factorize, 
     multi_level_splitting_var_level, 
     combine_tilesize_by_symmetry_info
 )
 import islpy as isl
-import utils
+import polycim.utils.utils as utils
 import itertools
 from tqdm import tqdm
-from affine_transform import (
+from polycim.passes.affine_transform import (
     parse_operator,
     find_base,
     base_to_coor_transform_schedule,
@@ -20,26 +20,26 @@ from collections import OrderedDict
 import numpy as np
 import time
 from sympy import Matrix
-from hardware_merge_tiling import (
+from polycim.passes.hardware_merge_tiling import (
     get_coalescing_schedule_from_mapping,
     get_reverse_coalescing_schedule_from_mapping,
     _get_hardware_tiling_schedule
 )
-from config import get_config
-from draw import (
+from polycim.config import get_config
+from polycim.utils.draw import (
     draw,
     extract_frame_info
 )
-from depth_first.count_minimal_macro import count_minimal_needed_macro
-from base_operator import BasicOperator
+from polycim.depth_first.count_minimal_macro import count_minimal_needed_macro
+from polycim.op.base_operator import BasicOperator
 import concurrent.futures
 import datetime
 import os
-from depth_first.timeout import timeout
+from polycim.depth_first.timeout import timeout
 from functools import reduce
 import math
-from loop_padding import loop_padding_to_box_all, shift_to_zero
-from depth_first.mapping_multiple_macro import mapping_multiple_macro
+from polycim.passes.loop_padding import loop_padding_to_box_all, shift_to_zero
+from polycim.depth_first.mapping_multiple_macro import mapping_multiple_macro
 execution_times = {}
 
 def timing_decorator(func):
@@ -668,9 +668,9 @@ def dump_schedules(origin_op, new_op, **kwargs):
     dump_code += "\"\"\"\n"
     dump_code += f"import islpy as isl\n"
     dump_code += f"import time\n"
-    dump_code += f"from base_operator import BasicOperator\n"
-    dump_code += f"from draw import draw, extract_frame_info\n"
-    dump_code += f"from config import CIMConfig\n"
+    dump_code += f"from polycim.op.base_operator import BasicOperator\n"
+    dump_code += f"from polycim.utils.draw import draw, extract_frame_info\n"
+    dump_code += f"from polycim.config import CIMConfig\n"
 
     cim_config_str = f"""
 cim_cfg = CIMConfig(

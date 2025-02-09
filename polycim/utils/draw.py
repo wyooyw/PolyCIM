@@ -1,6 +1,6 @@
 import islpy as isl
 import ipdb
-from utils import *
+from polycim.utils.utils import *
 class FrameInfo:
     def __init__(self, input, output, macro):
         self.input = input

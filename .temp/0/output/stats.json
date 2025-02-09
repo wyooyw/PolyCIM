@@ -1,0 +1,11 @@
+{
+  "total": 36564,
+  "GeneralLiInst": 9613,
+  "SpecialLiInst": 10,
+  "RIInst": 12948,
+  "JumpInst": 2625,
+  "RRInst": 4892,
+  "BranchInst": 2540,
+  "TransInst": 3152,
+  "CIMComputeInst": 784
+}

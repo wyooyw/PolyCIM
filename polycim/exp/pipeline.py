@@ -1,28 +1,28 @@
-from base_operator import BasicOperator
+from polycim.op.base_operator import BasicOperator
 import os
 if int(os.environ.get("NEW_ALGO", 0))==1:
     from affine_transform_new import auto_skewing_pass
 else:
-    from affine_transform import auto_skewing_pass
-from hardware_merge_tiling import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
+    from polycim.passes.affine_transform import auto_skewing_pass
+from polycim.passes.hardware_merge_tiling import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
 # from hardware_merge_tiling_4d_macro import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
 import islpy as isl
-from buffer_mapping import (
+from polycim.passes.buffer_mapping import (
     insert_single_buffer_single_level_pass,
     insert_single_buffer_multi_level_pass,
     multi_level_buffer_insersion_pass,
     filter_op_by_memory_access_cost_pass
 )
 from codegen import codegen_pass
-from loop_padding import loop_padding_pass
-from tensorize import tensorize_pass
-from backend import backend_compile_and_profile_pass
-from multi_level_tiling import pre_tiling_pass, memory_tiling_pass
-import benchmark
+from polycim.passes.loop_padding import loop_padding_pass
+from polycim.passes.tensorize import tensorize_pass
+from polycim.passes.backend import backend_compile_and_profile_pass
+from polycim.passes.multi_level_tiling import pre_tiling_pass, memory_tiling_pass
+import polycim.op.benchmark as benchmark
 import json
-from config import get_config
-from draw import extract_frame_info
-import utils
+from polycim.config import get_config
+from polycim.utils.draw import extract_frame_info
+import polycim.utils.utils as utils
 from collections import OrderedDict
 import time
 

@@ -1,4 +1,4 @@
-from draw import (
+from polycim.utils.draw import (
     extract_frame_info,
     get_macro_hash,
     _extract_frame_info,
@@ -6,8 +6,8 @@ from draw import (
     extract_val_from_singleton_set,
     FrameInfo
 )
-import utils
-from utils import get_static_box_shape, get_mpf_lb_up_from_domain
+import polycim.utils.utils as utils
+from polycim.utils.utils import get_static_box_shape, get_mpf_lb_up_from_domain
 import islpy as isl
 def get_pieces_from_pw_multi_aff(pw_multi_aff):
     record = []

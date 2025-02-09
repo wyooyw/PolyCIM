@@ -1,7 +1,7 @@
 from pipeline import run_pipeline
 from baselines import im2col,SDK,vw_sdk
-import benchmark
-from config import CIMConfig
+import polycim.op.benchmark as benchmark
+from polycim.config import CIMConfig
 import json
 import argparse
 

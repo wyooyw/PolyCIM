@@ -1,6 +1,6 @@
 import islpy as isl
-from base_operator import BasicOperator
-import utils
+from polycim.op.base_operator import BasicOperator
+import polycim.utils.utils as utils
 import itertools
 from tqdm import tqdm
 

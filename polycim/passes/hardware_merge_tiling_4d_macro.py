@@ -1,13 +1,13 @@
 import islpy as isl
-import utils
-from base_operator import BasicOperator
+import polycim.utils.utils as utils
+from polycim.op.base_operator import BasicOperator
 from itertools import combinations
 import math
 from collections import OrderedDict
 import pdb
 import numpy as np
 from tqdm import tqdm
-from config import CIMConfig, get_config
+from polycim.config import CIMConfig, get_config
 
 def get_cim_operator(n_rows, n_cols):
     cim_operator = BasicOperator(

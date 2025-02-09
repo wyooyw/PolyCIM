@@ -1,6 +1,6 @@
 import pytest
-from config import get_config
-import benchmark
+from polycim.config import get_config
+import polycim.op.benchmark as benchmark
 from pipeline import run_pipeline
 import tempfile
 

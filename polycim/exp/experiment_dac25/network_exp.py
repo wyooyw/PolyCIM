@@ -1,8 +1,8 @@
 import models.onnx_parser as onnx_parser
 import tempfile
-import benchmark
+import polycim.op.benchmark as benchmark
 from pipeline import run_pipeline
-from config import get_config
+from polycim.config import get_config
 import json
 import multiprocessing
 import os

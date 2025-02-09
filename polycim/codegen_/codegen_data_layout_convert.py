@@ -1,7 +1,7 @@
 import islpy as isl
-import utils
-from codegen_.codegen_c import CCodeGenerator
-from codegen_.codegen import CodeStmt
+import polycim.utils.utils as utils
+from polycim.codegen_.codegen_c import CCodeGenerator
+from polycim.codegen_.codegen import CodeStmt
 import os
 import numpy as np
 import tempfile

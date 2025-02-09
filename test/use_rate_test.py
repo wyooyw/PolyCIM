@@ -1,7 +1,7 @@
 from pipeline import run_pipeline
-import benchmark
+import polycim.op.benchmark as benchmark
 import pytest
-from config import CIMConfig    
+from polycim.config import CIMConfig    
 @pytest.mark.parametrize("cim_row_col_celluse",
 [
     (16, 2, 18),

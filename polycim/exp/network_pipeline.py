@@ -1,9 +1,9 @@
 from pipeline import run_pipeline
-import benchmark
+import polycim.op.benchmark as benchmark
 import os
 import json
 from functools import reduce
-from config import get_config, get_memory_base
+from polycim.config import get_config, get_memory_base
 import tempfile
 import os
 from jinja2 import Environment, FileSystemLoader, StrictUndefined

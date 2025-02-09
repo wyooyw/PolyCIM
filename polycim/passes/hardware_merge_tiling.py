@@ -1,6 +1,6 @@
 import islpy as isl
-import utils
-from base_operator import BasicOperator
+import polycim.utils.utils as utils
+from polycim.op.base_operator import BasicOperator
 from itertools import combinations, permutations
 import math
 from collections import OrderedDict
@@ -10,7 +10,7 @@ from tqdm import tqdm
 import time
 from functools import reduce
 import os
-from depth_first.timeout import timeout
+from polycim.depth_first.timeout import timeout
 
 def get_cim_operator(n_rows, n_cols):
     cim_operator = BasicOperator(

@@ -11,10 +11,10 @@ import numpy as np
 import sympy
 from sympy import Matrix, lcm, nsimplify
 
-import mat_utils as inv
-import utils
+import polycim.utils.mat_utils as inv
+import polycim.utils.utils as utils
 from tqdm import tqdm
-from base_operator import BasicOperator
+from polycim.op.base_operator import BasicOperator
 import random
 def add_constraints_exclude_null_space(base, exclude_null_space_of):
     if exclude_null_space_of is None:

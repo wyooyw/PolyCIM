@@ -1,10 +1,10 @@
 import pytest
-from multi_level_tiling import multi_level_tiling, multi_level_splitting_var_level, combine_tilesize_by_symmetry_info
-from utils import (
+from polycim.passes.multi_level_tiling import multi_level_tiling, multi_level_splitting_var_level, combine_tilesize_by_symmetry_info
+from polycim.utils.utils import (
     get_box_hull_shape
 )
 import islpy as isl
-from base_operator import BasicOperator
+from polycim.op.base_operator import BasicOperator
 import itertools
 
 def get_op_simple_conv2d(oh,ow,kh,kw):

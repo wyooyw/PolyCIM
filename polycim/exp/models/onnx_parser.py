@@ -1,6 +1,6 @@
 import onnx
 from models.read_file import get_tensor_shape
-import benchmark
+import polycim.op.benchmark as benchmark
 import json
 import os
 from tqdm import tqdm

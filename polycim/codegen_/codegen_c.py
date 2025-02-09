@@ -1,4 +1,4 @@
-from codegen_.codegen import (
+from polycim.codegen_.codegen import (
     Codegen,
     CodeStmt,
     alloc_unique_var,

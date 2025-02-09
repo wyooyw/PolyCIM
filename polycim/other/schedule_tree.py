@@ -5,7 +5,7 @@ Try to use schedule tree to implement dwconv to macro mapping
 """
 
 import islpy as isl
-from utils import pretty_print_schedule_tree, print_code, print_schedule_tree_as_code, get_root
+from polycim.utils.utils import pretty_print_schedule_tree, print_code, print_schedule_tree_as_code, get_root
 
 # domain = 
 

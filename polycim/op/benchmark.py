@@ -1,4 +1,4 @@
-from base_operator import BasicOperator
+from polycim.op.base_operator import BasicOperator
 import islpy as isl
 
 def get_op_dwconv2d(
