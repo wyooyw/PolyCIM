@@ -79,6 +79,7 @@ class DataLayoutConvertCodegen(CCodeGenerator):
             CodeStmt(code="#include <unsupported/Eigen/CXX11/Tensor>", depth=depth),
             CodeStmt(code="#include <fstream>", depth=depth),
             CodeStmt(code="#include <algorithm>", depth=depth),
+            CodeStmt(code="#include <iostream>", depth=depth),
         ]
         return code_includes
 
@@ -105,24 +106,25 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
         codegen_load_and_save = CodeStmt(code=code_str, depth=depth)
         return [codegen_load_and_save]
 
-    def codegen_load_from_file(self, tensor_name, file_path, depth):
-        code_str = f"load_from_file({tensor_name}, \"{file_path}\");"
+    def codegen_load_from_file(self, tensor_name, depth):
+        code_str = f"load_from_file({tensor_name}, argv[1]);"
         codegen_load_from_file = CodeStmt(code=code_str, depth=depth)
         return [codegen_load_from_file]
 
-    def codegen_save_to_file(self, tensor_name, file_path, depth):
-        code_str = f"save_to_file({tensor_name}, \"{file_path}\");"
+    def codegen_save_to_file(self, tensor_name, depth):
+        code_str = f"save_to_file({tensor_name}, argv[2]);"
         codegen_save_to_file = CodeStmt(code=code_str, depth=depth)
         return [codegen_save_to_file]
 
-    def codegen_str(self, node, lhs_path, rhs_path , indent_unit=4):
+    def codegen_str(self, node, indent_unit=4):
         code_includes = self.codegen_includes(0)
         code_helper_functions = self.codegen_helper_functions(0)
         code_function_load_and_save_from_file = self.codegen_function_load_and_save_from_file(0)
-        code_load_from_file = self.codegen_load_from_file(self.name_rhs, rhs_path, 1)
-        code_save_to_file = self.codegen_save_to_file(self.name_lhs, lhs_path, 1)
+        code_load_from_file = self.codegen_load_from_file(self.name_rhs, 1)
+        code_save_to_file = self.codegen_save_to_file(self.name_lhs, 1)
         # special_reg_settings = self.codegen_special_settings(1)
         main_begin, main_end = self.codegen_main_and_end(0)
+        argument_check = self.codegen_argument_check(1, ["<input_file>", "<output_file>"])
         buffer_define_code_list = self.codegen_buffer_define(1)
         execute_code_list = self.codegen(node, 1)
         code_str = ""
@@ -131,6 +133,7 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
             + code_helper_functions
             + code_function_load_and_save_from_file
             + main_begin
+            + argument_check
             + buffer_define_code_list
             + code_load_from_file
             + execute_code_list
@@ -145,7 +148,7 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
         return code_str
 
 
-def data_layout_convert_codegen(accrel_lhs, accrel_rhs, save_path, lhs_path, rhs_path):
+def data_layout_convert_codegen(accrel_lhs, accrel_rhs, save_path):
     domain_lhs = accrel_lhs.domain()
     domain_rhs = accrel_rhs.domain()
     
@@ -164,7 +167,7 @@ def data_layout_convert_codegen(accrel_lhs, accrel_rhs, save_path, lhs_path, rhs
     # utils.print_code(compute_domain, compute_schedule, None)
 
     code_generator = DataLayoutConvertCodegen(accrel_lhs, accrel_rhs)
-    code = code_generator.codegen_str(ast, lhs_path, rhs_path, 4)
+    code = code_generator.codegen_str(ast, 4)
     with open(save_path, "w") as f:
         f.write(code)
 
@@ -197,7 +200,7 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
 
     try:
         code_path = os.path.join(temp_dir_path, "codegen_test.cpp")
-        data_layout_convert_codegen(accrel_output, accrel_input, code_path, output_path, input_path)
+        data_layout_convert_codegen(accrel_output, accrel_input, code_path)
         
         begin_time = time.time()
         exe_path = os.path.join(temp_dir_path, "codegen_test.out")
@@ -213,7 +216,7 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
 
         # run the exe   
         begin_time = time.time()
-        cmd = f"{exe_path}"
+        cmd = f"{exe_path} {input_path} {output_path}"
         print(f"Begin to run using:\n{cmd}")
         os.system(cmd)
         print(f"Run finished")

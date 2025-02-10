@@ -389,9 +389,24 @@ class CCodeGenerator(Codegen):
             assert False, f"{node.get_type()=}"
 
     def codegen_main_and_end(self, depth):
-        main_begin = CodeStmt(code="int main() {", depth=depth)
+        main_begin = CodeStmt(code="int main(int argc, char* argv[]) {", depth=depth)
         main_end = CodeStmt(code="}", depth=depth)
         return [main_begin], [main_end]
+
+    def codegen_argument_check(self, depth, option_names):
+        code_str = [
+            f"if (argc != {len(option_names) + 1}) {{",
+            f"std::cerr << \"Usage: \" << argv[0] << \" {' '.join(option_names)}\" << std::endl;",
+            "return 1;",
+            "}"
+        ]
+        argument_check = [
+            CodeStmt(code=code_str[0], depth=depth),
+            CodeStmt(code=code_str[1], depth=depth+1),
+            CodeStmt(code=code_str[2], depth=depth+1),
+            CodeStmt(code=code_str[3], depth=depth),
+        ]
+        return argument_check
 
     def codegen_fdiv_q(self, depth):
         code_str = """
