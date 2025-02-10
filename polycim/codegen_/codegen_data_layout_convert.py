@@ -148,7 +148,13 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
         return code_str
 
 
-def data_layout_convert_codegen(accrel_lhs, accrel_rhs, save_path):
+def data_layout_convert_codegen_to_file(accrel_lhs, accrel_rhs, save_path):
+    code = data_layout_convert_codegen(accrel_lhs, accrel_rhs)
+    with open(save_path, "w") as f:
+        f.write(code)
+    return code
+
+def data_layout_convert_codegen(accrel_lhs, accrel_rhs):
     domain_lhs = accrel_lhs.domain()
     domain_rhs = accrel_rhs.domain()
     
@@ -168,8 +174,7 @@ def data_layout_convert_codegen(accrel_lhs, accrel_rhs, save_path):
 
     code_generator = DataLayoutConvertCodegen(accrel_lhs, accrel_rhs)
     code = code_generator.codegen_str(ast, 4)
-    with open(save_path, "w") as f:
-        f.write(code)
+    return code
 
 
 def simplify_access(access):
@@ -200,7 +205,7 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
 
     try:
         code_path = os.path.join(temp_dir_path, "codegen_test.cpp")
-        data_layout_convert_codegen(accrel_output, accrel_input, code_path)
+        data_layout_convert_codegen_to_file(accrel_output, accrel_input, code_path)
         
         begin_time = time.time()
         exe_path = os.path.join(temp_dir_path, "codegen_test.out")
