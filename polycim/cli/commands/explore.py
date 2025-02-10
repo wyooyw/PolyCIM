@@ -11,17 +11,20 @@ from polycim.depth_first.pipeline import run_op_list
 
 from polycim.utils.logger import get_logger
 from polycim.cli.common import show_args, to_abs_path
+from polycim.config import set_raw_config_by_path
 
 logger = get_logger(__name__)
 
 def parse_explore_args(subparsers):
     parser = subparsers.add_parser('explore')
-    parser.add_argument("--op-id", "-i", type=str, help="operator id")
-    parser.add_argument("--output-path", "-o", type=str, help="output path")
+    parser.add_argument("--op-id", "-i", required=True, type=str, help="operator id")
+    parser.add_argument("--config-path", "-c", required=True, type=str, help="config path")
+    parser.add_argument("--output-path", "-o", required=True, type=str, help="output path")
 
 def run_explore(args):
-    print(args)
     args.output_path = to_abs_path(args.output_path)
+    args.config_path = to_abs_path(args.config_path)
+    set_raw_config_by_path(args.config_path)
 
     logger.info("Begin to explore operator.")
     logger.info(show_args(args))
@@ -40,4 +43,12 @@ def run_explore(args):
     # curr_time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     # curr_time_str = curr_time_str + f"_{cim_cfg.n_comp}x{cim_cfg.n_group_vcol*8}"
     save_dir = os.path.join(args.output_path)
-    run_op_list(op_list, save_dir, pad_count=pad_count, delay_apply=delay_apply, num_macros=num_macros, enable_weight_rewrite=enable_weight_rewrite)
+    run_op_list(
+        op_list, 
+        save_dir, 
+        pad_count=pad_count, 
+        delay_apply=delay_apply, 
+        num_macros=num_macros, 
+        enable_weight_rewrite=enable_weight_rewrite,
+        cim_config=cim_cfg
+    )

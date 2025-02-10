@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+from polycim.cli.arguments import set_args
 
 project_root = Path(__file__).parent.parent.parent
 sys.path.append(str(project_root))
@@ -27,6 +28,8 @@ def parse_args():
 
 def main():
     args = parse_args()
+    set_args(args)
+    
     if args.command == "explore":
         run_explore(args)
     else:

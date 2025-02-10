@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 import json
 import os
+import copy
 
 @dataclass
 class CIMConfig:
@@ -11,15 +12,34 @@ class CIMConfig:
     n_macro_per_group: int
     n_macro: int
 
-config = None
+_raw_config = None
+def set_raw_config(config):
+    global _raw_config
+    if _raw_config is not None:
+        raise ValueError("config already set")
+    if not isinstance(config, dict):
+        raise ValueError("config must be a dict")
+    _raw_config = copy.deepcopy(config)
+
+def set_raw_config_by_path(config_path):
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    set_raw_config(config)
+
 def get_raw_config():
-    global config
-    if config is None:
-        CONFIG_PATH = os.environ.get("CONFIG_PATH")
-        config_json_path = os.path.join(CONFIG_PATH)
-        with open(config_json_path, "r") as f:
-            config = json.load(f)
-    return config
+    global _raw_config
+    if _raw_config is None:
+        raise ValueError("config not set")
+    return _raw_config
+
+# def get_raw_config():
+#     global config
+#     if config is None:
+#         CONFIG_PATH = os.environ.get("CONFIG_PATH")
+#         config_json_path = os.path.join(CONFIG_PATH)
+#         with open(config_json_path, "r") as f:
+#             config = json.load(f)
+#     return config
 
 def get_config():
     config = get_raw_config()

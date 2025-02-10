@@ -759,11 +759,10 @@ def dump_op(save_dir, origin_op, min_compute_times, min_compute_ops, min_compute
     print(f"op save to {save_dir}")
             
 
-def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_weight_rewrite):
+def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_weight_rewrite, cim_config):
     enable_mapping_multiple_macro = pad_count
-    # os.makedirs(save_dir, exist_ok=True)
-    cim_cfg = get_config()
-    search_space = SearchSpace(cim_cfg, 
+
+    search_space = SearchSpace(cim_config, 
                               pad_count=pad_count, 
                               delay_apply=delay_apply,
                               num_macros=num_macros,
@@ -779,12 +778,12 @@ def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_we
 
         op = config["op"]
         flops = int(str(op.domain.count_val()))
-        show_result(min_compute_times, min_compute_ops, cim_cfg, flops)
+        show_result(min_compute_times, min_compute_ops, cim_config, flops)
 
         if enable_mapping_multiple_macro:
-            new_op = mapping_multiple_macro(min_compute_ops[0], cim_cfg, enable_weight_rewrite=enable_weight_rewrite)
+            new_op = mapping_multiple_macro(min_compute_ops[0], cim_config, enable_weight_rewrite=enable_weight_rewrite)
         # print("\n")
-        dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_cfg, flops)        
+        dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_config, flops)        
         
         new_op = tensorize_pass([new_op])[0]
         new_op = codegen_pass([new_op])[0]
