@@ -6,6 +6,11 @@ import os
 import numpy as np
 import tempfile
 import time
+import subprocess
+from polycim.utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class DataLayoutConvertCodegen(CCodeGenerator):
     def __init__(self, accrel_lhs, accrel_rhs):
         super().__init__()
@@ -190,8 +195,7 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
     accrel_output = simplify_access(accrel_output)
 
     temp_dir = tempfile.TemporaryDirectory()
-    temp_dir_path = ".temp" #temp_dir.name
-    print(f"{temp_dir_path=}")
+    temp_dir_path = temp_dir.name
 
     output_name = accrel_output.get_tuple_name(isl.dim_type.out)
     input_name = accrel_input.get_tuple_name(isl.dim_type.out)
@@ -209,29 +213,29 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
         
         begin_time = time.time()
         exe_path = os.path.join(temp_dir_path, "codegen_test.out")
-        cmd = f"g++ {code_path} -O3 -I /usr/include/eigen3/ -o {exe_path}"
-        print(f"Begin to compile using:\n{cmd}")
-        os.system(cmd)
-        print(f"Compile finished")
+        cmd = ["g++", code_path, "-O3", "-I", "/usr/include/eigen3/", "-o", exe_path]
+        logger.info(f"Begin to compile using:\n{cmd}")
+        subprocess.run(cmd, check=True)
+        logger.info(f"Compile finished")
         end_time = time.time()
-        print(f"time: {end_time - begin_time}\n")
+        logger.info(f"time: {end_time - begin_time}\n")
 
         # prepare the input file
         np.savetxt(input_path, input_data.reshape(-1), fmt="%d")
 
         # run the exe   
         begin_time = time.time()
-        cmd = f"{exe_path} {input_path} {output_path}"
-        print(f"Begin to run using:\n{cmd}")
-        os.system(cmd)
-        print(f"Run finished")
+        cmd = [exe_path, input_path, output_path]
+        logger.info(f"Begin to run using:\n{cmd}")
+        subprocess.run(cmd, check=True)
+        logger.info(f"Run finished")
         end_time = time.time()
-        print(f"time: {end_time - begin_time}")
+        logger.info(f"time: {end_time - begin_time}")
 
         # check the output
         output_data = np.loadtxt(output_path, dtype=input_data.dtype).reshape(output_shape)
     finally:
-        # temp_dir.cleanup()  # Uncomment this line if you want to delete the directory manually later
+        temp_dir.cleanup()  # Uncomment this line if you want to delete the directory manually later
         pass
 
     return output_data
