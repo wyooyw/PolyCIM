@@ -1,10 +1,10 @@
 from polycim.passes.multi_level_tiling import enumerate_tiling_factors
 import polycim.op.benchmark as benchmark
 from polycim.passes.multi_level_tiling import (
-    factorize, 
     multi_level_splitting_var_level, 
     combine_tilesize_by_symmetry_info
 )
+from polycim.utils.math import factorize
 import islpy as isl
 import polycim.utils.utils as utils
 import itertools

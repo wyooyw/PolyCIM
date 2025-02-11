@@ -220,21 +220,7 @@ def combine_tilesize_by_symmetry_info(dim_factors, symmetry_info):
     assert set(tile_size_combinations).issubset(set(all_combinations))
 
     return tile_size_combinations
-    
-def factorize(N, T, depth=1, path=None, results=None):
-    if path is None:
-        path = []
-    
-    if results is None:
-        results = []
 
-    if T == 1:
-        results.append(path + [N])
-        return
-    for i in range(1, N+1):
-        if N % i == 0:
-            factorize(N // i, T - 1, i + 1, path + [i], results)
-    return results
 
 def filter_factors(factors):
     """
@@ -278,7 +264,7 @@ def enumerate_tiling_factors(operator, tiling_factor):
     domain_shape = utils.get_static_box_shape(domain)
     dim_factors = []
     for dim_size in domain_shape:
-        factors = factorize(dim_size, tiling_factor)
+        factors = utils.math.factorize(dim_size, tiling_factor)
         # 
         factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
         # factors = filter_factors(factors)
@@ -378,7 +364,7 @@ def enumerate_tiling_factors_outer(operator, tiling_factor, inner_level=5):
     domain_shape = utils.get_static_box_shape(domain)[:n_iter-inner_level]
     dim_factors = []
     for dim_size in domain_shape:
-        factors = factorize(dim_size, tiling_factor)
+        factors = utils.math.factorize(dim_size, tiling_factor)
         # factors = filter_factors(factors)
         factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
         # print(f"{len(factors)=}, {factors=}")
