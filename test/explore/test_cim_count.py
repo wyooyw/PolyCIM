@@ -25,9 +25,22 @@ def test_cim_count(cim_cfg_path, op_id, cim_count):
             "--config-path", cim_cfg_path,
             "--output-path", temp_dir
         ], check=True)
+
+        # run simulator
+        op_dir = os.path.join(temp_dir, op_id, "0")
+        code_path = os.path.join(op_dir, "final_code.json")
+        sim_output_dir = os.path.join(op_dir, "sim_output")
+        subprocess.run([
+            "cim-compiler", "simulate",
+            "--code-file", code_path,
+            "--config-file", cim_cfg_path,
+            "--output-dir", sim_output_dir,
+            "--code-format", "cimflow",
+            "--save-stats"
+        ], check=True)
     
         # get stats.json
-        stats_path = os.path.join(temp_dir, op_id, "0", "output", "stats.json")
+        stats_path = os.path.join(sim_output_dir, "stats.json")
         assert os.path.exists(stats_path), f"{stats_path=}"
         with open(stats_path, "r") as f:
             stats = json.load(f)
