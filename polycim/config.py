@@ -98,3 +98,12 @@ def get_memory_base(memory_type):
         if memory["name"]==memory_type:
             return memory["addressing"]["offset_byte"]
     assert False, f"{memory_type=} not found"
+
+def get_memory_types():
+    config = get_raw_config()
+    memory_list = config["memory_list"]
+    memory_types = []
+    for memory in memory_list:
+        big_name = "__"+memory["name"].upper()+"__"
+        memory_types.append(big_name)
+    return memory_types

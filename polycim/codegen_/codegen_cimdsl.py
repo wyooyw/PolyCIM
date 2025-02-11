@@ -12,12 +12,14 @@ from polycim.config import get_config
 from polycim.codegen_.codegen import (
     CodeStmt, alloc_unique_var, alloc_unique_stmt
 )
+from polycim.op.buffer_manager import BufferManager
 
 
 class CodeGenerator:
     def __init__(self, op, name_to_op):
         self.op = op
         self.name_to_op = name_to_op
+        self.buffer_manager = BufferManager()
 
     def codegen_special_defs(self, depth):
         with open(
@@ -75,7 +77,8 @@ class CodeGenerator:
         return special_regs_setting
 
     def codegen_buffer_define(self, depth):
-        buffer_name_to_info = extract_buffer_defines(self.op)
+        self.buffer_manager.add_buffers_from_op(self.op)
+        buffer_name_to_info = self.buffer_manager.get_buffer_name_to_info()
         code_list = []
         
         global_buffer_info = {name[0]:info for name, info in buffer_name_to_info.items() if info.memory_type == "__GLOBAL__"}
@@ -437,8 +440,9 @@ class CodeGenerator:
         )
 
         # cim output
+        cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_type("__PIM_OUTPUT_REG_BUFFER__")
         cim_output_code = CodeStmt(
-            code=f"CIMOutput({get_config().n_group_vcol}, 0, O_aligned_0_4);",
+            code=f"CIMOutput({get_config().n_group_vcol}, 0, {cim_reg_out_buffer.name});",
             depth=depth,
         )
 
@@ -546,84 +550,6 @@ class CodeGenerator:
             code = " " * (indent_unit * depth) + code + "\n"
             code_str = code_str + code
         return code_str
-
-
-def get_name_and_shape(access):
-    sizes = access.sizes.range()
-    sizes = [sizes.dim_max_val(i) for i in range(sizes.dim(isl.dim_type.set))]
-
-    offsets = access.offsets.range()
-    offsets = [offsets.dim_max_val(i) for i in range(offsets.dim(isl.dim_type.set))]
-
-    shape = [sizes + offsets for sizes, offsets in zip(sizes, offsets)]
-
-    name = access.offsets.get_tuple_name(isl.dim_type.out)
-    return name, shape
-
-
-@dataclass
-class BufferInfo:
-    name: str
-    shape: list
-    memory_type: str
-
-
-def extract_buffer_defines(op):
-
-    buffer_to_size = dict()
-    buffer_to_memory_type = dict()
-
-    def _update_shape(name, shape):
-        if name not in buffer_to_size:
-            buffer_to_size[name] = shape
-        else:
-            old_shape = buffer_to_size[name]
-            assert len(old_shape) == len(shape), f"{old_shape=}, {shape=}"
-            max_shape = [max(old_shape[i], shape[i]) for i in range(len(shape))]
-            buffer_to_size[name] = max_shape
-
-    def _update_memory_type(name, memory_type):
-        if name not in buffer_to_memory_type:
-            buffer_to_memory_type[name] = memory_type
-        else:
-            assert (
-                buffer_to_memory_type[name] == memory_type
-            ), f"{buffer_to_memory_type[name]=}, {memory_type=}"
-
-    # import pdb; pdb.set_trace()
-    I_name, I_shape = get_name_and_shape(op.access_I)  # this maybe incorrect.
-    W_name, W_shape = get_name_and_shape(op.access_W)
-    O_name, O_shape = get_name_and_shape(op.access_O)
-
-    _update_shape(I_name, I_shape)
-    _update_shape(W_name, W_shape)
-    _update_shape(O_name, O_shape)
-
-    _update_memory_type(I_name, op.access_I.memory_type)
-    _update_memory_type(W_name, op.access_W.memory_type)
-    _update_memory_type(O_name, op.access_O.memory_type)
-
-    for buffer in ["I", "W", "O"]:
-        for data_movement in op.data_movement[buffer]:
-            assert type(data_movement) == DataMovement
-
-            name, shape = get_name_and_shape(data_movement.access_I)
-            _update_shape(name, shape)
-            _update_memory_type(name, data_movement.access_I.memory_type)
-
-            name, shape = get_name_and_shape(data_movement.access_O)
-            _update_shape(name, shape)
-            _update_memory_type(name, data_movement.access_O.memory_type)
-
-    buffer_name_to_info = dict()
-    for name in buffer_to_size.keys():
-        shape = buffer_to_size[name]
-        memory_type = buffer_to_memory_type[name]
-        buffer_name_to_info[name] = BufferInfo(
-            name=name, shape=shape, memory_type=memory_type
-        )
-    return buffer_name_to_info
-
 
 def operator_to_ast(op):
     assert type(op) == Operator
