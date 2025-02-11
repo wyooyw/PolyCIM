@@ -67,7 +67,7 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
         group_iters = [f"i{i}" for i in [n_dim - 4, n_dim - 3]]
         comp_iter = [f"i{n_dim - 2}"]
         col_iter = [f"i{n_dim - 1}"]
-        row_iter = ["1"]
+        row_iter = ["0"]
         old_order = keep_iters + group_iters + comp_iter + col_iter
         new_order = keep_iters + row_iter + comp_iter + group_iters + col_iter
         reorder_schedule = isl.BasicMap(f"{{ [{','.join(old_order)}] -> [{','.join(new_order)}] }}")
@@ -82,23 +82,7 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     # n_dim - 4: share output, macros
 
     new_op = multi_level_buffer_insersion_pass(op)
-    for input_data_movement in new_op.data_movement["I"]:
-        access_I = input_data_movement.access_I
-        access_O = input_data_movement.access_O
-        print(f"{input_data_movement.level=}")
-        print(f"{access_I=}")
-        print(f"{access_O=}\n")
-    for weight_data_movement in new_op.data_movement["W"]:
-        access_I = weight_data_movement.access_I
-        access_O = weight_data_movement.access_O
-        print(f"{weight_data_movement.level=}")
-        print(f"{access_I=}")
-        print(f"{access_O=}\n")
     return new_op
-    import pdb; pdb.set_trace()
-    pass
-    # iter_share_input_macros = 
-    # iter_share_output_macros = 
 
 def multi_level_buffer_insersion_pass(op):
     n_dim = op.domain.dim(isl.dim_type.set)
