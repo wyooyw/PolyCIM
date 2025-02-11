@@ -41,7 +41,7 @@ class CodeGenerator:
                 code="SpecialRegSet(SPECIAL_REG_WEIGHT_BIT_WIDTH, 8);", depth=depth
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 32);", depth=depth
+                code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 8);", depth=depth
             ),
             CodeStmt(
                 code=f"SpecialRegSet(SPECIAL_REG_GROUP_SIZE, {cim_cfg.n_macro_per_group});",
@@ -76,7 +76,21 @@ class CodeGenerator:
     def codegen_buffer_define(self, depth):
         buffer_name_to_info = extract_buffer_defines(self.op)
         code_list = []
+        
+        global_buffer_info = {name[0]:info for name, info in buffer_name_to_info.items() if info.memory_type == "__GLOBAL__"}
+        assert len(global_buffer_info)==3
+        for t in ["I", "W", "O"]:
+            buf_info = global_buffer_info[t]
+            shape_str = ",".join([str(s) for s in buf_info.shape])
+            code = CodeStmt(
+                code=f"{buf_info.name} = Buffer(<{shape_str}>, int8, {buf_info.memory_type});",
+                depth=depth,
+            )
+            code_list.append(code)
+
         for name, info in buffer_name_to_info.items():
+            if info.memory_type == "__GLOBAL__":
+                continue
             shape_str = ",".join([str(s) for s in info.shape])
             code = CodeStmt(
                 code=f"{name} = Buffer(<{shape_str}>, int8, {info.memory_type});",
@@ -398,8 +412,14 @@ class CodeGenerator:
             depth=depth,
         )
 
+        # cim output
+        cim_output_code = CodeStmt(
+            code=f"CIMOutput({get_config().n_group_vcol}, 0, O_aligned_0_4);",
+            depth=depth,
+        )
+
         # return [*code_list_I, *code_list_O, *code_list_W, compute_code]
-        return [*code_list_I, *code_list_W, compute_code]
+        return [*code_list_I, *code_list_W, compute_code, cim_output_code]
 
     def codegen_tensor_access_from_pw_multi_aff(self, tensor_access, call_args, depth):
         assert type(tensor_access) == TensorAccessRelation

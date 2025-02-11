@@ -57,6 +57,7 @@ def backend_compile_and_profile_pass(op_list, save_dir, config_file):
         # --code-format legacy \
         # --save-unrolled-code \
         # --save-stats
+        exit()
         subprocess.run([
             "cim-compiler", "simulate",
             "-i", code_file,

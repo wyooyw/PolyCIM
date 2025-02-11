@@ -1,9 +1,12 @@
 __pycache__/
 .save_core_code/
 .temp_save/
+.temp/
+.save/
 *.log
 islplot/
 *.onnx
 __pycache__/
 .package
 instructions
+*.egg-info

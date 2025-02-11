@@ -5,11 +5,11 @@ import json
 import pytest
 
 @pytest.mark.parametrize("cim_cfg_path, op_id, cim_count", [
-    # *[("configs/c16b32.json", op_id, cim_count)
-    #     for op_id, cim_count in [
-    #         ("C1", 3136), ("C2", 784),
-    #     ]
-    # ],
+    *[("configs/c16b32.json", op_id, cim_count)
+        for op_id, cim_count in [
+            ("C1", 3136), ("C2", 784),
+        ]
+    ],
     *[("configs/c32b64.json", op_id, cim_count)
         for op_id, cim_count in [
             ("C1", 1568), ("C2", 392),
@@ -32,3 +32,6 @@ def test_cim_count(cim_cfg_path, op_id, cim_count):
         with open(stats_path, "r") as f:
             stats = json.load(f)
         assert stats["CIMComputeInst"] == cim_count
+
+if __name__ == "__main__":
+    test_cim_count("configs/c16b32.json", "C2", 784)

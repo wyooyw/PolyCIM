@@ -6,6 +6,11 @@ def get_op_list():
     dim_types_for_dwconv2d = ["c", "oh", "ow", "kh", "kw"]
 
     op_list = OrderedDict()
+    op_list["test"] = {
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=4, ow=4, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+    }
     op_list["C1"] = {
         "op": benchmark.get_op_dwconv2d(ic=1, oh=112, ow=112, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
         "symmetry_info": symmetry_info_for_dwconv2d,
