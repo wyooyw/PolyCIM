@@ -145,7 +145,7 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
             + code_save_to_file
             + main_end
         ):
-            assert type(code_stmt) == CodeStmt, f"{type(code_stmt)=}"
+            assert type(code_stmt) == CodeStmt, f"{type(code_stmt)=}, {code_stmt=}"
             code = code_stmt.code
             depth = code_stmt.depth
             code = " " * (indent_unit * depth) + code + "\n"
@@ -190,6 +190,26 @@ def simplify_access(access):
     access = access.make_disjoint().compute_divs().coalesce().remove_redundancies()
     return access
 
+def gcc_compile_data_layout_convert_code(code_path, exe_path):
+    
+    cmd = ["g++", code_path, "-O3", "-I", "/usr/include/eigen3/", "-o", exe_path]
+    logger.info(f"Begin to compile using:\n{cmd}")
+
+    begin_time = time.time()
+    subprocess.run(cmd, check=True)
+    end_time = time.time()
+    logger.info(f"Compile finished. Use time: {(end_time - begin_time):.3f}s")
+
+def run_data_layout_convert_executable(exe_path, input_path, output_path):
+    cmd = [exe_path, input_path, output_path]
+    logger.info(f"Begin to run using:\n{cmd}")
+
+    begin_time = time.time()
+    subprocess.run(cmd, check=True)
+    end_time = time.time()
+
+    logger.info(f"Run finished. Use time: {(end_time - begin_time):.3f}s")
+
 def data_layout_convert(accrel_input, accrel_output, input_data):
     accrel_input = simplify_access(accrel_input)
     accrel_output = simplify_access(accrel_output)
@@ -211,26 +231,13 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
         code_path = os.path.join(temp_dir_path, "codegen_test.cpp")
         data_layout_convert_codegen_to_file(accrel_output, accrel_input, code_path)
         
-        begin_time = time.time()
         exe_path = os.path.join(temp_dir_path, "codegen_test.out")
-        cmd = ["g++", code_path, "-O3", "-I", "/usr/include/eigen3/", "-o", exe_path]
-        logger.info(f"Begin to compile using:\n{cmd}")
-        subprocess.run(cmd, check=True)
-        logger.info(f"Compile finished")
-        end_time = time.time()
-        logger.info(f"time: {end_time - begin_time}\n")
+        gcc_compile_data_layout_convert_code(code_path, exe_path)
 
         # prepare the input file
         np.savetxt(input_path, input_data.reshape(-1), fmt="%d")
 
-        # run the exe   
-        begin_time = time.time()
-        cmd = [exe_path, input_path, output_path]
-        logger.info(f"Begin to run using:\n{cmd}")
-        subprocess.run(cmd, check=True)
-        logger.info(f"Run finished")
-        end_time = time.time()
-        logger.info(f"time: {end_time - begin_time}")
+        run_data_layout_convert_executable(exe_path, input_path, output_path)
 
         # check the output
         output_data = np.loadtxt(output_path, dtype=input_data.dtype).reshape(output_shape)
