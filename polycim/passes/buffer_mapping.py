@@ -908,6 +908,10 @@ def insert_single_buffer_multi_level(
         attr={key: value for key, value in op.attr.items()},
     )
 
+    if "origin_operand_shape" not in new_op.attr:
+        new_op.attr["origin_operand_shape"] = dict()
+    new_op.attr["origin_operand_shape"][buffer_name] = utils.get_box_hull_shape(ori_acc_rel.range())
+
     # print(f"domain: {op.domain}\n")
     # print(f"access_I: {op.access_I}\n")
     # print(f"access_O: {op.access_O}\n")

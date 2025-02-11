@@ -53,6 +53,11 @@ def backend_compile_and_profile_pass(op_list, save_dir, config_file):
         with open(buffer_info_path, "w") as f:
             json.dump(buffer_manager.get_buffer_name_to_info_dict(), f, indent=4)
 
+        # Save origin operand shape
+        origin_operand_shape = op.attr["origin_operand_shape"]
+        with open(os.path.join(save_path_dir, "origin_operand_shape.json"), "w") as f:
+            json.dump(origin_operand_shape, f, indent=4)
+
         # run simulator to profile
         code_file = os.path.join(os.path.abspath(save_path_dir), "final_code.json")
         output_dir = os.path.join(os.path.abspath(save_path_dir), "output")
