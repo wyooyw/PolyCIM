@@ -82,7 +82,7 @@ class CodeGenerator:
         code_list = []
         
         global_buffer_info = {name[0]:info for name, info in buffer_name_to_info.items() if info.memory_name == "global"}
-        assert len(global_buffer_info)==3
+        assert len(global_buffer_info) == 4, f"{global_buffer_info=}"
         for t in ["I", "W", "O"]:
             buf_info = global_buffer_info[t]
             shape_str = ",".join([str(s) for s in buf_info.shape])
@@ -109,6 +109,9 @@ class CodeGenerator:
     def codegen_cimset(self, depth):
         cim_cfg = get_config()
         mask_num = int(math.ceil(cim_cfg.n_group_vcol / 8)) * 8
+        
+        self.buffer_manager.add_buffer("cim_mask_global", [mask_num], "global")
+        self.buffer_manager.add_buffer("cim_mask_local", [mask_num], "input_memory")
         code_list = [
             CodeStmt(
                 code=f"cim_mask_global = Buffer(<{mask_num}>, int1, __GLOBAL__);",
@@ -700,33 +703,22 @@ def data_movement_operator_to_dsl(op):
         levels=level_list,
         type_list=type_list,
     )
-    print("--------------------------------------------")
-    # print(f"skewing: {op.history_schedules[0]}\n")
-    # print(f"shift: {op.history_schedules[1]}\n")
-    # print(f"merge: {op.history_schedules[2]}\n")
-    # print(f"tiling: {op.history_schedules[3]}\n")
-    # print(f"domain: {op.domain}\n")
-    # print(f"access_I: {op.access_I}\n")
-    # print(f"access_O: {op.access_O}\n")
-    # print(f"access_W: {op.access_W}\n")
-    print(f"Compute stmt: {comp_stmt_name}, {compute_domain=}\n")
-    print(f"{type(union_domain)}, {union_domain=}\n")
-    print(f"{type(union_schedule)}, {union_schedule=}\n")
+
     ast = utils.gen_ast(union_domain, union_schedule, None)
-    # code = utils.gen_code(union_domain,union_schedule,None)
-    # print(code)
     code_generator = CodeGenerator(op, name_to_op)
     code = code_generator.codegen_str(ast, 4)
     print(code)
-    return code
+    buffer_manager = code_generator.buffer_manager
+    return code, buffer_manager
 
 
 def codegen_pass(op_list):
     new_op_list = []
     for idx, op in tqdm(enumerate(op_list)):
         if type(op) == DataMovementOperator:
-            dsl = data_movement_operator_to_dsl(op)
+            dsl, buffer_manager = data_movement_operator_to_dsl(op)
             op.dsl = dsl
+            op.buffer_manager = buffer_manager
             new_op_list.append(op)
         else:
             assert False, f"{type(op)=}"

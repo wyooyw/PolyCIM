@@ -47,6 +47,12 @@ def backend_compile_and_profile_pass(op_list, save_dir, config_file):
             "--config-file", config_file
         ], check=True)
 
+        # save buffer info
+        buffer_manager = op.buffer_manager
+        buffer_info_path = os.path.join(save_path_dir, "buffer_info.json")
+        with open(buffer_info_path, "w") as f:
+            json.dump(buffer_manager.get_buffer_name_to_info_dict(), f, indent=4)
+
         # run simulator to profile
         code_file = os.path.join(os.path.abspath(save_path_dir), "final_code.json")
         output_dir = os.path.join(os.path.abspath(save_path_dir), "output")

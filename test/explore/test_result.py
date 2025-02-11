@@ -7,6 +7,8 @@ import numpy as np
 from polycim.codegen_.codegen_data_layout_convert import run_data_layout_convert_executable
 from cim_compiler.utils.df_layout import tensor_bits_to_int8
 import math
+from functools import reduce
+from polycim.config import set_raw_config_by_path, get_config
 
 def save_and_convert(exe_path, data_path, converted_data_path, data_np):
     with open(data_path, "w") as f:
@@ -32,6 +34,8 @@ def save_and_convert(exe_path, data_path, converted_data_path, data_np):
 ])
 def test_result(cim_cfg_path, op_id, cim_count):
     cim_cfg_path = os.path.join(os.path.dirname(__file__), cim_cfg_path)
+    set_raw_config_by_path(cim_cfg_path)
+
     with tempfile.TemporaryDirectory() as temp_dir:
         subprocess.run([
             "polycim", "explore",
@@ -54,7 +58,8 @@ def test_result(cim_cfg_path, op_id, cim_count):
         data_dir = os.path.join(op_dir, "data")
         os.makedirs(data_dir, exist_ok=True)
 
-        n_group_vcol = 4 # cim_cfg.n_group_vcol
+        cim_cfg = get_config()
+        n_group_vcol = cim_cfg.n_group_vcol
         mask_num = int(math.ceil(n_group_vcol / 8)) * 8
         cim_mask = np.array([1] * mask_num).reshape(-1, 8)
         cim_mask_np = tensor_bits_to_int8(cim_mask)
@@ -77,6 +82,10 @@ def test_result(cim_cfg_path, op_id, cim_count):
         W_converted_data_path = os.path.join(data_dir, "W_converted.txt")
         save_and_convert(W_exe_path, W_data_path, W_converted_data_path, weight_np)
 
+        # get buffer info
+        buffer_info_path = os.path.join(op_dir, "buffer_info.json")
+        with open(buffer_info_path, "r") as f:
+            buffer_info = json.load(f)
         
         
         # concat input and weight into global memory image
@@ -110,7 +119,7 @@ def test_result(cim_cfg_path, op_id, cim_count):
         
         output_offset = len(total_data)
         # output_size = 28 * 28 * 4
-        output_size = 2 * 2 * 4
+        output_size = reduce(lambda x, y: x * y, buffer_info["O_aligned"]["shape"])
         output_data = output_global_image[output_offset:output_offset+output_size]
         output_np = np.frombuffer(output_data, dtype=np.int8)
         print(f"{output_np=}")
@@ -131,6 +140,9 @@ def test_result(cim_cfg_path, op_id, cim_count):
                            [-14,   8,   9,  34],
                            [-21,  -3,  -3,   9]], dtype=np.int8)
         assert np.all(O_converted_np==golden), f"{O_converted_np=}, {golden=}"
+        print(f"{temp_dir = }")
+        import pdb; pdb.set_trace()
+        pass
         
 if __name__ == "__main__":
     test_result("configs/c16b32.json", "test", 4)

@@ -11,6 +11,13 @@ class BufferInfo:
     shape: list
     memory_name: str
 
+def buffer_info_to_dict(buffer_info):
+    return {
+        "name": buffer_info.name,
+        "shape": buffer_info.shape,
+        "memory_name": buffer_info.memory_name
+    }
+
 def get_name_and_shape(access):
     sizes = access.sizes.range()
     sizes = [sizes.dim_max_val(i) for i in range(sizes.dim(isl.dim_type.set))]
@@ -19,6 +26,9 @@ def get_name_and_shape(access):
     offsets = [offsets.dim_max_val(i) for i in range(offsets.dim(isl.dim_type.set))]
 
     shape = [sizes + offsets for sizes, offsets in zip(sizes, offsets)]
+
+    # Val -> int
+    shape = [shape[i].get_num_si() for i in range(len(shape))]
 
     name = access.offsets.get_tuple_name(isl.dim_type.out)
     return name, shape
@@ -112,3 +122,6 @@ class BufferManager:
 
     def get_buffer_name_to_info(self):
         return self.buffer_name_to_info
+
+    def get_buffer_name_to_info_dict(self):
+        return {name: buffer_info_to_dict(info) for name, info in self.buffer_name_to_info.items()}
