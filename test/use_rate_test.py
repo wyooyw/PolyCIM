@@ -1,7 +1,7 @@
 from pipeline import run_pipeline
-import benchmark
+import polycim.op.benchmark as benchmark
 import pytest
-from config import CIMConfig    
+from polycim.config import CIMConfig    
 @pytest.mark.parametrize("cim_row_col_celluse",
 [
     (16, 2, 18),
@@ -20,7 +20,9 @@ def test_conv2d_2_8_8_3_3(cim_row_col_celluse):
         n_row=1,
         n_group_vcol=cim_col,
         n_comp=cim_row,
-        n_group=1
+        n_group=1,
+        n_macro_per_group=1,
+        n_macro=1
     )
     flops = operator.domain.count_val().get_num_si()
     op,cim_flops = run_pipeline(operator, skew=skew, cim_cfg=cim_cfg, save_dir=".temp_save")
@@ -49,7 +51,9 @@ def test_conv3d_8_8_8_3_3_3(cim_row_col_celluse
         n_row=1,
         n_group_vcol=cim_col,
         n_comp=cim_row,
-        n_group=1
+        n_group=1,
+        n_macro_per_group=1,
+        n_macro=1
     )
     flops = operator.domain.count_val().get_num_si()
     op,cim_flops = run_pipeline(operator, skew=skew, cim_cfg=cim_cfg, save_dir=".temp_save")

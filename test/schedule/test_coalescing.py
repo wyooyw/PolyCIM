@@ -1,7 +1,7 @@
 import pytest
-import benchmark
-from hardware_merge_tiling import get_coalescing_schedule_from_mapping, get_reverse_coalescing_schedule_from_mapping
-import utils
+import polycim.op.benchmark as benchmark
+from polycim.passes.hardware_merge_tiling import get_coalescing_schedule_from_mapping, get_reverse_coalescing_schedule_from_mapping
+import polycim.utils.utils as utils
 def test_coalescing():
     batch=2
     oc=8
