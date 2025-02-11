@@ -112,18 +112,25 @@ def multi_level_buffer_insersion_pass(op):
     output_buffer_level = (0, n_dim-4)
     weight_buffer_level = (0,)
     new_op = op.convex_hull()  # Is this safe?
-    new_op = insert_single_buffer_multi_level(
+    new_op, layout_convert_code_I = insert_single_buffer_multi_level(
         new_op, "I", input_buffer_level, input_memory_names, 
         force_dominate_iters=[n_dim-2, n_dim-4],
         force_nondominate_iters=[n_dim-1, n_dim-3]
     )
-    new_op = insert_single_buffer_multi_level(
+    new_op, layout_convert_code_O = insert_single_buffer_multi_level(
         new_op, "O", output_buffer_level, output_memory_names
     )
-    new_op = insert_single_buffer_multi_level(
+    new_op, layout_convert_code_W = insert_single_buffer_multi_level(
         new_op, "W", weight_buffer_level, weight_memory_names
     )
     new_op = new_op.convex_hull()
+
+    data_layout_convert_code = {
+        "I": layout_convert_code_I,
+        "O": layout_convert_code_O,
+        "W": layout_convert_code_W
+    }
+    new_op.attr["data_layout_convert_code"] = data_layout_convert_code
 
     return new_op
     

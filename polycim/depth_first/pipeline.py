@@ -43,6 +43,10 @@ from polycim.depth_first.mapping_multiple_macro import mapping_multiple_macro
 from polycim.codegen_.codegen_cimdsl import codegen_pass
 from polycim.passes.tensorize import tensorize_pass
 from polycim.passes.backend import backend_compile_and_profile_pass
+from polycim.codegen_.codegen_data_layout_convert import (
+    gcc_compile_data_layout_convert_code
+)
+from polycim.cli.arguments import get_args
 
 execution_times = {}
 
@@ -785,12 +789,23 @@ def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_we
         # print("\n")
         dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_config, flops)        
         
+        # save data layout convert code
+        data_layout_convert_code = new_op.attr["data_layout_convert_code"]
+        save_op_dir = os.path.join(save_dir, name, "0")
+        os.makedirs(save_op_dir, exist_ok=True)
+        for key, value in data_layout_convert_code.items():
+            code_path = os.path.join(save_op_dir, f"convert_{key}.cpp")   
+            with open(code_path, "w") as f:
+                f.write(value)
+            exe_path = os.path.join(save_op_dir, f"convert_{key}.o")
+            gcc_compile_data_layout_convert_code(code_path, exe_path)
+
         new_op = tensorize_pass([new_op])[0]
         new_op = codegen_pass([new_op])[0]
         result_list = backend_compile_and_profile_pass(
             [new_op], 
             save_dir=os.path.join(save_dir, name),
-            config_file=os.environ.get("CONFIG_PATH")
+            config_file=get_args().config_path
         )
         
         # save stats["count_val"] into a csv file

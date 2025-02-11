@@ -14,7 +14,7 @@ from polycim.config import get_memory_sizes
 from polycim.utils.utils import (get_box_hull_shape, rename_all_dims_for_basic_map,
                          rename_all_dims_for_basic_set,
                          rename_out_dims_for_basic_map)
-
+from polycim.codegen_.codegen_data_layout_convert import data_layout_convert_codegen
 
 def find_domain_iters_exist_in_range(aff, return_name=True):
 
@@ -802,31 +802,36 @@ def parse_buffer_levels(op, buffer_levels):
 def insert_single_buffer_multi_level(
     op, buffer_name, buffer_levels, memory_types, force_inner_level=5, force_dominate_iters=None, force_nondominate_iters=None
 ):
+    assert buffer_name in ["I", "O", "W"]
     buffer_levels = parse_buffer_levels(op, buffer_levels)
 
     assert isinstance(buffer_levels, list)
     buffer_levels = sorted(buffer_levels)
 
+    # Align data layout
+    ori_acc_rel = op.get_access_by_name(buffer_name)
     if "W" in buffer_name:
         map_buf_align_to_ori, aligned_acc_rel = (
             map_domain_aligned_buffer_to_origin_buffer_for_weight(
                 op.domain,
-                op.get_access_by_name(buffer_name),
+                ori_acc_rel,
                 force_inner_level=force_inner_level,
             )
         )
-        # 
-        pass
-
     else:
         map_buf_align_to_ori, aligned_acc_rel = (
             map_domain_aligned_buffer_to_origin_buffer_v2(
                 op.domain, 
-                op.get_access_by_name(buffer_name),
+                ori_acc_rel,
                 force_dominate_iters,
                 force_nondominate_iters
             )
         )
+    if "O" in buffer_name:
+        data_layout_convert_code = data_layout_convert_codegen(ori_acc_rel, aligned_acc_rel)
+    else:
+        data_layout_convert_code = data_layout_convert_codegen(aligned_acc_rel, ori_acc_rel)
+
     
     aligned_acc_rel_range_size = utils.get_box_hull_shape(aligned_acc_rel.range())
     print(f"{buffer_name=}, {aligned_acc_rel_range_size=}")
@@ -913,7 +918,7 @@ def insert_single_buffer_multi_level(
     #     print(f"{idx}. {data_movement.domain=}\n")
     # print("\n-----------------------\n")
 
-    return new_op
+    return new_op, data_layout_convert_code
 
 
 def insert_single_buffer_multi_level_pass(op_list, buffer_name, buffer_levels):
