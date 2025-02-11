@@ -22,12 +22,18 @@ class CCodeGenerator(Codegen):
         raise NotImplementedError
 
     def _codegen_expr_max(self, arg_list, depth):
+        if len(arg_list) > 2:
+            pre_code, pre_var = self._codegen_expr_max(arg_list[:-1], depth)
+            arg_list = [pre_var, arg_list[-1]]
+        else:
+            pre_code = []
+
         assert len(arg_list) == 2, f"{len(arg_list)=}"
         new_var = alloc_unique_var()
         code = CodeStmt(
             code=f"int {new_var} = std::max({arg_list[0]}, {arg_list[1]});", depth=depth
         )
-        return code, new_var
+        return [*pre_code, code], new_var
 
     def _codegen_expr_min(self, arg_list, depth):
         if len(arg_list) > 2:
@@ -70,7 +76,7 @@ class CCodeGenerator(Codegen):
         assert len(arg_list) == 1, f"{len(arg_list)=}"
         new_var = alloc_unique_var()
         code = CodeStmt(code=f"int {new_var} = 0 - {arg_list[0]};", depth=depth)
-        return code, new_var
+        return [code], new_var
 
     def _codegen_expr_select(self, arg_list, depth):
         assert len(arg_list) == 3, f"{len(arg_list)=}"
@@ -119,7 +125,7 @@ class CCodeGenerator(Codegen):
 
         if expr.get_op_type() == isl._isl.ast_expr_op_type.max:
             code, new_var = self._codegen_expr_max(var_list, depth)
-            code_list.append(code)
+            code_list.extend(code)
         elif expr.get_op_type() == isl._isl.ast_expr_op_type.min:
             code, new_var = self._codegen_expr_min(var_list, depth)
             code_list.extend(code)
@@ -134,7 +140,7 @@ class CCodeGenerator(Codegen):
             code_list.extend(code)
         elif expr.get_op_type() == isl._isl.ast_expr_op_type.minus:
             code, new_var = self._codegen_expr_minus(var_list, depth)
-            code_list.append(code)
+            code_list.extend(code)
         elif expr.get_op_type() in (
             isl._isl.ast_expr_op_type.pdiv_q,
             isl._isl.ast_expr_op_type.div,
@@ -144,7 +150,10 @@ class CCodeGenerator(Codegen):
         elif expr.get_op_type() == isl._isl.ast_expr_op_type.fdiv_q:
             code, new_var = self._codegen_expr_fdiv_q(var_list, depth)
             code_list.extend(code)
-        elif expr.get_op_type() == isl._isl.ast_expr_op_type.pdiv_r:
+        elif expr.get_op_type() in (
+            isl._isl.ast_expr_op_type.pdiv_r,
+            isl._isl.ast_expr_op_type.zdiv_r,
+        ):
             code, new_var = self._codegen_expr_rem(var_list, depth)
             code_list.extend(code)
         elif expr.get_op_type() == isl._isl.ast_expr_op_type.select:
