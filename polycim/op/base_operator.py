@@ -4,7 +4,7 @@ import polycim.utils.utils as utils
 
 
 class AccessRelation:
-    def __init__(self, offsets, memory_type="__GLOBAL__"):
+    def __init__(self, offsets, memory_type="global"):
         assert type(offsets) in (isl.BasicMap, isl.Map), f"{type(offsets)}"
         self.offsets = offsets
         self.memory_type = memory_type
@@ -17,7 +17,7 @@ class AccessRelation:
 
 
 class TensorAccessRelation(AccessRelation):
-    def __init__(self, offsets, sizes, memory_type="__GLOBAL__"):
+    def __init__(self, offsets, sizes, memory_type="global"):
         super().__init__(offsets, memory_type)
         self.sizes = sizes
 

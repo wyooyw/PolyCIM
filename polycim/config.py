@@ -104,6 +104,5 @@ def get_memory_types():
     memory_list = config["memory_list"]
     memory_types = []
     for memory in memory_list:
-        big_name = "__"+memory["name"].upper()+"__"
-        memory_types.append(big_name)
+        memory_types.append(memory["name"])
     return memory_types

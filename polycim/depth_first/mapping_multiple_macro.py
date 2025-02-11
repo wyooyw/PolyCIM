@@ -88,9 +88,9 @@ def multi_level_buffer_insersion_pass(op):
     n_dim = op.domain.dim(isl.dim_type.set)
 
     num_input_buffer_level = 2
-    input_memory_names = ["__GLOBAL__", "__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"]
-    output_memory_names = ["__GLOBAL__", "__OUTPUT_MEMORY__", "__PIM_OUTPUT_REG_BUFFER__"]
-    weight_memory_names = ["__GLOBAL__", "__MACRO__"]
+    input_memory_names = ["global", "input_memory", "pim_input_reg_buffer"]
+    output_memory_names = ["global", "output_memory", "pim_output_reg_buffer"]
+    weight_memory_names = ["global", "macro"]
 
     input_buffer_level = (0, n_dim-4)
     output_buffer_level = (0, n_dim-4)

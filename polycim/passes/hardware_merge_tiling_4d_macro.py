@@ -199,7 +199,7 @@ def get_macro_4d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     """
     OrderedDict([('h0', [0, 1, 1]), ('h1', [1, 0, 1]), ('h2', [1, 1, 0])])
 
-    macros = Buffer(<N_ROW, N_COMP, N_GROUP, N_GROUP_VCOL>, int8, __MACRO__)
+    macros = Buffer(<N_ROW, N_COMP, N_GROUP, N_GROUP_VCOL>, int8, macro)
     """
     n_software_dim = software_schedule.range().as_set().n_dim()
     n_hardware_dim = 3
@@ -255,7 +255,7 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     """
     OrderedDict([('h0', [0, 1, 1]), ('h1', [1, 0, 1]), ('h2', [1, 1, 0])])
 
-    macros = Buffer(<N_ROW, N_COMP, N_GROUP, N_GROUP_VCOL>, int8, __MACRO__)
+    macros = Buffer(<N_ROW, N_COMP, N_GROUP, N_GROUP_VCOL>, int8, macro)
     """
     n_software_dim = software_schedule.range().as_set().n_dim()
     n_hardware_dim = 3

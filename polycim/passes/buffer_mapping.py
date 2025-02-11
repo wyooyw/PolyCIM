@@ -843,7 +843,7 @@ def insert_single_buffer_multi_level(
         len(memory_types) == len(buffer_levels) + 1
     ), f"{memory_types=}, {buffer_levels=}"
     memory_types = [*memory_types]
-    # memory_types.insert(0, "__INPUT_MEMORY__")
+    # memory_types.insert(0, "input_memory")
 
     for idx, buffer_level in enumerate(buffer_levels):
         if "W" in buffer_name:
@@ -958,12 +958,12 @@ def buffer_level_serching(
 ):
     """
     num_buffer_level = 1
-    names_of_buffer_level = ["__MACRO__"]
+    names_of_buffer_level = ["macro"]
     level_min = None
     level_max = None
 
     num_buffer_level = 2
-    names_of_buffer_level = ["__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"]
+    names_of_buffer_level = ["input_memory", "pim_input_reg_buffer"]
     level_min = 1
     level_max = -5
 
@@ -1019,8 +1019,8 @@ def get_macro_level(op, buffer_name, buffer_compute_level):
 
 def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
     num_input_buffer_level = 2
-    input_memory_names = ["__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"]
-    weight_memory_names = ["__MACRO__"]
+    input_memory_names = ["input_memory", "pim_input_reg_buffer"]
+    weight_memory_names = ["macro"]
 
     new_ops = []
     for op in tqdm(op_list):
@@ -1045,10 +1045,10 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
 
 def memory_access_cost(op):
     bandwidth_factor = {
-        # ("__GLOBAL__", "__INPUT_MEMORY__"): 4,
-        ("__INPUT_MEMORY__", "__PIM_INPUT_REG_BUFFER__"): 1024,
-        # ("__PIM_INPUT_REG_BUFFER__"): 1,
-        # ("__GLOBAL__", "__MACRO__"): 4
+        # ("global", "input_memory"): 4,
+        ("input_memory", "pim_input_reg_buffer"): 1024,
+        # ("pim_input_reg_buffer"): 1,
+        # ("global", "macro"): 4
     }
     total_cost = 0
     # cost of moving I and W
@@ -1181,7 +1181,7 @@ def memory_access_satisfy_constraint(op):
     satisfy = True
     for memory_type, use_size in buffer_type_to_use_size.items():
         size_limit = buffer_type_to_size[memory_type]
-        if memory_type == "__PIM_INPUT_REG_BUFFER__" and use_size > size_limit:
+        if memory_type == "pim_input_reg_buffer" and use_size > size_limit:
             satisfy = False
             print(f"Memory not satisfy! {memory_type=}, {use_size=}, {size_limit=}")
             break
