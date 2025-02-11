@@ -3,6 +3,7 @@ from dataclasses import dataclass
 
 import islpy as isl
 from tqdm import tqdm
+import math
 
 import polycim.utils.utils as utils
 from polycim.op.base_operator import (DataMovement, DataMovementOperator,
@@ -98,6 +99,29 @@ class CodeGenerator:
             )
             code_list.append(code)
 
+        return code_list
+
+    def codegen_cimset(self, depth):
+        cim_cfg = get_config()
+        mask_num = int(math.ceil(cim_cfg.n_group_vcol / 8)) * 8
+        code_list = [
+            CodeStmt(
+                code=f"cim_mask_global = Buffer(<{mask_num}>, int1, __GLOBAL__);",
+                depth=depth,
+            ),
+            CodeStmt(
+                code=f"cim_mask_local = Buffer(<{mask_num}>, int1, __INPUT_MEMORY__);",
+                depth=depth,
+            ),
+            CodeStmt(
+                code=f"Trans(cim_mask_global, cim_mask_local);",
+                depth=depth,
+            ),
+            CodeStmt(
+                code="CIMSet(cim_mask_local);",
+                depth=depth,
+            )
+        ]
         return code_list
 
     def codegen_aff(self, aff, arg_list, depth):
@@ -503,6 +527,7 @@ class CodeGenerator:
         special_reg_defs = self.codegen_special_defs(0)
         special_reg_settings = self.codegen_special_settings(1)
         main_begin, main_end = self.codegen_main_and_end(0)
+        cimset_code_list = self.codegen_cimset(1)
         buffer_define_code_list = self.codegen_buffer_define(1)
         execute_code_list = self.codegen(node, 1)
         code_str = ""
@@ -510,6 +535,7 @@ class CodeGenerator:
             special_reg_defs
             + main_begin
             + special_reg_settings
+            + cimset_code_list
             + buffer_define_code_list
             + execute_code_list
             + main_end

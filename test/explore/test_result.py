@@ -5,6 +5,8 @@ import json
 import pytest
 import numpy as np
 from polycim.codegen_.codegen_data_layout_convert import run_data_layout_convert_executable
+from cim_compiler.utils.df_layout import tensor_bits_to_int8
+import math
 
 def save_and_convert(exe_path, data_path, converted_data_path, data_np):
     with open(data_path, "w") as f:
@@ -51,6 +53,13 @@ def test_result(cim_cfg_path, op_id, cim_count):
         op_dir = os.path.join(temp_dir, op_id, "0")
         data_dir = os.path.join(op_dir, "data")
         os.makedirs(data_dir, exist_ok=True)
+
+        n_group_vcol = 4 # cim_cfg.n_group_vcol
+        mask_num = int(math.ceil(n_group_vcol / 8)) * 8
+        cim_mask = np.array([1] * mask_num).reshape(-1, 8)
+        cim_mask_np = tensor_bits_to_int8(cim_mask)
+        cim_mask_data = bytearray(cim_mask_np)
+        
         input_np = np.arange(0,16, dtype=np.int8).reshape(4,4)
         input_np = np.pad(input_np, ((1,1),(1,1)), mode="constant", constant_values=0)
         assert input_np.shape == (6,6)
@@ -76,9 +85,9 @@ def test_result(cim_cfg_path, op_id, cim_count):
         I_converted_data = bytearray(I_converted_np)
         W_converted_data = bytearray(W_converted_np)
         global_memory_image_path = os.path.join(data_dir, "global_memory_image.bin")
-        global_memory_image = I_converted_data + W_converted_data
+        total_data = cim_mask_data + I_converted_data + W_converted_data
         with open(global_memory_image_path, "wb") as f:
-            f.write(global_memory_image)
+            f.write(total_data)
 
         # run the simulator
         code_path = os.path.join(op_dir, "final_code.json")
@@ -99,7 +108,7 @@ def test_result(cim_cfg_path, op_id, cim_count):
         with open(output_path, "rb") as f:
             output_global_image = f.read()
         
-        output_offset = len(I_converted_data) + len(W_converted_data)
+        output_offset = len(total_data)
         # output_size = 28 * 28 * 4
         output_size = 2 * 2 * 4
         output_data = output_global_image[output_offset:output_offset+output_size]
