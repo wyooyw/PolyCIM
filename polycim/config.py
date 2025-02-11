@@ -90,19 +90,19 @@ def get_memory_sizes():
         memory_type_to_sizes[big_name] = memory["addressing"]["size_byte"]
     return memory_type_to_sizes
 
-def get_memory_base(memory_type):
+def get_memory_base(memory_name):
     config = get_raw_config()
 
     memory_list = config["memory_list"]
     for memory in memory_list:
-        if memory["name"]==memory_type:
+        if memory["name"]==memory_name:
             return memory["addressing"]["offset_byte"]
-    assert False, f"{memory_type=} not found"
+    assert False, f"{memory_name=} not found"
 
-def get_memory_types():
+def get_memory_names():
     config = get_raw_config()
     memory_list = config["memory_list"]
-    memory_types = []
+    memory_names = []
     for memory in memory_list:
-        memory_types.append(memory["name"])
-    return memory_types
+        memory_names.append(memory["name"])
+    return memory_names

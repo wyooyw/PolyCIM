@@ -4,26 +4,26 @@ import polycim.utils.utils as utils
 
 
 class AccessRelation:
-    def __init__(self, offsets, memory_type="global"):
+    def __init__(self, offsets, memory_name="global"):
         assert type(offsets) in (isl.BasicMap, isl.Map), f"{type(offsets)}"
         self.offsets = offsets
-        self.memory_type = memory_type
+        self.memory_name = memory_name
 
     def convex_hull(self):
-        return AccessRelation(self.offsets.convex_hull(), self.memory_type)
+        return AccessRelation(self.offsets.convex_hull(), self.memory_name)
 
     def __repr__(self):
-        return f"({self.memory_type}){self.offsets}"
+        return f"({self.memory_name}){self.offsets}"
 
 
 class TensorAccessRelation(AccessRelation):
-    def __init__(self, offsets, sizes, memory_type="global"):
-        super().__init__(offsets, memory_type)
+    def __init__(self, offsets, sizes, memory_name="global"):
+        super().__init__(offsets, memory_name)
         self.sizes = sizes
 
     def convex_hull(self):
         return TensorAccessRelation(
-            self.offsets.convex_hull(), self.sizes.convex_hull(), self.memory_type
+            self.offsets.convex_hull(), self.sizes.convex_hull(), self.memory_name
         )
 
 

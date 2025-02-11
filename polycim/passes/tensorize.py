@@ -45,7 +45,7 @@ def transform_access(ori_access, n_inner_level):
     access_offsets = access_offsets.set_tuple_name(isl.dim_type.out, buffer_name)
 
     return TensorAccessRelation(
-        offsets=access_offsets, sizes=access_sizes, memory_type=ori_access.memory_type
+        offsets=access_offsets, sizes=access_sizes, memory_name=ori_access.memory_name
     )
 
 

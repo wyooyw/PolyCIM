@@ -800,7 +800,7 @@ def parse_buffer_levels(op, buffer_levels):
 
 
 def insert_single_buffer_multi_level(
-    op, buffer_name, buffer_levels, memory_types, force_inner_level=5, force_dominate_iters=None, force_nondominate_iters=None
+    op, buffer_name, buffer_levels, memory_names, force_inner_level=5, force_dominate_iters=None, force_nondominate_iters=None
 ):
     assert buffer_name in ["I", "O", "W"]
     buffer_levels = parse_buffer_levels(op, buffer_levels)
@@ -840,10 +840,10 @@ def insert_single_buffer_multi_level(
     data_movement_list = []
 
     assert (
-        len(memory_types) == len(buffer_levels) + 1
-    ), f"{memory_types=}, {buffer_levels=}"
-    memory_types = [*memory_types]
-    # memory_types.insert(0, "input_memory")
+        len(memory_names) == len(buffer_levels) + 1
+    ), f"{memory_names=}, {buffer_levels=}"
+    memory_names = [*memory_names]
+    # memory_names.insert(0, "input_memory")
 
     for idx, buffer_level in enumerate(buffer_levels):
         if "W" in buffer_name:
@@ -871,20 +871,20 @@ def insert_single_buffer_multi_level(
         if buffer_name in ["I", "W"]:
             access_I = AccessRelation(
                 assign_global_buffer_acc_rel.intersect_domain(assign_domain),
-                memory_types[idx],
+                memory_names[idx],
             )
             access_O = AccessRelation(
                 assign_local_buffer_acc_rel.intersect_domain(assign_domain),
-                memory_types[idx + 1],
+                memory_names[idx + 1],
             )
         elif buffer_name == "O":
             access_O = AccessRelation(
                 assign_global_buffer_acc_rel.intersect_domain(assign_domain),
-                memory_types[idx],
+                memory_names[idx],
             )
             access_I = AccessRelation(
                 assign_local_buffer_acc_rel.intersect_domain(assign_domain),
-                memory_types[idx + 1],
+                memory_names[idx + 1],
             )
         datamove = DataMovement(
             domain=assign_domain,
@@ -896,7 +896,7 @@ def insert_single_buffer_multi_level(
         data_movement_list.append(datamove)
 
     accesses = {"I": op.access_I, "O": op.access_O, "W": op.access_W}
-    accesses[buffer_name] = AccessRelation(compute_acc_rel, memory_types[-1])
+    accesses[buffer_name] = AccessRelation(compute_acc_rel, memory_names[-1])
     new_op = DataMovementOperator(
         domain=op.domain,
         access_I=accesses["I"],
@@ -1080,9 +1080,9 @@ def memory_access_cost(op):
             assert access_O_sizes == access_I_sizes[n_access_I_dim - n_inner_level :]
             tensorize_data_volumn = reduce(lambda x, y: x * y, access_O_sizes)
 
-            src_memory_type = datamove.access_I.memory_type
-            dst_memory_type = datamove.access_O.memory_type
-            bandwidth = bandwidth_factor[(src_memory_type, dst_memory_type)]
+            src_memory_name = datamove.access_I.memory_name
+            dst_memory_name = datamove.access_O.memory_name
+            bandwidth = bandwidth_factor[(src_memory_name, dst_memory_name)]
             tensorize_time = math.ceil(tensorize_data_volumn / bandwidth)
 
             total_cost += tensorize_time * outer_domain_time
@@ -1105,13 +1105,13 @@ def get_name_and_shape(access):
 class BufferInfo:
     name: str
     shape: list
-    memory_type: str
+    memory_name: str
 
 
 def extract_buffer_defines(op):
 
     buffer_to_size = dict()
-    buffer_to_memory_type = dict()
+    buffer_to_memory_name = dict()
 
     def _update_shape(name, shape):
         if name not in buffer_to_size:
@@ -1122,13 +1122,13 @@ def extract_buffer_defines(op):
             max_shape = [max(old_shape[i], shape[i]) for i in range(len(shape))]
             buffer_to_size[name] = max_shape
 
-    def _update_memory_type(name, memory_type):
-        if name not in buffer_to_memory_type:
-            buffer_to_memory_type[name] = memory_type
+    def _update_memory_name(name, memory_name):
+        if name not in buffer_to_memory_name:
+            buffer_to_memory_name[name] = memory_name
         else:
             assert (
-                buffer_to_memory_type[name] == memory_type
-            ), f"{buffer_to_memory_type[name]=}, {memory_type=}"
+                buffer_to_memory_name[name] == memory_name
+            ), f"{buffer_to_memory_name[name]=}, {memory_name=}"
 
     # import pdb; pdb.set_trace()
     I_name, I_shape = get_name_and_shape(op.access_I)  # this maybe incorrect.
@@ -1139,9 +1139,9 @@ def extract_buffer_defines(op):
     _update_shape(W_name, W_shape)
     _update_shape(O_name, O_shape)
 
-    _update_memory_type(I_name, op.access_I.memory_type)
-    _update_memory_type(W_name, op.access_W.memory_type)
-    _update_memory_type(O_name, op.access_O.memory_type)
+    _update_memory_name(I_name, op.access_I.memory_name)
+    _update_memory_name(W_name, op.access_W.memory_name)
+    _update_memory_name(O_name, op.access_O.memory_name)
 
     for buffer in ["I", "W"]:
         for data_movement in op.data_movement[buffer]:
@@ -1149,18 +1149,18 @@ def extract_buffer_defines(op):
 
             name, shape = get_name_and_shape(data_movement.access_I)
             _update_shape(name, shape)
-            _update_memory_type(name, data_movement.access_I.memory_type)
+            _update_memory_name(name, data_movement.access_I.memory_name)
 
             name, shape = get_name_and_shape(data_movement.access_O)
             _update_shape(name, shape)
-            _update_memory_type(name, data_movement.access_O.memory_type)
+            _update_memory_name(name, data_movement.access_O.memory_name)
 
     buffer_name_to_info = dict()
     for name in buffer_to_size.keys():
         shape = buffer_to_size[name]
-        memory_type = buffer_to_memory_type[name]
+        memory_name = buffer_to_memory_name[name]
         buffer_name_to_info[name] = BufferInfo(
-            name=name, shape=shape, memory_type=memory_type
+            name=name, shape=shape, memory_name=memory_name
         )
     return buffer_name_to_info
 
@@ -1171,19 +1171,19 @@ def memory_access_satisfy_constraint(op):
     buffer_type_to_use_size = dict()
     # get each memory type's use size
     for buffer_info in buffer_name_to_info.values():
-        memory_type = buffer_info.memory_type
-        buffer_type_to_use_size[memory_type] = buffer_type_to_use_size.get(
-            memory_type, 0
+        memory_name = buffer_info.memory_name
+        buffer_type_to_use_size[memory_name] = buffer_type_to_use_size.get(
+            memory_name, 0
         ) + reduce(lambda x, y: x * y, buffer_info.shape)
 
     buffer_type_to_size = get_memory_sizes()
 
     satisfy = True
-    for memory_type, use_size in buffer_type_to_use_size.items():
-        size_limit = buffer_type_to_size[memory_type]
-        if memory_type == "pim_input_reg_buffer" and use_size > size_limit:
+    for memory_name, use_size in buffer_type_to_use_size.items():
+        size_limit = buffer_type_to_size[memory_name]
+        if memory_name == "pim_input_reg_buffer" and use_size > size_limit:
             satisfy = False
-            print(f"Memory not satisfy! {memory_type=}, {use_size=}, {size_limit=}")
+            print(f"Memory not satisfy! {memory_name=}, {use_size=}, {size_limit=}")
             break
     return satisfy
 

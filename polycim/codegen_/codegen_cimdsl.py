@@ -81,25 +81,25 @@ class CodeGenerator:
         buffer_name_to_info = self.buffer_manager.get_buffer_name_to_info()
         code_list = []
         
-        global_buffer_info = {name[0]:info for name, info in buffer_name_to_info.items() if info.memory_type == "global"}
+        global_buffer_info = {name[0]:info for name, info in buffer_name_to_info.items() if info.memory_name == "global"}
         assert len(global_buffer_info)==3
         for t in ["I", "W", "O"]:
             buf_info = global_buffer_info[t]
             shape_str = ",".join([str(s) for s in buf_info.shape])
-            memory_type_big = "__"+buf_info.memory_type.upper()+"__"
+            memory_name_big = "__"+buf_info.memory_name.upper()+"__"
             code = CodeStmt(
-                code=f"{buf_info.name} = Buffer(<{shape_str}>, int8, {memory_type_big});",
+                code=f"{buf_info.name} = Buffer(<{shape_str}>, int8, {memory_name_big});",
                 depth=depth,
             )
             code_list.append(code)
 
         for name, info in buffer_name_to_info.items():
-            if info.memory_type == "global":
+            if info.memory_name == "global":
                 continue
             shape_str = ",".join([str(s) for s in info.shape])
-            memory_type_big = "__"+info.memory_type.upper()+"__"
+            memory_name_big = "__"+info.memory_name.upper()+"__"
             code = CodeStmt(
-                code=f"{name} = Buffer(<{shape_str}>, int8, {memory_type_big});",
+                code=f"{name} = Buffer(<{shape_str}>, int8, {memory_name_big});",
                 depth=depth,
             )
             code_list.append(code)
@@ -442,7 +442,7 @@ class CodeGenerator:
         )
 
         # cim output
-        cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_type("pim_output_reg_buffer")
+        cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name("pim_output_reg_buffer")
         cim_output_code = CodeStmt(
             code=f"CIMOutput({get_config().n_group_vcol}, 0, {cim_reg_out_buffer.name});",
             depth=depth,
