@@ -32,6 +32,16 @@ def save_and_convert(exe_path, data_path, converted_data_path, data_np):
             ("C1", 1568), ("C2", 392),
         ]
     ],
+    *[("configs/g2m2c16b32.json", op_id, cim_count)
+        for op_id, cim_count in [
+            ("C1", 3136 // 2), ("C2", 784 // 2),
+        ]
+    ],
+    *[("configs/g4m4c16b32.json", op_id, cim_count)
+        for op_id, cim_count in [
+            ("C1", 3136 // 4), ("C2", 784 // 4),
+        ]
+    ],
 ])
 def test_result(cim_cfg_path, op_id, cim_count):
     cim_cfg_path = os.path.join(os.path.dirname(__file__), cim_cfg_path)
@@ -44,16 +54,6 @@ def test_result(cim_cfg_path, op_id, cim_count):
             "--config-path", cim_cfg_path,
             "--output-path", temp_dir
         ], check=True)
-        # import pdb; pdb.set_trace()
-        # exit()
-    
-        # get stats.json
-        # stats_path = os.path.join(temp_dir, op_id, "0", "output", "stats.json")
-        # assert os.path.exists(stats_path), f"{stats_path=}"
-        # with open(stats_path, "r") as f:
-        #     stats = json.load(f)
-        # assert stats["CIMComputeInst"] == cim_count, f"{stats['CIMComputeInst']=}, {cim_count=}"
-
         
         op_dir = os.path.join(temp_dir, op_id, "0")
         data_dir = os.path.join(op_dir, "data")
@@ -152,7 +152,7 @@ def test_result(cim_cfg_path, op_id, cim_count):
         golden = depth_wise_conv2d(input_np, weight_np)
         print(f"golden shape={golden.shape}, dtype={golden.dtype}, max={golden.max()}, min={golden.min()}")
         print(f"{temp_dir = } (will be removed after test)")
-        import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         assert np.all(O_converted_np==golden), f"{O_converted_np=}, {golden=}"
 
         
