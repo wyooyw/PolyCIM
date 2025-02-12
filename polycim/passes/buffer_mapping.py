@@ -15,6 +15,9 @@ from polycim.utils.utils import (get_box_hull_shape, rename_all_dims_for_basic_m
                          rename_all_dims_for_basic_set,
                          rename_out_dims_for_basic_map)
 from polycim.codegen_.codegen_data_layout_convert import data_layout_convert_codegen
+from polycim.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def find_domain_iters_exist_in_range(aff, return_name=True):
 
@@ -79,7 +82,8 @@ def build_domain_aligned_buffer_exclude_iters(
     if force_layout_inner_iters is not None:
         assert isinstance(force_layout_inner_iters, list) or isinstance(force_layout_inner_iters, tuple)
         assert all([type(i) == int for i in force_layout_inner_iters])
-        assert set(force_layout_inner_iters).issubset(set(iter_in_array_ids)), f"{force_layout_inner_iters=}, {iter_in_array_ids=}"
+        if not set(force_layout_inner_iters).issubset(set(iter_in_array_ids)):
+            logger.warning(f"{force_layout_inner_iters=} is not subset of {iter_in_array_ids=}. This maybe caused by scalar dimensions.")
         iter_in_array_ids = [i for i in iter_in_array_ids if i not in force_layout_inner_iters]
         iter_in_array_ids = iter_in_array_ids + list(force_layout_inner_iters)
 
