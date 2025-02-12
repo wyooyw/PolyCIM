@@ -179,11 +179,22 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters):
     input_buffer_level = (0, n_dim - (n_macro_iters - 1)) # minus 1 is the row dimension
     output_buffer_level = (0, n_dim - (n_macro_iters - 1))
     weight_buffer_level = (0,)
+
+    # n_macro_iters: [row, comp, group0,...,groupk, col]
+    n_group_iters = n_macro_iters - 3
+    group_iters = [n_dim - n_macro_iters + 2 + i for i in range(n_group_iters)]
+    comp_iter = [n_dim - n_macro_iters + 1]
+    input_layout_inner_dims = group_iters + comp_iter
+
+    shape = utils.get_box_hull_shape(op.domain)
+    n_dim = op.domain.dim(isl.dim_type.set)
+    import pdb; pdb.set_trace()
     new_op = op.convex_hull()  # Is this safe?
     new_op, layout_convert_code_I = insert_single_buffer_multi_level(
         new_op, "I", input_buffer_level, input_memory_names, 
-        force_dominate_iters=[n_dim-2],
-        force_nondominate_iters=[n_dim-1]
+        # force_dominate_iters=[n_dim-2],
+        force_nondominate_iters = [n_dim-1],
+        force_layout_inner_iters = input_layout_inner_dims
     )
     new_op, layout_convert_code_O = insert_single_buffer_multi_level(
         new_op, "O", output_buffer_level, output_memory_names

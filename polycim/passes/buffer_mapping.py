@@ -54,7 +54,7 @@ def pw_aff_to_aff(pw_aff):
 
 
 def build_domain_aligned_buffer_exclude_iters(
-    domain, buffer_name, exclude_iter_names=[]
+    domain, buffer_name, exclude_iter_names=[], force_layout_inner_iters = None
 ):
     """
     args:
@@ -63,7 +63,7 @@ def build_domain_aligned_buffer_exclude_iters(
     return:
         access relation: [i,j,k] -> A[i,k]
     """
-
+    n_dim = domain.dim(isl.dim_type.set)
     shape = get_box_hull_shape(domain)
     iter_names = domain.get_var_names(isl.dim_type.set)
     n_iter = len(iter_names)
@@ -73,9 +73,20 @@ def build_domain_aligned_buffer_exclude_iters(
         set(iter_names)
     ), f"{exclude_iter_names=}, {iter_names=}"
 
-    iter_in_array_names = [
-        iter_name for iter_name in iter_names if iter_name not in exclude_iter_names
+    iter_in_array_ids = [
+        i for i in range(n_dim) if iter_names[i] not in exclude_iter_names
     ]
+    if force_layout_inner_iters is not None:
+        assert isinstance(force_layout_inner_iters, list) or isinstance(force_layout_inner_iters, tuple)
+        assert all([type(i) == int for i in force_layout_inner_iters])
+        assert set(force_layout_inner_iters).issubset(set(iter_in_array_ids)), f"{force_layout_inner_iters=}, {iter_in_array_ids=}"
+        iter_in_array_ids = [i for i in iter_in_array_ids if i not in force_layout_inner_iters]
+        iter_in_array_ids = iter_in_array_ids + list(force_layout_inner_iters)
+
+    iter_in_array_names = [
+        iter_names[i] for i in iter_in_array_ids
+    ]
+
     access_relation = isl.BasicMap(
         f"{{ [{','.join(iter_names)}] -> {buffer_name}[{','.join(iter_in_array_names)}] }}"
     )
@@ -97,7 +108,7 @@ def init_force_iters(domain_iter_names, force_iters=None):
             new_force_iters.append(i)
     return new_force_iters
 
-def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominate_iters=None, force_nondominate_iters=None):
+def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominate_iters=None, force_nondominate_iters=None, force_layout_inner_iters=None):
     """
     1.get domain aligned buffer
     2.map this aligned buffer to origin buffer
@@ -126,7 +137,7 @@ def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominat
     )
 
     aligned_acc_rel = build_domain_aligned_buffer_exclude_iters(
-        domain, align_buffer_name, domain_iter_names_not_exist_in_lb_ub
+        domain, align_buffer_name, domain_iter_names_not_exist_in_lb_ub, force_layout_inner_iters
     )
     # one to many
     # buffer_mapping = acc_rel.reverse().apply_range(aligned_acc_rel)
@@ -138,7 +149,7 @@ def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominat
 
 
 def map_domain_aligned_buffer_to_origin_buffer_for_weight(
-    domain, acc_rel, force_inner_level=4
+    domain, acc_rel, force_inner_level=4, force_layout_inner_iters=None
 ):
     """
     1.get domain aligned buffer
@@ -164,7 +175,7 @@ def map_domain_aligned_buffer_to_origin_buffer_for_weight(
     )
 
     aligned_acc_rel = build_domain_aligned_buffer_exclude_iters(
-        domain, align_buffer_name, domain_iter_names_not_exist_in_lb_ub
+        domain, align_buffer_name, domain_iter_names_not_exist_in_lb_ub, force_layout_inner_iters
     )
 
     # one to many
@@ -800,7 +811,7 @@ def parse_buffer_levels(op, buffer_levels):
 
 
 def insert_single_buffer_multi_level(
-    op, buffer_name, buffer_levels, memory_names, force_inner_level=5, force_dominate_iters=None, force_nondominate_iters=None
+    op, buffer_name, buffer_levels, memory_names, force_inner_level=5, force_dominate_iters=None, force_nondominate_iters=None, force_layout_inner_iters=None
 ):
     assert buffer_name in ["I", "O", "W"]
     buffer_levels = parse_buffer_levels(op, buffer_levels)
@@ -816,6 +827,7 @@ def insert_single_buffer_multi_level(
                 op.domain,
                 ori_acc_rel,
                 force_inner_level=force_inner_level,
+                force_layout_inner_iters=force_layout_inner_iters,
             )
         )
     else:
@@ -824,7 +836,8 @@ def insert_single_buffer_multi_level(
                 op.domain, 
                 ori_acc_rel,
                 force_dominate_iters,
-                force_nondominate_iters
+                force_nondominate_iters,
+                force_layout_inner_iters,
             )
         )
     if "O" in buffer_name:

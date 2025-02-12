@@ -118,6 +118,13 @@ def test_result(cim_cfg_path, op_id, cim_count):
             "--save-stats"
         ], check=True)
 
+        # check stats
+        stats_path = os.path.join(sim_output_dir, "stats.json")
+        assert os.path.exists(stats_path), f"{stats_path=}"
+        with open(stats_path, "r") as f:
+            stats = json.load(f)
+        assert stats["CIMComputeInst"] == cim_count, f"{stats['CIMComputeInst']=}, {cim_count=}"
+
         # get the output
         output_path = os.path.join(sim_output_dir, "image.bin")
         assert os.path.exists(output_path), f"{output_path=}"
@@ -151,4 +158,5 @@ def test_result(cim_cfg_path, op_id, cim_count):
         
 if __name__ == "__main__":
     # test_result("configs/c16b32.json", "C2", 3136)
-    test_result("configs/g2m2c16b32.json", "test", 2)
+    test_result("configs/g4m4c16b32.json", "test", 1)
+    # test_result("configs/g2m2c16b32.json", "C2", 1568)
