@@ -51,6 +51,9 @@ def make_group_schedule(op, candidate_iters, cim_cfg):
     remain_group_factor = n_group
 
     in_group_iters = []
+    in_group_iter_ids = []
+    split_iter_id = None
+    n_use_group = 1
     for candidate_iter in candidate_iters:
         iter_size = shape[candidate_iter]
 
@@ -64,13 +67,20 @@ def make_group_schedule(op, candidate_iters, cim_cfg):
         if factor == 1:
             break
         elif factor == iter_size:
-            in_group_iters.append(candidate_iter)
+            in_group_iter_ids.append(candidate_iter)
+            in_group_iters.append(f"i{candidate_iter}")
             remain_group_factor //= factor
+            n_use_group *= factor
         elif factor > 1 and factor < iter_size:
-            break
+            in_group_iters.append(f"(i{candidate_iter}%{factor})")
+            split_iter_id = candidate_iter
             remain_group_factor //= factor
+            n_use_group *= factor
+            break
         else:
             raise ValueError(f"factor={factor} is invalid")
+    
+    assert remain_group_factor==1, f"Currently, only support use all groups. When meet the situation that remain some group, it should be fixed."
 
     in_group_iters = in_group_iters[::-1]
     if len(in_group_iters) == 0:
@@ -78,23 +88,23 @@ def make_group_schedule(op, candidate_iters, cim_cfg):
     row_iter = ["0"]
     comp_iter = [n_dim - 2]
     col_iter = [n_dim - 1]
-    other_iters = [i for i in range(n_dim) if i not in (in_group_iters + comp_iter + col_iter)]
+    other_iters = [i for i in range(n_dim) if i not in (in_group_iter_ids + comp_iter + col_iter)]
 
-    name = lambda ls: [f"i{i}" if type(i) == int else i for i in ls]
+    def name(iter_id_or_name):
+        if split_iter_id==iter_id_or_name:
+            return f"floor(i{split_iter_id}/{factor})"
+        elif type(iter_id_or_name) == int:
+            return f"i{iter_id_or_name}"
+        elif type(iter_id_or_name) == str:
+            return iter_id_or_name
 
     old_iter_names = [f"i{i}" for i in range(n_dim)]
-    new_iter_names = name(other_iters) + row_iter + name(comp_iter) + name(in_group_iters) + name(col_iter)
+    new_iter_names = [name(i) for i in other_iters + row_iter + comp_iter + in_group_iters + col_iter]
     # import pdb; pdb.set_trace()
     reorder_schedule = isl.BasicMap(f"{{ [{','.join(old_iter_names)}] -> [{','.join(new_iter_names)}] }}")
     
     n_macro_iters = len(row_iter) + len(in_group_iters) + len(comp_iter) + len(col_iter)
 
-    if len(in_group_iters) == 1 and in_group_iters[0] == "0":
-        n_use_group = 1
-    else:
-        assert len(in_group_iters) >= 1
-        assert all([type(i) == int for i in in_group_iters])
-        n_use_group = reduce(lambda x, y: x * y, [shape[i] for i in in_group_iters], 1)
 
     return reorder_schedule, n_macro_iters, n_use_group
 
@@ -188,7 +198,7 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters):
 
     shape = utils.get_box_hull_shape(op.domain)
     n_dim = op.domain.dim(isl.dim_type.set)
-    import pdb; pdb.set_trace()
+    # import pdb; pdb.set_trace()
     new_op = op.convex_hull()  # Is this safe?
     new_op, layout_convert_code_I = insert_single_buffer_multi_level(
         new_op, "I", input_buffer_level, input_memory_names, 
