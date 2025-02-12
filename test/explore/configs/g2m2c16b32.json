@@ -17,7 +17,7 @@
             "type": "macro",
             "addressing": {
                 "offset_byte": 0,
-                "size_byte": 64,
+                "size_byte": 128,
                 "comments": "offset: 0 Byte, size: 128 * 1024 Byte"
             }
         },
@@ -27,7 +27,7 @@
             "addressing": {
                 "size_byte": 262144,
                 "comments": "offset: 128 * 1024 Byte, size: 64 * 1024 Byte",
-                "offset_byte": 64
+                "offset_byte": 128
             }
         },
         {
@@ -36,7 +36,7 @@
             "addressing": {
                 "size_byte": 262144,
                 "comments": "offset: 128 * 1024 Byte, size: 64 * 1024 Byte",
-                "offset_byte": 262208
+                "offset_byte": 262272
             }
         },
         {
@@ -45,7 +45,7 @@
             "addressing": {
                 "size_byte": 262144,
                 "comments": "offset: 192 * 1024 Byte, size: 64 * 1024 Byte",
-                "offset_byte": 524352
+                "offset_byte": 524416
             }
         },
         {
@@ -54,7 +54,7 @@
             "addressing": {
                 "size_byte": 1024,
                 "comments": "offset: 256 * 1024 Byte, size: 0.5 * 1024 * 2 Byte",
-                "offset_byte": 786496
+                "offset_byte": 786560
             }
         },
         {
@@ -63,7 +63,7 @@
             "addressing": {
                 "size_byte": 4096,
                 "comments": "offset: 257 * 1024 Byte, size: 4 * 1024 Byte",
-                "offset_byte": 787520
+                "offset_byte": 787584
             }
         },
         {
@@ -72,7 +72,7 @@
             "addressing": {
                 "size_byte": 128,
                 "comments": "offset: 373 * 1024 Byte, size: 128 Byte",
-                "offset_byte": 791616
+                "offset_byte": 791680
             }
         },
         {
@@ -81,7 +81,7 @@
             "addressing": {
                 "size_byte": 33554432,
                 "comments": "size: 16MB",
-                "offset_byte": 791744
+                "offset_byte": 791808
             }
         }
     ]

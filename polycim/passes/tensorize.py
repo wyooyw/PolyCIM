@@ -52,7 +52,7 @@ def transform_access(ori_access, n_inner_level):
 def tensorize_cim_compute(op):
     domain = op.domain
     domain_size = domain.dim(isl.dim_type.set)
-    n_inner_level = 4
+    n_inner_level = op.attr["n_tensorize_cim_compute_level"]
 
     outer_domain = domain.project_out(
         isl.dim_type.set, domain_size - n_inner_level, n_inner_level

@@ -59,7 +59,7 @@ class CodeGenerator:
                 depth=depth,
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, 32);", depth=depth
+                code=f"SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, {cim_cfg.n_comp});", depth=depth
             ),
             CodeStmt(
                 code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 8);",
@@ -95,6 +95,8 @@ class CodeGenerator:
 
         for name, info in buffer_name_to_info.items():
             if info.memory_name == "global":
+                continue
+            if name[0] not in ["I", "W", "O"]:
                 continue
             shape_str = ",".join([str(s) for s in info.shape])
             memory_name_big = "__"+info.memory_name.upper()+"__"
