@@ -2,6 +2,9 @@ from dataclasses import dataclass
 import json
 import os
 import copy
+from polycim.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 @dataclass
 class CIMConfig:
@@ -16,7 +19,7 @@ _raw_config = None
 def set_raw_config(config):
     global _raw_config
     if _raw_config is not None:
-        raise ValueError("config already set")
+        logger.warning("config already set")
     if not isinstance(config, dict):
         raise ValueError("config must be a dict")
     _raw_config = copy.deepcopy(config)
