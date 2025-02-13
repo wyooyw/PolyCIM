@@ -10,6 +10,14 @@ import math
 from functools import reduce
 from polycim.config import set_raw_config_by_path, get_config
 from polycim.op.calculate import depth_wise_conv2d
+from polycim.exp.op_list import get_op_list
+
+def get_verify_fn(op_id):
+    op_info = get_op_list()[op_id]
+    return op_info["verify_fn"]
+
+def ceil(a, b):
+    return int(math.ceil(a / b))
 
 def save_and_convert(exe_path, data_path, converted_data_path, data_np):
     with open(data_path, "w") as f:
@@ -27,11 +35,6 @@ def save_and_convert(exe_path, data_path, converted_data_path, data_np):
             ("C1", 3136), ("C2", 784),
         ]
     ],
-    *[("configs/c32b64.json", op_id, cim_count)
-        for op_id, cim_count in [
-            ("C1", 1568), ("C2", 392),
-        ]
-    ],
     *[("configs/g2m2c16b32.json", op_id, cim_count)
         for op_id, cim_count in [
             ("C1", 3136 // 2), ("C2", 784 // 2),
@@ -42,12 +45,30 @@ def save_and_convert(exe_path, data_path, converted_data_path, data_np):
             ("C1", 3136 // 4), ("C2", 784 // 4),
         ]
     ],
+    *[("configs/c32b64.json", op_id, cim_count)
+        for op_id, cim_count in [
+            ("C1", 1568), ("C2", 392), ("C4", 28), ("C7", 7), ("C12", 98)
+        ]
+    ],
+    *[("configs/g2m2c32b64.json", op_id, cim_count)
+        for op_id, cim_count in [
+            ("C1", 1568 // 2), ("C2", 392 // 2), ("C4", 28 // 2), ("C7", ceil(7, 2)), ("C12", 98 // 2) 
+        ]
+    ],
+    *[("configs/g4m4c32b64.json", op_id, cim_count)
+        for op_id, cim_count in [
+            ("C1", ceil(1568, 4)), ("C2", ceil(392, 4)), ("C4", ceil(28, 4)), ("C7", ceil(7, 4)), ("C12", -1) 
+        ]
+    ],
 ])
 def test_result(cim_cfg_path, op_id, cim_count):
     cim_cfg_path = os.path.join(os.path.dirname(__file__), cim_cfg_path)
     set_raw_config_by_path(cim_cfg_path)
 
     with tempfile.TemporaryDirectory() as temp_dir:
+
+        # temp_dir = ".temp"
+        # os.makedirs(temp_dir, exist_ok=True)
         subprocess.run([
             "polycim", "explore",
             "--op-id", op_id,
@@ -76,11 +97,11 @@ def test_result(cim_cfg_path, op_id, cim_count):
         cim_mask_data = bytearray(cim_mask_np)
         
         input_shape = origin_operand_shape["I"]
-        input_np = np.random.randint(-1, 2, size=input_shape, dtype=np.int8)
+        input_np = np.random.randint(-2, 3, size=input_shape, dtype=np.int8)
         # input_np = np.ones(input_shape, dtype=np.int8)
 
         weight_shape = origin_operand_shape["W"]
-        weight_np = np.random.randint(-1, 2, size=weight_shape, dtype=np.int8)
+        weight_np = np.random.randint(-2, 3, size=weight_shape, dtype=np.int8)
         # weight_np = np.ones(weight_shape, dtype=np.int8)
 
         # convert data
@@ -123,7 +144,10 @@ def test_result(cim_cfg_path, op_id, cim_count):
         assert os.path.exists(stats_path), f"{stats_path=}"
         with open(stats_path, "r") as f:
             stats = json.load(f)
-        assert stats["CIMComputeInst"] == cim_count, f"{stats['CIMComputeInst']=}, {cim_count=}"
+        if cim_count >= 0:
+            assert stats["CIMComputeInst"] == cim_count, f"{stats['CIMComputeInst']=}, {cim_count=}"
+        else:
+            print("skip stats check")
 
         # get the output
         output_path = os.path.join(sim_output_dir, "image.bin")
@@ -149,7 +173,8 @@ def test_result(cim_cfg_path, op_id, cim_count):
         O_converted_np = np.loadtxt(O_converted_data_path, dtype=np.int8).reshape(output_shape)
         print(f"output shape={O_converted_np.shape}, dtype={O_converted_np.dtype}, max={O_converted_np.max()}, min={O_converted_np.min()}")
 
-        golden = depth_wise_conv2d(input_np, weight_np)
+        verify_fn = get_verify_fn(op_id)
+        golden = verify_fn(input_np, weight_np)
         print(f"golden shape={golden.shape}, dtype={golden.dtype}, max={golden.max()}, min={golden.min()}")
         print(f"{temp_dir = } (will be removed after test)")
         # import pdb; pdb.set_trace()
@@ -157,6 +182,16 @@ def test_result(cim_cfg_path, op_id, cim_count):
 
         
 if __name__ == "__main__":
-    # test_result("configs/c16b32.json", "C2", 3136)
-    test_result("configs/g4m4c16b32.json", "test", 1)
-    # test_result("configs/g2m2c16b32.json", "C2", 1568)
+    # test_result("configs/c32b64.json", "C2", 392)
+    # test_result("configs/c32b64.json", "C4", 28)
+    # test_result("configs/c32b64.json", "C7", 7)
+    # test_result("configs/c32b64.json", "C12", 98)
+
+    # test_result("configs/g2m2c32b64.json", "C2", 196)
+    # test_result("configs/g2m2c32b64.json", "C4", 14)
+    # test_result("configs/g2m2c32b64.json", "C7", 4)
+    test_result("configs/g4m4c32b64.json", "C12", -1)
+    # test_result("configs/g2m2c32b64.json", "C12", 49)
+    
+    # test_result("configs/c32b64.json", "d2h4", -1)
+    # pass

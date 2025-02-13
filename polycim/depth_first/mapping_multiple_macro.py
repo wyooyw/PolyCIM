@@ -12,6 +12,10 @@ from polycim.utils.math import get_factors
 import os
 from functools import reduce
 from polycim.passes.loop_padding import loop_padding_dim
+import math
+from polycim.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def get_scalar_iters(domain):
     shape = utils.get_box_hull_shape(domain)
@@ -44,6 +48,22 @@ def get_candidate_iters(op):
     
     return candidate_iters
 
+from dataclasses import dataclass
+
+@dataclass
+class ScalarIter:
+    pass
+
+@dataclass
+class Iter:
+    iter_id: int
+    iter_size: int
+
+@dataclass
+class TiledIter(Iter):
+    tile_size: int
+    is_inner: bool
+    
 def make_group_schedule(op, candidate_iters, cim_cfg):
     
     shape = utils.get_box_hull_shape(op.domain)
@@ -52,62 +72,120 @@ def make_group_schedule(op, candidate_iters, cim_cfg):
     remain_group_factor = n_group
 
     in_group_iters = []
-    in_group_iter_ids = []
-    split_iter_id = None
     n_use_group = 1
-    for candidate_iter in candidate_iters:
-        iter_size = shape[candidate_iter]
 
-        # find max factor <= remain_group_factor
-        factors = get_factors(iter_size)
-        factors = sorted(factors, key=lambda x: -x)
+    candidate_iters = [Iter(iter_id=i, iter_size=shape[i]) for i in candidate_iters]
+    
+    for candidate_iter in candidate_iters:
+        iter_size = candidate_iter.iter_size
+
+        if remain_group_factor==1:
+            break
+
+        factors = get_factors(remain_group_factor)
+        factors = sorted(factors) # small to big
         for factor in factors:
-            if factor <= remain_group_factor:
+            if factor >= iter_size:
                 break
         
-        if factor == 1:
-            break
-        elif factor == iter_size:
-            in_group_iter_ids.append(candidate_iter)
-            in_group_iters.append(f"i{candidate_iter}")
+        if factor >= iter_size:
+            padded_iter_size = factor
+            in_group_iters.append(Iter(
+                iter_id=candidate_iter.iter_id, 
+                iter_size=padded_iter_size
+            ))
             remain_group_factor //= factor
             n_use_group *= factor
-        elif factor > 1 and factor < iter_size:
-            in_group_iters.append(f"(i{candidate_iter}%{factor})")
-            split_iter_id = candidate_iter
+        elif factor < iter_size:
+            assert factor == remain_group_factor, f"factor={factor} is invalid"
+            in_group_iters.append(TiledIter(
+                iter_id=candidate_iter.iter_id, 
+                iter_size=factor,
+                tile_size=factor,
+                is_inner=True
+            ))
             remain_group_factor //= factor
             n_use_group *= factor
             break
         else:
             raise ValueError(f"factor={factor} is invalid")
-    
+    # import pdb; pdb.set_trace()
     assert remain_group_factor==1, f"Currently, only support use all groups. When meet the situation that remain some group, it should be fixed."
 
     in_group_iters = in_group_iters[::-1]
     if len(in_group_iters) == 0:
-        in_group_iters = ["0"]
-    row_iter = ["0"]
-    comp_iter = [n_dim - 2]
-    col_iter = [n_dim - 1]
-    other_iters = [i for i in range(n_dim) if i not in (in_group_iter_ids + comp_iter + col_iter)]
+        in_group_iters = [ScalarIter()]
+    row_iter = [ScalarIter()]
+    comp_iter = [Iter(iter_id=n_dim - 2, iter_size=shape[n_dim - 2])]
+    col_iter = [Iter(iter_id=n_dim - 1, iter_size=shape[n_dim - 1])]
 
-    def name(iter_id_or_name):
-        if split_iter_id==iter_id_or_name:
-            return f"floor(i{split_iter_id}/{factor})"
-        elif type(iter_id_or_name) == int:
-            return f"i{iter_id_or_name}"
-        elif type(iter_id_or_name) == str:
-            return iter_id_or_name
+    id_to_iter = {iter_.iter_id:iter_ for iter_ in (in_group_iters + comp_iter + col_iter) if not isinstance(iter_, ScalarIter)}
+    other_iters = []
+    for i in range(n_dim):
+        if i not in id_to_iter:
+            other_iters.append(Iter(iter_id=i, iter_size=shape[i]))
+        elif isinstance(id_to_iter[i], TiledIter):
+            ori_iter_size = shape[id_to_iter[i].iter_id]
+            outer_iter_size = int(math.ceil(ori_iter_size / id_to_iter[i].tile_size))
+            other_iters.append(TiledIter(
+                iter_id=id_to_iter[i].iter_id,
+                iter_size=outer_iter_size,
+                tile_size=id_to_iter[i].tile_size,
+                is_inner=False
+            ))
 
+    def iter_to_str(iter_):
+        if isinstance(iter_, TiledIter):
+            if iter_.is_inner:
+                return f"(i{iter_.iter_id}%{iter_.tile_size})"
+            else:
+                return f"floor(i{iter_.iter_id}/{iter_.tile_size})"
+        elif isinstance(iter_, Iter):
+            return f"i{iter_.iter_id}"
+        elif isinstance(iter_, ScalarIter):
+            return "0"
+        else:
+            raise ValueError(f"iter_={iter_} is invalid")
+
+    new_iters = other_iters + row_iter + comp_iter + in_group_iters + col_iter
     old_iter_names = [f"i{i}" for i in range(n_dim)]
-    new_iter_names = [name(i) for i in other_iters + row_iter + comp_iter + in_group_iters + col_iter]
-    # import pdb; pdb.set_trace()
+    new_iter_names = [iter_to_str(i) for i in new_iters]
+    
     reorder_schedule = isl.BasicMap(f"{{ [{','.join(old_iter_names)}] -> [{','.join(new_iter_names)}] }}")
     
     n_macro_iters = len(row_iter) + len(in_group_iters) + len(comp_iter) + len(col_iter)
+    n_use_comp = shape[comp_iter[0].iter_id]
 
-    n_use_comp = shape[comp_iter[0]]
-    return reorder_schedule, n_macro_iters, n_use_group, n_use_comp
+    # padding in-group dims
+    for iter_ in in_group_iters:
+
+        if isinstance(iter_, ScalarIter):
+            continue
+        elif isinstance(iter_, TiledIter):
+            ori_size = shape[iter_.iter_id]
+            padded_size = int(math.ceil(ori_size / iter_.tile_size) * iter_.tile_size)
+            assert padded_size >= ori_size, f"{iter_.iter_id} padded_size={padded_size} should be greater than ori_size={ori_size}"
+            if padded_size > ori_size:
+                op = loop_padding_dim(op, iter_.iter_id, padded_size)
+                logger.debug(f"padding {iter_.iter_id} from {ori_size} to {padded_size}")
+        elif isinstance(iter_, Iter):
+            ori_size = shape[iter_.iter_id]
+            padded_size = iter_.iter_size
+            logger.debug(f"{iter_.iter_id} padded_size={padded_size} ori_size={ori_size}")
+            assert padded_size >= ori_size, f"{iter_.iter_id} padded_size={padded_size} should be greater than ori_size={ori_size}"
+            if padded_size > ori_size:
+                op = loop_padding_dim(op, iter_.iter_id, padded_size)
+                logger.debug(f"padding {iter_.iter_id} from {ori_size} to {padded_size}")
+
+    
+
+    op = op.apply_schedule(reorder_schedule, skip_simplify=True)
+
+    new_shape = utils.get_box_hull_shape(op.domain)
+    logger.debug(f"{shape=}")
+    logger.debug(f"{new_shape=}")
+
+    return op, n_macro_iters, n_use_group, n_use_comp
 
 def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     """
@@ -138,33 +216,9 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     candidate_iters = get_candidate_iters(op)
     
     # step 2: try add candidate iters to group
-    reorder_schedule, n_macro_iters, n_use_group, n_use_comp = make_group_schedule(op, candidate_iters, cim_cfg)
+    op, n_macro_iters, n_use_group, n_use_comp = make_group_schedule(op, candidate_iters, cim_cfg)
     op.set_attr("n_use_group", n_use_group)
     op.set_attr("n_use_comp", n_use_comp)
-
-    # import pdb; pdb.set_trace()
-    # dominate_weight_iters = get_dominate_iters_of_pw_multi_aff(op.access_W.as_pw_multi_aff(), return_name=False)
-    # assert len(dominate_weight_iters)==2
-    # assert (n_dim - 1) in dominate_weight_iters
-    # assert (n_dim - 2) in dominate_weight_iters
-    # def make_reorder_schedule():
-    #     keep_iters = [f"i{i}" for i in range(0, n_dim - 4)]
-    #     group_iters = [f"i{i}" for i in [n_dim - 4, n_dim - 3]]
-    #     comp_iter = [f"i{n_dim - 2}"]
-    #     col_iter = [f"i{n_dim - 1}"]
-    #     row_iter = ["0"]
-    #     old_order = keep_iters + group_iters + comp_iter + col_iter
-    #     new_order = keep_iters + row_iter + comp_iter + group_iters + col_iter
-    #     reorder_schedule = isl.BasicMap(f"{{ [{','.join(old_order)}] -> [{','.join(new_order)}] }}")
-    #     return reorder_schedule
-    # reorder_schedule = make_reorder_schedule()
-    op = op.apply_schedule(reorder_schedule, skip_simplify=True)
-    # import pdb; pdb.set_trace()
-
-    # n_dim - 1: share input, one row
-    # n_dim - 2: share output, one column
-    # n_dim - 3: share input, macros
-    # n_dim - 4: share output, macros
 
     # padding macro dimensions
     n_dim = op.domain.dim(isl.dim_type.set)

@@ -97,7 +97,7 @@ def loop_padding_dim(op, dim_id, size):
 
     new_box_hull_shape = [*box_hull_shape]
     assert 0 <= dim_id and dim_id < n_dim
-    assert size >= box_hull_shape[dim_id]
+    assert size >= box_hull_shape[dim_id], f"{size=}, {box_hull_shape=}, {dim_id=}"
     new_box_hull_shape[dim_id] = size
 
     dim_names = [domain.get_dim_name(isl.dim_type.set, i) for i in range(n_dim)]
