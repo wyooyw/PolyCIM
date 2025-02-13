@@ -11,6 +11,7 @@ from polycim.passes.backend import backend_compile_and_profile_pass
 from polycim.utils.math import get_factors
 import os
 from functools import reduce
+from polycim.passes.loop_padding import loop_padding_dim
 
 def get_scalar_iters(domain):
     shape = utils.get_box_hull_shape(domain)
@@ -156,7 +157,7 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     #     reorder_schedule = isl.BasicMap(f"{{ [{','.join(old_order)}] -> [{','.join(new_order)}] }}")
     #     return reorder_schedule
     # reorder_schedule = make_reorder_schedule()
-    op = op.apply_schedule(reorder_schedule)
+    op = op.apply_schedule(reorder_schedule, skip_simplify=True)
     # import pdb; pdb.set_trace()
 
     # n_dim - 1: share input, one row
@@ -164,6 +165,12 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     # n_dim - 3: share input, macros
     # n_dim - 4: share output, macros
 
+    # padding macro dimensions
+    n_dim = op.domain.dim(isl.dim_type.set)
+    iter_col = n_dim - 1
+    op = loop_padding_dim(op, iter_col, cim_cfg.n_group_vcol)
+
+    # insert buffer access
     new_op = multi_level_buffer_insersion_pass(op, n_macro_iters)
     return new_op
 

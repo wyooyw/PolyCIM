@@ -2,6 +2,7 @@ import islpy as isl
 from polycim.op.base_operator import BasicOperator
 from polycim.config import get_config
 import polycim.utils.utils as utils
+import copy
 
 def loop_padding(op, _):
     
@@ -85,5 +86,43 @@ def loop_padding_to_box_all(op):
         access_W = op.access_W,
         history_domains = [*op.history_domains, domain_padding],
         history_schedules = [*op.history_schedules, {"padding":box_hull_shape}]
+    )
+    return op
+
+def loop_padding_dim(op, dim_id, size):
+    # op = shift_to_zero(op, skip_simplify=True)
+    domain = op.domain
+    n_dim = domain.dim(isl.dim_type.set)
+    box_hull_shape = utils.get_box_hull_shape(domain)
+
+    new_box_hull_shape = [*box_hull_shape]
+    assert 0 <= dim_id and dim_id < n_dim
+    assert size >= box_hull_shape[dim_id]
+    new_box_hull_shape[dim_id] = size
+
+    dim_names = [domain.get_dim_name(isl.dim_type.set, i) for i in range(n_dim)]
+    constraints = []
+    for i in range(n_dim):
+        constraint = f"0 <= {dim_names[i]} < {new_box_hull_shape[i]}"
+        constraints.append(constraint)
+
+    domain_padding_str = "{ [" + ", ".join(dim_names) + "]: " + " and ".join(constraints) + "}"
+    domain_padding = isl.BasicSet(domain_padding_str)
+    
+    op = BasicOperator(
+        domain = domain_padding,
+        access_I = op.access_I,
+        access_O = op.access_O,
+        access_W = op.access_W,
+        history_domains = [*op.history_domains, domain_padding],
+        history_schedules = [*op.history_schedules, {
+            "padding":{
+                "from": box_hull_shape,
+                "to": new_box_hull_shape,
+                "dim_id": dim_id,
+                "size": size
+            }
+        }],
+        attr = copy.deepcopy(op.attr)
     )
     return op
