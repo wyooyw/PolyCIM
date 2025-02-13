@@ -47,7 +47,8 @@ from polycim.codegen_.codegen_data_layout_convert import (
     gcc_compile_data_layout_convert_code
 )
 from polycim.cli.arguments import get_args
-
+from dataclasses import asdict
+import json
 execution_times = {}
 
 def timing_decorator(func):
@@ -662,18 +663,19 @@ def show_result(min_compute_times, min_compute_ops, cim_cfg, flops, is_print=Tru
     flops_per_cim_compute = flops / min_compute_times
     peak_flops_per_cim_compute = cim_cfg.n_comp * cim_cfg.n_group_vcol
     use_rate_percent = flops_per_cim_compute / peak_flops_per_cim_compute * 100
+    
+    result = OrderedDict()
+    result["cim_cfg"] = asdict(cim_cfg)
+    result["flops"] = flops
+    result["min_compute_times"] = min_compute_times
+    result["len(min_compute_ops)"] = len(min_compute_ops)
+    result["flops_per_cim_compute"] = flops_per_cim_compute
+    result["peak_flops_per_cim_compute"] = peak_flops_per_cim_compute
+    result["use_rate"] = use_rate_percent
 
-    s = f"{cim_cfg.n_comp=}, {cim_cfg.n_group_vcol=}\n"
-    s += f"min_compute_times: {min_compute_times}\n"
-    s += f"len(min_compute_ops): {len(min_compute_ops)}\n"
-    s += f"cim: {cim_cfg.n_comp} comp, {cim_cfg.n_group_vcol} group_vcol\n"
-    s += f"flops={flops}\n"
-    s += f"flops_per_cim_compute={flops_per_cim_compute}\n"
-    s += f"peak_flops_per_cim_compute={peak_flops_per_cim_compute}\n"
-    s += f"use_rate={use_rate_percent:.2f}%\n"
     if is_print:
-        print(s)
-    return s
+        print(json.dumps(result, indent=4))
+    return result
 
 # dump_index = 0
 def dump_schedules(origin_op, new_op, **kwargs):
@@ -783,12 +785,13 @@ def dump_op(save_dir, origin_op, min_compute_times, min_compute_ops, min_compute
             break
 
         # save result
-        result_str = show_result(min_compute_times, min_compute_ops, cim_cfg, flops, is_print=False)
+        result_json = show_result(min_compute_times, min_compute_ops, cim_cfg, flops, is_print=False)
         min_compute_op_info = min_compute_ops_info[op_idx]
-        result_str += f"min_compute_op_need_macros={min_compute_op_info.get('need_macros', None)}\n"
-        result_str += f"min_compute_op_padding_friendly={min_compute_op_info.get('padding_friendly', None)}\n"
-        with open(os.path.join(save_dir_solution, f"result.txt"), "w") as f:
-            f.write(result_str)
+        result_json["min_compute_op_need_macros"] = min_compute_op_info.get("need_macros", None)
+        result_json["min_compute_op_padding_friendly"] = min_compute_op_info.get("padding_friendly", None)
+        with open(os.path.join(save_dir_solution, f"result.json"), "w") as f:
+            json.dump(result_json, f, indent=4)
+
     print(f"op save to {save_dir}")
             
 
