@@ -318,7 +318,7 @@ def get_rank_key(base_combination):
             num_non_zero += sum(nonzero)
     return num_non_zero
 
-def select_bases(bases, operator):
+def select_bases(bases, operator, **kwargs):
     n_dim = operator.domain.dim(isl.dim_type.set)
     selected_bases = []
     
@@ -329,7 +329,7 @@ def select_bases(bases, operator):
     start_time = time.time()
 
     for i,combination in enumerate(base_combinations):
-        if satisfies_constraints(combination, operator):
+        if satisfies_constraints(combination, operator, **kwargs):
             rank_key = get_rank_key(combination)
             selected_bases.append((rank_key, combination))
     selected_bases = sorted(selected_bases, key=lambda x: x[0])
@@ -344,7 +344,7 @@ def select_bases(bases, operator):
     # print(f"{len(selected_bases)} selected bases from {len(bases)} bases")
     return selected_bases
 
-def satisfies_constraints(combination, operator):
+def satisfies_constraints(combination, operator, **kwargs):
     # Extract the coordinates from each item in the combination
     matrix = np.array([item.corrdinate for item in combination])
 
@@ -368,6 +368,35 @@ def satisfies_constraints(combination, operator):
     # Calculate the determinant to check if the matrix is invertible
     if np.linalg.det(matrix) == 0:
         return False
+    # return True
+    # filter by tiles
+    reuse_bases = [base for base in combination if base.reuse_array_id in (0,1)]
+    participate_skewing_dims = set()
+    for base in reuse_bases:
+        nonzero_dims = [i for i,corr in enumerate(base.corrdinate) if corr!=0]
+        if len(nonzero_dims) > 1:
+            participate_skewing_dims.update(nonzero_dims)
+    tile_sizes = kwargs["tile_sizes"]
+
+    cur_dim = 0
+    tile_check_is_valid = True
+    for i,tile_size in enumerate(tile_sizes):
+        if len(tile_size) > 1:
+            is_valid = False
+            for j in range(len(tile_size)):
+                _dim = cur_dim + j
+                if _dim in participate_skewing_dims:
+                    is_valid = True
+                    break
+            
+            if not is_valid:
+                tile_check_is_valid = False
+                break
+        
+        cur_dim += len(tile_size)
+
+    if not tile_check_is_valid:
+        return False
 
     return True
 
@@ -381,7 +410,7 @@ def affine_transform(operator, **kwargs):
     #  constraint1: for each array, at least one base is selected to reuse it.
     #  constraint2: the selected bases are linear independent
     # find all selection combinations
-    selected_bases_list = select_bases(bases, operator)
+    selected_bases_list = select_bases(bases, operator, **kwargs)
     # print(f"{kwargs['tile_sizes']=}")
     # print(f"{len(selected_bases_list)=}\n")
     # return []
