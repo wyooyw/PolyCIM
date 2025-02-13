@@ -20,6 +20,7 @@ def parse_explore_args(subparsers):
     parser.add_argument("--op-id", "-i", required=True, type=str, help="operator id")
     parser.add_argument("--config-path", "-c", required=True, type=str, help="config path")
     parser.add_argument("--output-path", "-o", required=True, type=str, help="output path")
+    parser.add_argument("--data-movement-full-vectorize", action="store_true", help="data movement full vectorize")
 
 def run_explore(args):
     args.output_path = to_abs_path(args.output_path)

@@ -4,7 +4,7 @@ from tqdm import tqdm
 import polycim.utils.utils as utils
 from polycim.op.base_operator import (AccessRelation, BasicOperator, DataMovement,
                            DataMovementOperator, TensorAccessRelation)
-
+from polycim.cli.arguments import get_args
 
 def pwaffs_to_map(affs):
     pw_aff_list = utils.make_pw_affs_to_aff_list(affs)
@@ -79,7 +79,17 @@ def tensorize_cim_compute(op):
 def vectorize_data_movement(data_movement):
     domain = data_movement.domain
     domain_size = domain.dim(isl.dim_type.set)
-    n_inner_level = 1
+
+    args = get_args()
+    if args.data_movement_full_vectorize:
+        if data_movement.type_ in ("I", "W"):
+            n_access_O_dim = data_movement.access_O.offsets.dim(isl.dim_type.out)
+            n_inner_level = n_access_O_dim
+        else:
+            n_access_I_dim = data_movement.access_I.offsets.dim(isl.dim_type.out)
+            n_inner_level = n_access_I_dim
+    else:
+        n_inner_level = 1
 
     outer_domain = domain.project_out(
         isl.dim_type.set, domain_size - n_inner_level, n_inner_level
