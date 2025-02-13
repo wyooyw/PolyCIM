@@ -32,6 +32,7 @@ class CodeGenerator:
 
     def codegen_special_settings(self, depth):
         use_group = self.op.attr["n_use_group"]
+        use_comp = self.op.attr["n_use_comp"]
         cim_cfg = get_config()
         assert (
             use_group > cim_cfg.n_group // 2 and use_group <= cim_cfg.n_group
@@ -59,7 +60,7 @@ class CodeGenerator:
                 depth=depth,
             ),
             CodeStmt(
-                code=f"SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, {cim_cfg.n_comp});", depth=depth
+                code=f"SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, {use_comp});", depth=depth
             ),
             CodeStmt(
                 code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 8);",

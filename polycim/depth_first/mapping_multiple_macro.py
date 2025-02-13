@@ -106,8 +106,8 @@ def make_group_schedule(op, candidate_iters, cim_cfg):
     
     n_macro_iters = len(row_iter) + len(in_group_iters) + len(comp_iter) + len(col_iter)
 
-
-    return reorder_schedule, n_macro_iters, n_use_group
+    n_use_comp = shape[comp_iter[0]]
+    return reorder_schedule, n_macro_iters, n_use_group, n_use_comp
 
 def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     """
@@ -138,8 +138,9 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     candidate_iters = get_candidate_iters(op)
     
     # step 2: try add candidate iters to group
-    reorder_schedule, n_macro_iters, n_use_group = make_group_schedule(op, candidate_iters, cim_cfg)
+    reorder_schedule, n_macro_iters, n_use_group, n_use_comp = make_group_schedule(op, candidate_iters, cim_cfg)
     op.set_attr("n_use_group", n_use_group)
+    op.set_attr("n_use_comp", n_use_comp)
 
     # import pdb; pdb.set_trace()
     # dominate_weight_iters = get_dominate_iters_of_pw_multi_aff(op.access_W.as_pw_multi_aff(), return_name=False)
