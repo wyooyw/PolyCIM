@@ -1,4 +1,5 @@
 import islpy as isl
+import time
 from polycim.utils.dominate import (
     get_dominate_iters_of_pw_multi_aff,
     get_non_dominate_iters_of_pw_multi_aff
@@ -23,6 +24,7 @@ from polycim.passes.multi_level_tiling import multi_level_splitting_combination
 from polycim.passes.reorder import reorder_outer
 import itertools
 from tqdm import tqdm
+from polycim.passes.buffer_mapping import memory_access_cost
 
 logger = get_logger(__name__)
 
@@ -344,12 +346,21 @@ def buffer_strategy_combination(op, n_macro_iters):
 
 def optimal_multi_level_buffer_insersion_search(op, n_macro_iters):
     count = 0
+    min_cost = float("inf")
+    best_op = None
+    begin_time = time.time()
     for new_op in buffer_strategy_combination(op, n_macro_iters):
         if memory_access_satisfy_constraint(new_op):
+            cost = memory_access_cost(new_op)
+            if cost < min_cost:
+                min_cost = cost
+                best_op = new_op
+                print(f"{count=}, {min_cost=}")
+            count += 1
+        if best_op is not None and time.time() - begin_time > 30:
             break
-        count += 1
     # import pdb; pdb.set_trace()
-    return new_op
+    return best_op
 
 def multi_level_buffer_insersion_pass(op, n_macro_iters, buffer_strategy):
     n_dim = op.domain.dim(isl.dim_type.set)
@@ -379,7 +390,8 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters, buffer_strategy):
         buffer_name = "O", 
         buffer_levels = buffer_strategy.output_buffer_level, 
         memory_names = buffer_strategy.output_memory_names,
-        buffer_is_partial_sum = buffer_strategy.output_is_partial_sum
+        buffer_is_partial_sum = buffer_strategy.output_is_partial_sum,
+        force_nondominate_iters = [n_dim - n_macro_iters + 1],
     )
     new_op, layout_convert_code_W = insert_single_buffer_multi_level(
         op = new_op, 
@@ -392,28 +404,28 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters, buffer_strategy):
     
     new_op.attr["n_tensorize_cim_compute_level"] = n_macro_iters - 1
 
-    print("weight:")
-    for data_movement in new_op.data_movement["W"]:
-        print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
-        print(f"{data_movement.level=}")
-        print(f"{data_movement.access_O=}")
-        print(f"{data_movement.access_I=}\n")
+    # print("weight:")
+    # for data_movement in new_op.data_movement["W"]:
+    #     print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
+    #     print(f"{data_movement.level=}")
+    #     print(f"{data_movement.access_O=}")
+    #     print(f"{data_movement.access_I=}\n")
     
-    # import pdb; pdb.set_trace()
+    # # import pdb; pdb.set_trace()
 
-    print("input:")
-    for data_movement in new_op.data_movement["I"]:
-        print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
-        print(f"{data_movement.level=}")
-        print(f"{data_movement.access_O=}")
-        print(f"{data_movement.access_I=}\n")
+    # print("input:")
+    # for data_movement in new_op.data_movement["I"]:
+    #     print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
+    #     print(f"{data_movement.level=}")
+    #     print(f"{data_movement.access_O=}")
+    #     print(f"{data_movement.access_I=}\n")
 
-    print("output:")
-    for data_movement in new_op.data_movement["O"]:
-        print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
-        print(f"{data_movement.level=}")
-        print(f"{data_movement.access_O=}")
-        print(f"{data_movement.access_I=}\n")
+    # print("output:")
+    # for data_movement in new_op.data_movement["O"]:
+    #     print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
+    #     print(f"{data_movement.level=}")
+    #     print(f"{data_movement.access_O=}")
+    #     print(f"{data_movement.access_I=}\n")
     
     # import pdb; pdb.set_trace()
     data_layout_convert_code = {

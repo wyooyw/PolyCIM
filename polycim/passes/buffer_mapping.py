@@ -890,7 +890,7 @@ def insert_single_buffer_multi_level(
 
     
     aligned_acc_rel_range_size = utils.get_box_hull_shape(aligned_acc_rel.range())
-    print(f"{buffer_name=}, {aligned_acc_rel_range_size=}")
+    # print(f"{buffer_name=}, {aligned_acc_rel_range_size=}")
     # import pdb; pdb.set_trace()
     compute_acc_rel = aligned_acc_rel
     data_movement_list = []
@@ -1131,14 +1131,19 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
 
 def memory_access_cost(op):
     bandwidth_factor = {
-        # ("global", "input_memory"): 4,
+        # input
+        ("global", "input_memory"): 1024,
         ("input_memory", "pim_input_reg_buffer"): 1024,
-        # ("pim_input_reg_buffer"): 1,
-        # ("global", "macro"): 4
+        # weight
+        ("global", "macro"): 1024,
+        # output
+        ("pim_output_reg_buffer", "output_memory"): 1024,
+        ("output_memory", "output_memory"): 1024,
+        ("output_memory", "global"): 1024,
     }
     total_cost = 0
     # cost of moving I and W
-    for buffer_name in ["I", "W"]:
+    for buffer_name in ["I", "W", "O"]:
         for datamove in op.data_movement[buffer_name]:
             # TODO: consider data type, int8 / int32
             # data_volumn = datamove.domain.count_val()
@@ -1153,18 +1158,21 @@ def memory_access_cost(op):
             outer_domain = domain.project_out(
                 isl.dim_type.set, domain_size - n_inner_level, n_inner_level
             )
-            outer_domain_time = outer_domain.count_val()
+            outer_domain_time = outer_domain.count_val().get_num_si()
 
             access_O_sizes = [
-                int(str(datamove.access_O.offsets.range().dim_max_val(i)))
+                int(str(datamove.access_O.offsets.range().dim_max_val(i))) + 1
                 for i in range(n_access_O_dim)
             ]
             access_I_sizes = [
-                int(str(datamove.access_I.offsets.range().dim_max_val(i)))
+                int(str(datamove.access_I.offsets.range().dim_max_val(i))) + 1
                 for i in range(n_access_I_dim)
             ]
-            assert access_O_sizes == access_I_sizes[n_access_I_dim - n_inner_level :]
-            tensorize_data_volumn = reduce(lambda x, y: x * y, access_O_sizes)
+            if isinstance(datamove, PartialSumDataMovement):
+                import pdb; pdb.set_trace()
+                pass
+            tensorize_data_volumn_from_O = reduce(lambda x, y: x * y, access_O_sizes)
+            tensorize_data_volumn = tensorize_data_volumn_from_O
 
             src_memory_name = datamove.access_I.memory_name
             dst_memory_name = datamove.access_O.memory_name
@@ -1271,7 +1279,7 @@ def memory_access_satisfy_constraint(op):
         size_limit = buffer_type_to_size[memory_name]
         if use_size > size_limit:
             satisfy = False
-            print(f"Memory not satisfy! {memory_name=}, {use_size=}, {size_limit=}")
+            logger.debug(f"Memory not satisfy! {memory_name=}, {use_size=}, {size_limit=}")
             break
     # import pdb; pdb.set_trace()
     return satisfy
