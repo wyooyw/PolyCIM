@@ -9,13 +9,18 @@ from tqdm import tqdm
 
 import polycim.utils.utils as utils
 from polycim.op.base_operator import (AccessRelation, BasicOperator, DataMovement,
-                           DataMovementOperator)
+                           DataMovementOperator, PartialSumDataMovement)
 from polycim.config import get_memory_sizes
 from polycim.utils.utils import (get_box_hull_shape, rename_all_dims_for_basic_map,
                          rename_all_dims_for_basic_set,
                          rename_out_dims_for_basic_map)
 from polycim.codegen_.codegen_data_layout_convert import data_layout_convert_codegen
 from polycim.utils.logger import get_logger
+from polycim.utils.dominate import (
+    get_dominate_iters_of_pw_multi_aff,
+    get_dominate_iters_of_pw_multi_aff_per_out,
+    get_non_dominate_iters_of_pw_multi_aff
+)
 
 logger = get_logger(__name__)
 
@@ -231,55 +236,6 @@ def get_pieces_from_pw_multi_aff(pw_multi_aff):
     record = []
     pw_multi_aff.foreach_piece(lambda x, y: record.append((x, y)))
     return record
-
-
-def get_dominate_iters_of_pw_multi_aff_per_out(pw_multi_aff, return_name=True):
-    """
-    {[i0,i1,..,ik] -> [f(i1,i2)]}
-    return {i1,i2}
-    """
-    dim_names = [
-        pw_multi_aff.get_dim_name(isl.dim_type.in_, i)
-        for i in range(pw_multi_aff.dim(isl.dim_type.in_))
-    ]
-    n_dim_range = pw_multi_aff.dim(isl.dim_type.out)
-
-    dominate_dims = []
-    for i in range(n_dim_range):
-        dominate_dims.append(set())
-
-    for cond, multi_aff in get_pieces_from_pw_multi_aff(pw_multi_aff):
-        for dim in range(n_dim_range):
-            aff = multi_aff.get_at(dim)
-            for i in range(aff.dim(isl.dim_type.in_)):
-                if aff.involves_dims(isl.dim_type.in_, i, 1):
-                    dominate_dims[dim].add(dim_names[i] if return_name else i)
-
-    return dominate_dims
-
-
-def get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name=True):
-    """
-    {[i0,i1,..,ik] -> [f(i1,i2)]}
-    return {i1,i2}
-    """
-    dim_names = [
-        pw_multi_aff.get_dim_name(isl.dim_type.in_, i)
-        for i in range(pw_multi_aff.dim(isl.dim_type.in_))
-    ]
-    n_dim_range = pw_multi_aff.dim(isl.dim_type.out)
-
-    dominate_dims = set()
-
-    for cond, multi_aff in get_pieces_from_pw_multi_aff(pw_multi_aff):
-        for dim in range(n_dim_range):
-            aff = multi_aff.get_at(dim)
-            for i in range(aff.dim(isl.dim_type.in_)):
-                # coef = aff.get_coefficient_val(isl.dim_type.in_, i)
-                if aff.involves_dims(isl.dim_type.in_, i, 1):
-                    dominate_dims.add(dim_names[i] if return_name else i)
-
-    return dominate_dims
 
 
 def get_local_buffer_axis_mapping(domain, acc_rel, level):

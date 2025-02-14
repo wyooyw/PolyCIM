@@ -1,7 +1,7 @@
 import islpy as isl
-from polycim.depth_first.count_minimal_macro import (
-    get_non_dominate_iters_of_pw_multi_aff,
+from polycim.utils.dominate import (
     get_dominate_iters_of_pw_multi_aff,
+    get_non_dominate_iters_of_pw_multi_aff
 )
 import polycim.utils.utils as utils
 from polycim.passes.buffer_mapping import insert_single_buffer_multi_level
