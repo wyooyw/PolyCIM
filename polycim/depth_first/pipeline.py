@@ -815,11 +815,12 @@ def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_we
         op = config["op"]
         flops = int(str(op.domain.count_val()))
         show_result(min_compute_times, min_compute_ops, cim_config, flops)
-
+        
+        dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_config, flops)        
+        
         if enable_mapping_multiple_macro:
             new_op = mapping_multiple_macro(min_compute_ops[0], cim_config, enable_weight_rewrite=enable_weight_rewrite)
         # print("\n")
-        dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_config, flops)        
         
         # save data layout convert code
         data_layout_convert_code = new_op.attr["data_layout_convert_code"]
