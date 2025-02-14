@@ -4,7 +4,11 @@ from polycim.utils.dominate import (
     get_non_dominate_iters_of_pw_multi_aff
 )
 import polycim.utils.utils as utils
-from polycim.passes.buffer_mapping import insert_single_buffer_multi_level
+from polycim.passes.buffer_mapping import(
+    insert_single_buffer_multi_level, 
+    buffer_level_combination,
+    memory_access_satisfy_constraint
+)
 from polycim.codegen_.codegen_cimdsl import codegen_pass
 from polycim.passes.tensorize import tensorize_pass
 from polycim.passes.backend import backend_compile_and_profile_pass
@@ -14,6 +18,11 @@ from functools import reduce
 from polycim.passes.loop_padding import loop_padding_dim
 import math
 from polycim.utils.logger import get_logger
+from polycim.op.base_operator import PartialSumDataMovement
+from polycim.passes.multi_level_tiling import multi_level_splitting_combination
+from polycim.passes.reorder import reorder_outer
+import itertools
+from tqdm import tqdm
 
 logger = get_logger(__name__)
 
@@ -226,31 +235,126 @@ def mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs):
     op = loop_padding_dim(op, iter_col, cim_cfg.n_group_vcol)
 
     # insert buffer access
-    new_op = multi_level_buffer_insersion_pass(op, n_macro_iters)
+    new_op = optimal_multi_level_buffer_insersion_search(op, n_macro_iters)
     return new_op
 
-def multi_level_buffer_insersion_pass(op, n_macro_iters):
+
+@dataclass
+class BufferStrategy:
+    input_memory_names: list[str]
+    output_memory_names: list[str]
+    weight_memory_names: list[str]
+    input_buffer_level: tuple[int, int]
+    output_buffer_level: tuple[int, int]
+    weight_buffer_level: tuple[int, int]
+    output_is_partial_sum: list[bool]
+
+def buffer_strategy_combination(op, n_macro_iters):
+
     n_dim = op.domain.dim(isl.dim_type.set)
 
+    # Memory names are fixed
     input_memory_names = ["global", "input_memory", "pim_input_reg_buffer"]
     output_memory_names = ["global", "output_memory", "pim_output_reg_buffer"]
+    # output_memory_names = ["global", "output_memory", "output_memory", "pim_output_reg_buffer"]
     weight_memory_names = ["global", "macro"]
 
-    """
-    example for 'level':
-    // level 0
-    for i0
-        // level 1
-        for i_1
-        ...
-            // level n-1
-            for i_{n-1}
-                // level n
-    """
+    # Tiling
+    fix_axis = [n_dim - i - 1 for i in range(n_macro_iters)]
+    tiled_op_list = multi_level_splitting_combination(
+        op,
+        max_splitting_level=2, 
+        not_splitting=fix_axis
+    )
+    for op_tiled in tqdm(tiled_op_list, desc="Tiling"):
+        # Reorder
+        reordered_op_list = reorder_outer(op_tiled, inner_level=n_macro_iters)
+        for op_reordered in tqdm(reordered_op_list, desc="Reorder"):
     
-    input_buffer_level = (0, n_dim - (n_macro_iters - 1)) # minus 1 is the row dimension
-    output_buffer_level = (0, n_dim - (n_macro_iters - 1))
-    weight_buffer_level = (0,)
+            # Memory level combination
+            new_n_dim = op_reordered.domain.dim(isl.dim_type.set)
+            I_buffer_level_list = buffer_level_combination(op_reordered, "I", 2, level_min=0, level_max=new_n_dim - n_macro_iters)
+            W_buffer_level_list = buffer_level_combination(op_reordered, "W", 1, level_min=0, level_max=new_n_dim - n_macro_iters)
+            O_buffer_level_list = buffer_level_combination(op_reordered, "O", 2, level_min=0, level_max=new_n_dim - n_macro_iters)
+
+            # Conbine
+            weight_buffer_level = (W_buffer_level_list[-1][0],)
+            buffer_level_combines = list(itertools.product(I_buffer_level_list, O_buffer_level_list))
+            for input_buffer_level, output_buffer_level in buffer_level_combines:
+                if output_buffer_level[-1] != new_n_dim - n_macro_iters:
+                    continue
+
+                # output partial sum
+                n_outer_iters = new_n_dim - n_macro_iters
+                share_output_iter = get_non_dominate_iters_of_pw_multi_aff(op_reordered.access_O.as_pw_multi_aff(), return_name=False)
+                share_output_iters_group = [i for i in share_output_iter if i >= n_outer_iters]
+                share_output_iters_time = [i for i in share_output_iter if i < n_outer_iters]
+                scalar_iters = get_scalar_iters(op_reordered.domain)
+                
+                # filter some output iters
+                share_output_iters_time = list(filter(lambda x: x not in scalar_iters, share_output_iters_time))
+                share_output_iters_group = list(filter(lambda x: x not in scalar_iters, share_output_iters_group))
+                
+                iter_comp = new_n_dim - n_macro_iters + 1
+                share_output_iters_group = list(filter(lambda x: x != iter_comp, share_output_iters_group))
+
+                new_shape = utils.get_box_hull_shape(op_reordered.domain)
+
+                # import pdb; pdb.set_trace()
+                
+                assert len(share_output_iters_group) == 0, f"Currently, not support partial sum between groups. It will be supported later."
+                assert len(share_output_iters_time) <= 2, f"{share_output_iters_time=}"
+
+                if any([not (output_buffer_level[0] < i and i < output_buffer_level[1])
+                        for i in share_output_iters_time]):
+                    continue
+
+                assert len(share_output_iters_time) == len(set(share_output_iters_time)), f"{share_output_iters_time=}"
+                share_output_iters_time = sorted(share_output_iters_time)
+                new_output_buffer_level = [
+                    output_buffer_level[0],
+                    *share_output_iters_time,
+                    output_buffer_level[1]
+                ]
+                new_output_is_partial_sum = [
+                    False, 
+                    *([True] * len(share_output_iters_time)), 
+                    False
+                ]
+                new_output_memory_names = [
+                    output_memory_names[0], 
+                    *(["output_memory"] * (len(share_output_iters_time) + 1)),
+                    output_memory_names[2]
+                ]
+                
+                # Buffer strategy
+                buffer_strategy = BufferStrategy(
+                    input_memory_names=input_memory_names,
+                    output_memory_names=new_output_memory_names,
+                    weight_memory_names=weight_memory_names,
+                    input_buffer_level = input_buffer_level,
+                    output_buffer_level = new_output_buffer_level,
+                    weight_buffer_level = weight_buffer_level,
+                    output_is_partial_sum = new_output_is_partial_sum
+                )
+                new_op = multi_level_buffer_insersion_pass(op_reordered, n_macro_iters, buffer_strategy)
+                yield new_op
+
+    raise ValueError("Can't find valid buffer strategy")
+
+def optimal_multi_level_buffer_insersion_search(op, n_macro_iters):
+    count = 0
+    for new_op in buffer_strategy_combination(op, n_macro_iters):
+        if memory_access_satisfy_constraint(new_op):
+            break
+        count += 1
+    # import pdb; pdb.set_trace()
+    return new_op
+
+def multi_level_buffer_insersion_pass(op, n_macro_iters, buffer_strategy):
+    n_dim = op.domain.dim(isl.dim_type.set)
+
+    # buffer_strategy = buffer_strategy_optimal(op, n_macro_iters)
 
     # n_macro_iters: [row, comp, group0,...,groupk, col]
     n_group_iters = n_macro_iters - 3
@@ -258,44 +362,58 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters):
     comp_iter = [n_dim - n_macro_iters + 1]
     input_layout_inner_dims = group_iters + comp_iter
 
-    shape = utils.get_box_hull_shape(op.domain)
     n_dim = op.domain.dim(isl.dim_type.set)
-    # import pdb; pdb.set_trace()
+
     new_op = op.convex_hull()  # Is this safe?
+    # op, buffer_name, buffer_levels, memory_names
     new_op, layout_convert_code_I = insert_single_buffer_multi_level(
-        new_op, "I", input_buffer_level, input_memory_names, 
-        # force_dominate_iters=[n_dim-2],
+        op = new_op, 
+        buffer_name = "I", 
+        buffer_levels = buffer_strategy.input_buffer_level, 
+        memory_names = buffer_strategy.input_memory_names, 
         force_nondominate_iters = [n_dim-1],
         force_layout_inner_iters = input_layout_inner_dims
     )
     new_op, layout_convert_code_O = insert_single_buffer_multi_level(
-        new_op, "O", output_buffer_level, output_memory_names
+        op = new_op, 
+        buffer_name = "O", 
+        buffer_levels = buffer_strategy.output_buffer_level, 
+        memory_names = buffer_strategy.output_memory_names,
+        buffer_is_partial_sum = buffer_strategy.output_is_partial_sum
     )
     new_op, layout_convert_code_W = insert_single_buffer_multi_level(
-        new_op, "W", weight_buffer_level, weight_memory_names,
+        op = new_op, 
+        buffer_name = "W", 
+        buffer_levels = buffer_strategy.weight_buffer_level, 
+        memory_names = buffer_strategy.weight_memory_names,
         force_inner_level=n_macro_iters
     )
     new_op = new_op.convex_hull()
     
     new_op.attr["n_tensorize_cim_compute_level"] = n_macro_iters - 1
 
-    # print("weight:")
-    # for data_movement in new_op.data_movement["W"]:
-    #     print(f"{data_movement.level=}")
-    #     print(f"{data_movement.access_O=}")
-    #     print(f"{data_movement.access_I=}\n")
+    print("weight:")
+    for data_movement in new_op.data_movement["W"]:
+        print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
+        print(f"{data_movement.level=}")
+        print(f"{data_movement.access_O=}")
+        print(f"{data_movement.access_I=}\n")
+    
+    # import pdb; pdb.set_trace()
 
-    # print("input:")
-    # for data_movement in new_op.data_movement["I"]:
-    #     print(f"{data_movement.level=}")
-    #     print(f"{data_movement.access_O=}")
-    #     print(f"{data_movement.access_I=}\n")
+    print("input:")
+    for data_movement in new_op.data_movement["I"]:
+        print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
+        print(f"{data_movement.level=}")
+        print(f"{data_movement.access_O=}")
+        print(f"{data_movement.access_I=}\n")
 
-    # print("output:")
-    # for data_movement in new_op.data_movement["O"]:
-    #     print(f"{data_movement.level=}")
-    #     print(f"{data_movement.access_O=}")
-    #     print(f"{data_movement.access_I=}\n")
+    print("output:")
+    for data_movement in new_op.data_movement["O"]:
+        print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
+        print(f"{data_movement.level=}")
+        print(f"{data_movement.access_O=}")
+        print(f"{data_movement.access_I=}\n")
     
     # import pdb; pdb.set_trace()
     data_layout_convert_code = {
@@ -304,7 +422,7 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters):
         "W": layout_convert_code_W
     }
     new_op.attr["data_layout_convert_code"] = data_layout_convert_code
-
+    # import pdb; pdb.set_trace()
     return new_op
 
 def mapping_multiple_macro_disable_weight_rewrite(op, cim_cfg, **kwargs):

@@ -2,8 +2,13 @@ from polycim.config import get_memory_names
 from dataclasses import dataclass
 import copy
 import islpy as isl
-from polycim.op.base_operator import (DataMovement, DataMovementOperator,
-                           TensorAccessRelation)
+from polycim.op.base_operator import (
+    DataMovement, 
+    PartialSumDataMovement,
+    DataMovementOperator,
+    TensorAccessRelation,
+    AccessRelation
+)
 
 @dataclass
 class BufferInfo:
@@ -19,18 +24,32 @@ def buffer_info_to_dict(buffer_info):
     }
 
 def get_name_and_shape(access):
-    sizes = access.sizes.range()
-    sizes = [sizes.dim_max_val(i) for i in range(sizes.dim(isl.dim_type.set))]
 
-    offsets = access.offsets.range()
-    offsets = [offsets.dim_max_val(i) for i in range(offsets.dim(isl.dim_type.set))]
+    if isinstance(access, TensorAccessRelation):
 
-    shape = [sizes + offsets for sizes, offsets in zip(sizes, offsets)]
+        sizes = access.sizes.range()
+        sizes = [sizes.dim_max_val(i) for i in range(sizes.dim(isl.dim_type.set))]
 
-    # Val -> int
-    shape = [shape[i].get_num_si() for i in range(len(shape))]
+        offsets = access.offsets.range()
+        offsets = [offsets.dim_max_val(i) for i in range(offsets.dim(isl.dim_type.set))]
 
-    name = access.offsets.get_tuple_name(isl.dim_type.out)
+        shape = [sizes + offsets for sizes, offsets in zip(sizes, offsets)]
+
+        # Val -> int
+        shape = [shape[i].get_num_si() for i in range(len(shape))]
+
+        name = access.offsets.get_tuple_name(isl.dim_type.out)
+
+    elif isinstance(access, AccessRelation):
+
+        offsets = access.offsets.range()
+        shape = [offsets.dim_max_val(i) + 1 for i in range(offsets.dim(isl.dim_type.set))]
+
+        name = access.offsets.get_tuple_name(isl.dim_type.out)
+
+    else:
+        raise ValueError(f"{access} is not a valid access relation")
+
     return name, shape
 
 class BufferManager:
@@ -89,7 +108,7 @@ class BufferManager:
 
         for buffer in ["I", "W", "O"]:
             for data_movement in op.data_movement[buffer]:
-                assert type(data_movement) == DataMovement
+                assert type(data_movement) in [DataMovement, PartialSumDataMovement]
 
                 name, shape = get_name_and_shape(data_movement.access_I)
                 _update_shape(name, shape)
@@ -108,6 +127,10 @@ class BufferManager:
         #         name=name, shape=shape, memory_name=memory_name
         #     )
         # return buffer_name_to_info
+        # import pdb; pdb.set_trace()
+
+    def get_buffer_by_name(self, name):
+        return self.buffer_name_to_info[name]
 
     def get_buffers_by_memory_name(self, memory_name):
         return [buffer_info for buffer_info in self.buffer_name_to_info.values() if buffer_info.memory_name == memory_name]

@@ -45,11 +45,15 @@ def save_and_convert(exe_path, data_path, converted_data_path, data_np):
             ("C1", 3136 // 4), ("C2", 784 // 4),
         ]
     ],
-    *[("configs/c32b64.json", op_id, cim_count)
-        for op_id, cim_count in [
-            ("C1", 1568), ("C2", 392), ("C4", 28), ("C7", 7), ("C12", 98)
-        ]
-    ],
+    # *[("configs/c32b64.json", op_id, cim_count)
+    #     for op_id, cim_count in [
+    #         # small kernels
+    #         ("C1", 1568), ("C2", 392), ("C4", 28), ("C7", 7), ("C12", 98),
+    #         # large kernels
+    #         ("C3", 196), ("C5", 56), ("C6", 14), ("C8", 1176),
+    #         ("C9", 21), ("C10", 34496), ("C11", 56), ("C13", 224),
+    #     ]
+    # ],
     *[("configs/g2m2c32b64.json", op_id, cim_count)
         for op_id, cim_count in [
             ("C1", 1568 // 2), ("C2", 392 // 2), ("C4", 28 // 2), ("C7", ceil(7, 2)), ("C12", 98 // 2) 
@@ -60,6 +64,15 @@ def save_and_convert(exe_path, data_path, converted_data_path, data_np):
             ("C1", ceil(1568, 4)), ("C2", ceil(392, 4)), ("C4", ceil(28, 4)), ("C7", ceil(7, 4)), ("C12", -1) 
         ]
     ],
+    # *[("configs/c64b64.json", op_id, cim_count)
+    #     for op_id, cim_count in [
+    #         # small kernels
+    #         ("C1", 1568), ("C2", 392), ("C4", 28), ("C7", 7), ("C12", 98),
+    #         # large kernels
+    #         ("C3", 98), ("C5", 28), ("C6", 7), ("C8", 784),
+    #         ("C9", 14), ("C10", 17248), ("C11", 28), ("C13", 112),
+    #     ]
+    # ],
 ])
 def test_result(cim_cfg_path, op_id, cim_count):
     cim_cfg_path = os.path.join(os.path.dirname(__file__), cim_cfg_path)
@@ -67,13 +80,14 @@ def test_result(cim_cfg_path, op_id, cim_count):
 
     with tempfile.TemporaryDirectory() as temp_dir:
 
-        # temp_dir = ".temp"
-        # os.makedirs(temp_dir, exist_ok=True)
+        temp_dir = ".temp"
+        os.makedirs(temp_dir, exist_ok=True)
         subprocess.run([
             "polycim", "explore",
             "--op-id", op_id,
             "--config-path", cim_cfg_path,
-            "--output-path", temp_dir
+            "--output-path", temp_dir,
+            "--data-movement-full-vectorize"
         ], check=True)
         
         op_dir = os.path.join(temp_dir, op_id, "0")
@@ -97,12 +111,13 @@ def test_result(cim_cfg_path, op_id, cim_count):
         cim_mask_data = bytearray(cim_mask_np)
         
         input_shape = origin_operand_shape["I"]
-        input_np = np.random.randint(-2, 3, size=input_shape, dtype=np.int8)
-        # input_np = np.ones(input_shape, dtype=np.int8)
+        # input_np = np.random.randint(-2, 3, size=input_shape, dtype=np.int8)
+        input_np = np.ones(input_shape, dtype=np.int8)
 
         weight_shape = origin_operand_shape["W"]
-        weight_np = np.random.randint(-2, 3, size=weight_shape, dtype=np.int8)
+        # weight_np = np.random.randint(-2, 3, size=weight_shape, dtype=np.int8)
         # weight_np = np.ones(weight_shape, dtype=np.int8)
+        weight_np = np.arange(1, 28, dtype=np.int8).reshape(weight_shape)
 
         # convert data
         I_exe_path = os.path.join(op_dir, "convert_I.o")
@@ -182,7 +197,28 @@ def test_result(cim_cfg_path, op_id, cim_count):
 
         
 if __name__ == "__main__":
-    # test_result("configs/c32b64.json", "C2", 392)
+    # test_result("configs/c32b64.json", "C3", 196)
+    # test_result("configs/c32b64.json", "C5", 56)
+    # test_result("configs/c32b64.json", "C6", 14)
+    # test_result("configs/c32b64.json", "C8", 1176)
+    # test_result("configs/c32b64.json", "C9", 21)
+    # test_result("configs/c32b64.json", "C10", 34496) # this has multiple reduce axis
+    # test_result("configs/c32b64.json", "C11", 56)# this has multiple reduce axis
+    # test_result("configs/c32b64.json", "C13", 224)
+    test_result("configs/c32b64.json", "test3d", -1)
+
+    # test_result("configs/c64b64.json", "C3", 98)
+    # test_result("configs/c64b64.json", "C5", 28)
+    # test_result("configs/c32b64.json", "C6", 14)
+    # test_result("configs/c32b64.json", "C8", 1176)
+    # test_result("configs/c32b64.json", "C9", 21)
+    # test_result("configs/c32b64.json", "C10", 34496) # this has multiple reduce axis
+    # test_result("configs/c32b64.json", "C11", 56)# this has multiple reduce axis
+    # test_result("configs/c32b64.json", "C13", 224)
+
+
+    # ("C9", 21), ("C10", 34496), ("C11", 56), ("C13", 336),
+
     # test_result("configs/c32b64.json", "C4", 28)
     # test_result("configs/c32b64.json", "C7", 7)
     # test_result("configs/c32b64.json", "C12", 98)
@@ -190,8 +226,8 @@ if __name__ == "__main__":
     # test_result("configs/g2m2c32b64.json", "C2", 196)
     # test_result("configs/g2m2c32b64.json", "C4", 14)
     # test_result("configs/g2m2c32b64.json", "C7", 4)
-    test_result("configs/g4m4c32b64.json", "C12", -1)
+    # test_result("configs/g4m4c32b64.json", "C12", -1)
     # test_result("configs/g2m2c32b64.json", "C12", 49)
     
     # test_result("configs/c32b64.json", "d2h4", -1)
-    # pass
+    pass

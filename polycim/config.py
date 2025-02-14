@@ -70,7 +70,7 @@ def get_config():
         n_macro=n_macro
     )
 
-def get_memory_sizes():
+def get_memory_sizes(use_capital_name=False):
     """
     "memory_list": [
         {
@@ -89,8 +89,11 @@ def get_memory_sizes():
     memory_list = config["memory_list"]
     memory_type_to_sizes = {}
     for memory in memory_list:
-        big_name = "__"+memory["name"].upper()+"__"
-        memory_type_to_sizes[big_name] = memory["addressing"]["size_byte"]
+        if use_capital_name:
+            name = "__"+memory["name"].upper()+"__"
+        else:
+            name = memory["name"].lower()
+        memory_type_to_sizes[name] = memory["addressing"]["size_byte"]
     return memory_type_to_sizes
 
 def get_memory_base(memory_name):

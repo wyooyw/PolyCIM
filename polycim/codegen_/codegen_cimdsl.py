@@ -6,8 +6,12 @@ from tqdm import tqdm
 import math
 
 import polycim.utils.utils as utils
-from polycim.op.base_operator import (DataMovement, DataMovementOperator,
-                           TensorAccessRelation)
+from polycim.op.base_operator import (
+    DataMovement, 
+    PartialSumDataMovement, 
+    DataMovementOperator,
+    TensorAccessRelation
+)
 from polycim.config import get_config
 from polycim.codegen_.codegen import (
     CodeStmt, alloc_unique_var, alloc_unique_stmt
@@ -21,14 +25,17 @@ class CodeGenerator:
         self.name_to_op = name_to_op
         self.buffer_manager = BufferManager()
 
-    def codegen_special_defs(self, depth):
-        with open(
+    def codegen_includes(self, depth):
+        include_list = [
             "/home/wangyiou/project/CIMCompiler/cim_compiler/op/common/def_special_regs.cim",
-            "r",
-        ) as f:
-            special_reg_defs = CodeStmt(code=f.read(), depth=depth)
-        special_reg_defs = [special_reg_defs]
-        return special_reg_defs
+            "/home/wangyiou/project/CIMCompiler/cim_compiler/op/common/simd.cim",
+        ]
+        include_code_list = []
+        for include_path in include_list:
+            with open(include_path, "r") as f:
+                include_code = CodeStmt(code=f.read(), depth=depth)
+            include_code_list.append(include_code)
+        return include_code_list
 
     def codegen_special_settings(self, depth):
         use_group = self.op.attr["n_use_group"]
@@ -71,7 +78,7 @@ class CodeGenerator:
                 depth=depth,
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 32);",
+                code="SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 8);",
                 depth=depth,
             ),
         ]
@@ -108,6 +115,15 @@ class CodeGenerator:
             code_list.append(code)
 
         return code_list
+
+    def codegen_const_buffer_define(self, depth):
+        zero_scalar_buffer_name = "zero_scalar_buffer"
+        code = CodeStmt(
+            code=f"{zero_scalar_buffer_name} = Buffer(<1>, int8, __INPUT_MEMORY__);",
+            depth=depth,
+        )
+        self.buffer_manager.add_buffer(zero_scalar_buffer_name, [1], "input_memory")
+        return [code]
 
     def codegen_cimset(self, depth):
         cim_cfg = get_config()
@@ -399,6 +415,7 @@ class CodeGenerator:
                 call_args.append(str(arg.int_get_val()))
 
         op = self.name_to_op[call_name]
+
         if type(op) == DataMovement:
 
             call_code = self.codegen_call_data_movement(op, call_args, depth)
@@ -407,12 +424,47 @@ class CodeGenerator:
 
             call_code = self.codegen_call_cim_compute(op, call_args, depth)
 
+        elif type(op) == tuple:
+            op, name = op
+
+            if name == "PartialSum.clear":
+                call_code = self.codegen_call_partial_sum_clear(op, call_args, depth)
+            elif name == "PartialSum.sum":
+                call_code = self.codegen_call_partial_sum_sum(op, call_args, depth)
+            else:
+                raise NotImplementedError(f"{name=}")
+
         else:
+
             call_args_str = ",".join(call_args)
             call_code = CodeStmt(code=f"{call_name}({call_args_str})", depth=depth)
             call_code = [call_code]
 
         return call_code
+
+    def codegen_call_partial_sum_clear(self, op, call_args, depth):
+        assert type(op) == PartialSumDataMovement
+
+        code_list_O, slice_var_O = self.codegen_tensor_access_from_pw_multi_aff(
+            op.access_O, call_args, depth
+        )
+        zero_scalar_var = "zero_scalar_buffer"
+        clear_code = CodeStmt(code=f"SIMD(VSET, {slice_var_O}, {zero_scalar_var}, {slice_var_O});", depth=depth)
+        return [*code_list_O, clear_code]
+
+    def codegen_call_partial_sum_sum(self, op, call_args, depth):
+        assert type(op) == PartialSumDataMovement
+
+        output_call_args = call_args[:op.level] + call_args[op.level+1:]
+        code_list_O, slice_var_O = self.codegen_tensor_access_from_pw_multi_aff(
+            op.access_O, output_call_args, depth
+        )
+        code_list_I, slice_var_I = self.codegen_tensor_access_from_pw_multi_aff(
+            op.access_I, call_args, depth
+        )
+        sum_code = CodeStmt(code=f"SIMD(VVADD, {slice_var_O}, {slice_var_I}, {slice_var_O});", depth=depth)
+        return [*code_list_O, *code_list_I, sum_code]
+        
 
     def codegen_call_data_movement(self, op, call_args, depth):
         assert type(op) == DataMovement
@@ -536,19 +588,21 @@ class CodeGenerator:
         return [main_begin], [main_end]
 
     def codegen_str(self, node, indent_unit=4):
-        special_reg_defs = self.codegen_special_defs(0)
+        includes = self.codegen_includes(0)
         special_reg_settings = self.codegen_special_settings(1)
         main_begin, main_end = self.codegen_main_and_end(0)
         cimset_code_list = self.codegen_cimset(1)
         buffer_define_code_list = self.codegen_buffer_define(1)
+        const_buffer_define_code_list = self.codegen_const_buffer_define(1)
         execute_code_list = self.codegen(node, 1)
         code_str = ""
         for code_stmt in (
-            special_reg_defs
+            includes
             + main_begin
             + special_reg_settings
             + cimset_code_list
             + buffer_define_code_list
+            + const_buffer_define_code_list
             + execute_code_list
             + main_end
         ):
@@ -593,19 +647,21 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
 
     sorted_levels = sorted(list(level_to_assign_schedule.keys()))
     print(f"{sorted_levels=}")
+    # import pdb; pdb.set_trace()
 
     # insert dims
     for idx, level in enumerate(sorted_levels):
         assign_schedules_at_level = level_to_assign_schedule[level]
-
+        scalar_dim_idx = 0
         # insert constant dims for assign schedules at current level
         for i in range(len(assign_schedules_at_level)):
             assign_schedule, type_ = assign_schedules_at_level[i]
             if type_ in ["I", "W"]:
                 assign_schedule = insert_const_dim_in_range(
-                    assign_schedule, level + idx, i
+                    assign_schedule, level + idx, scalar_dim_idx
                 )
                 assign_schedules_at_level[i] = [assign_schedule, type_]
+                scalar_dim_idx += 1
 
         # insert dims for other schedule
         const = len(assign_schedules_at_level)
@@ -615,23 +671,28 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
             assign_schedules_at_other_level = level_to_assign_schedule[other_level]
             for i in range(len(assign_schedules_at_other_level)):
                 assign_schedules_at_other_level[i][0] = insert_const_dim_in_range(
-                    assign_schedules_at_other_level[i][0], level + idx, const
+                    assign_schedules_at_other_level[i][0], level + idx, scalar_dim_idx
                 )
+                # scalar_dim_idx += 1
 
         compute_schedule = insert_const_dim_in_range(
-            compute_schedule, level + idx, const
+            compute_schedule, level + idx, scalar_dim_idx
         )
+        scalar_dim_idx += 1
 
         # insert constant dims for assign schedules at current level
         for i in range(len(assign_schedules_at_level)):
             assign_schedule, type_ = assign_schedules_at_level[i]
-            if type_ in ["O"]:
+            if type_ in ["O", "PartialSum.clear", "PartialSum.sum"]:
                 assign_schedule = insert_const_dim_in_range(
-                    assign_schedule, level + idx, const + i
+                    assign_schedule, level + idx, scalar_dim_idx
                 )
                 assign_schedules_at_level[i] = [assign_schedule, type_]
+                scalar_dim_idx += 1
+                print(f"{type_=}")
 
         pass
+    # import pdb; pdb.set_trace()
 
     # padding schedule at end
     max_range_size = compute_schedule.dim(isl.dim_type.out)
@@ -683,16 +744,35 @@ def data_movement_operator_to_dsl(op):
     type_list = []
     for name, data_movement_list in op.data_movement.items():
         for data_movement in data_movement_list:
-            stmt_name = alloc_unique_stmt()
-            assign_domain = data_movement.domain.set_tuple_name(stmt_name)
-            assign_schedule = utils.identity_map_from_set(assign_domain)
+            if isinstance(data_movement, PartialSumDataMovement):
+                stmt_name = "PartialSum.clear." + alloc_unique_stmt()
+                assign_domain = data_movement.domain.set_tuple_name(stmt_name)
+                assign_schedule = utils.identity_map_from_set(assign_domain)
 
-            assign_domain_list.append(assign_domain)
-            assign_schedule_list.append(assign_schedule)
-            level_list.append(data_movement.level)
-            type_list.append(data_movement.type_)
+                assign_domain_list.append(assign_domain)
+                assign_schedule_list.append(assign_schedule)
+                level_list.append(data_movement.level)
+                type_list.append("PartialSum.clear")
+                name_to_op[stmt_name] = (data_movement, "PartialSum.clear")
 
-            name_to_op[stmt_name] = data_movement
+                stmt_name = "PartialSum.sum" + alloc_unique_stmt()
+                assign_domain = data_movement.domain_partial_sum.set_tuple_name(stmt_name)
+                assign_schedule = utils.identity_map_from_set(assign_domain)
+                assign_domain_list.append(assign_domain)
+                assign_schedule_list.append(assign_schedule)
+                level_list.append(data_movement.level)
+                type_list.append("PartialSum.sum")
+                name_to_op[stmt_name] = (data_movement, "PartialSum.sum")
+            else:
+                stmt_name = alloc_unique_stmt()
+                assign_domain = data_movement.domain.set_tuple_name(stmt_name)
+                assign_schedule = utils.identity_map_from_set(assign_domain)
+
+                assign_domain_list.append(assign_domain)
+                assign_schedule_list.append(assign_schedule)
+                level_list.append(data_movement.level)
+                type_list.append(data_movement.type_)
+                name_to_op[stmt_name] = data_movement
 
     # make union_domain
     union_domain = compute_domain
