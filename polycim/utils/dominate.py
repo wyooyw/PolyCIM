@@ -4,7 +4,18 @@ def get_pieces_from_pw_multi_aff(pw_multi_aff):
     record = []
     pw_multi_aff.foreach_piece(lambda x,y: record.append((x,y)))
     return record
-    
+
+def get_dominate_iters_of_map(map_, return_name=True):
+
+    # Do not delete this code. 
+    # It will make the dominate iters correct. 
+    # For now, I don't know why.
+    # Maybe it is a bug of isl.
+    _ = str(map_)
+
+    pw_multi_aff = map_.as_pw_multi_aff()
+    return get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name)
+
 def get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name=True):
     """
     {[i0,i1,..,ik] -> [f(i1,i2)]}

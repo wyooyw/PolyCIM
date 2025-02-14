@@ -17,11 +17,13 @@ from polycim.utils.utils import (get_box_hull_shape, rename_all_dims_for_basic_m
 from polycim.codegen_.codegen_data_layout_convert import data_layout_convert_codegen
 from polycim.utils.logger import get_logger
 from polycim.utils.dominate import (
+    get_dominate_iters_of_map,
     get_dominate_iters_of_pw_multi_aff,
     get_dominate_iters_of_pw_multi_aff_per_out,
     get_non_dominate_iters_of_pw_multi_aff
 )
 from polycim.op.buffer_manager import BufferManager
+from functools import partial
 
 logger = get_logger(__name__)
 
@@ -135,12 +137,9 @@ def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominat
     force_dominate_iters = init_force_iters(domain_iter_names, force_dominate_iters)
     force_nondominate_iters = init_force_iters(domain_iter_names, force_nondominate_iters)
     
-    involve_dims = get_dominate_iters_of_pw_multi_aff(
-        acc_rel.as_pw_multi_aff(), return_name=True
-    )
+    involve_dims = get_dominate_iters_of_map(acc_rel, return_name=True)
     involve_dims = involve_dims | set(force_dominate_iters)
     involve_dims = involve_dims - set(force_nondominate_iters)
-    # import pdb; pdb.set_trace()
 
     domain_iter_names_not_exist_in_lb_ub = list(
         set(domain_iter_names) - set(involve_dims)
@@ -173,8 +172,8 @@ def map_domain_aligned_buffer_to_origin_buffer_for_weight(
     n_domain_dim = acc_rel.dim(isl.dim_type.in_)
 
     domain_iter_names = acc_rel.get_var_names(isl.dim_type.in_)
-    involve_dims = get_dominate_iters_of_pw_multi_aff(
-        acc_rel.as_pw_multi_aff(), return_name=True
+    involve_dims = get_dominate_iters_of_map(
+        acc_rel, return_name=True
     )
     # import pdb; pdb.set_trace()
     force_involve_dims = domain_iter_names[-force_inner_level:]
@@ -1025,8 +1024,8 @@ def get_valid_buffer_positions(acc_rel):
             // level 2 (insert buffer here)
             for i2
     """
-    dominate_iters = get_dominate_iters_of_pw_multi_aff(
-        acc_rel.as_pw_multi_aff(), return_name=False
+    dominate_iters = get_dominate_iters_of_map(
+        acc_rel, return_name=False
     )
     # print(f"{dominate_iters_per_dim=}")
     # dominate_iters = reduce(lambda x, y: x.union(y), dominate_iters_per_dim)
