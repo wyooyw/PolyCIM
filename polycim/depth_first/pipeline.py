@@ -354,12 +354,17 @@ def satisfies_constraints(combination, operator, **kwargs):
     # if not (0 in reuse_ids and 1 in reuse_ids):
     #     return False
     reuse_ids = {0:0, 1:0}
+    reuse_by_skewed_base_ids = {0:0, 1:0}
     for item in combination:
+        nonzero_count = sum([int(i!=0) for i in item.corrdinate])
+        is_skewed_base = nonzero_count >= 2
         if item.reuse_array_id in (0,1):
             reuse_ids[item.reuse_array_id] += 1
+            if is_skewed_base:
+                reuse_by_skewed_base_ids[item.reuse_array_id] += 1
     if reuse_ids[0] < 1 or reuse_ids[1] < 1:
         return False
-    if reuse_ids[0] > 2 or reuse_ids[1] > 2:
+    if reuse_by_skewed_base_ids[0] > 2 or reuse_by_skewed_base_ids[1] > 2:
         return False
 
     # Check if the matrix is square and invertible
