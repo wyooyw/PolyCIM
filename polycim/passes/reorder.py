@@ -1,5 +1,6 @@
 import islpy as isl
 import itertools
+from tqdm import tqdm
 
 def reorder_outer(operator, inner_level):
     n_domain_iter = operator.domain.dim(isl.dim_type.set)
@@ -13,12 +14,9 @@ def reorder_outer(operator, inner_level):
     permutations = list(itertools.permutations(outer_names))
 
     new_operator_list = []
-    # import pdb; pdb.set_trace()
-    for p in permutations:
+    for p in tqdm(permutations, desc="build_reorder"):
         reorder_schedule = isl.BasicMap(
             f"{{ [{','.join(domain_iter_names)}] -> [{','.join(list(p) + inner_names)}] }}"
         )
         new_operator = operator.apply_schedule(reorder_schedule, skip_simplify=True)
-        new_operator_list.append(new_operator)
-
-    return new_operator_list
+        yield new_operator

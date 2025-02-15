@@ -1,6 +1,7 @@
 import islpy as isl
 import time
 from polycim.utils.dominate import (
+    get_dominate_iters_of_map,
     get_dominate_iters_of_pw_multi_aff,
     get_non_dominate_iters_of_pw_multi_aff
 )
@@ -271,8 +272,8 @@ def buffer_strategy_combination(op, n_macro_iters):
     for op_tiled in tqdm(tiled_op_list, desc="Tiling"):
         # Reorder
         reordered_op_list = reorder_outer(op_tiled, inner_level=n_macro_iters)
-        for op_reordered in tqdm(reordered_op_list, desc="Reorder"):
-    
+        for i_reorder,op_reordered in enumerate(tqdm(reordered_op_list, desc="Reorder")):
+
             # Memory level combination
             new_n_dim = op_reordered.domain.dim(isl.dim_type.set)
             I_buffer_level_list = buffer_level_combination(op_reordered, "I", 2, level_min=0, level_max=new_n_dim - n_macro_iters)
@@ -282,8 +283,11 @@ def buffer_strategy_combination(op, n_macro_iters):
             # Conbine
             weight_buffer_level = (W_buffer_level_list[-1][0],)
             buffer_level_combines = list(itertools.product(I_buffer_level_list, O_buffer_level_list))
-            for input_buffer_level, output_buffer_level in buffer_level_combines:
+            for i_buffer_level, (input_buffer_level, output_buffer_level) in enumerate(buffer_level_combines):
+                logger.debug(f"\t{i_buffer_level=}")
                 if output_buffer_level[-1] != new_n_dim - n_macro_iters:
+                    continue
+                if input_buffer_level[-1] != new_n_dim - n_macro_iters:
                     continue
 
                 # output partial sum
@@ -339,27 +343,30 @@ def buffer_strategy_combination(op, n_macro_iters):
                     weight_buffer_level = weight_buffer_level,
                     output_is_partial_sum = new_output_is_partial_sum
                 )
+                logger.debug(f"\t{buffer_strategy=}")
                 new_op = multi_level_buffer_insersion_pass(op_reordered, n_macro_iters, buffer_strategy)
                 yield new_op
-
-    raise ValueError("Can't find valid buffer strategy")
 
 def optimal_multi_level_buffer_insersion_search(op, n_macro_iters):
     count = 0
     min_cost = float("inf")
     best_op = None
     begin_time = time.time()
+    use_time = 30
     for new_op in buffer_strategy_combination(op, n_macro_iters):
         if memory_access_satisfy_constraint(new_op):
             cost = memory_access_cost(new_op)
             if cost < min_cost:
                 min_cost = cost
                 best_op = new_op
-                print(f"{count=}, {min_cost=}")
+                logger.info(f"{count=}, {min_cost=}")
             count += 1
-        if best_op is not None and time.time() - begin_time > 30:
+        if best_op is not None and time.time() - begin_time > use_time:
             break
     # import pdb; pdb.set_trace()
+    if best_op is None:
+        raise ValueError("Can't find valid buffer strategy")
+
     return best_op
 
 def multi_level_buffer_insersion_pass(op, n_macro_iters, buffer_strategy):
@@ -374,8 +381,8 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters, buffer_strategy):
     input_layout_inner_dims = group_iters + comp_iter
 
     n_dim = op.domain.dim(isl.dim_type.set)
-
-    new_op = op.convex_hull()  # Is this safe?
+    # new_op = op.convex_hull()  # Is this safe?
+    new_op = op
     # op, buffer_name, buffer_levels, memory_names
     new_op, layout_convert_code_I = insert_single_buffer_multi_level(
         op = new_op, 
@@ -401,7 +408,6 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters, buffer_strategy):
         force_inner_level=n_macro_iters
     )
     new_op = new_op.convex_hull()
-    
     new_op.attr["n_tensorize_cim_compute_level"] = n_macro_iters - 1
 
     # print("weight:")
