@@ -58,7 +58,7 @@ def shift_to_zero(op, skip_simplify=False):
     shift_domain = ",".join([f"i{i}" for i in range(domain.dim(isl.dim_type.set))])
     shift_range = ",".join([f"i{i} + {shift[i]}" if shift[i] >=0 else f"i{i} - {abs(shift[i])}" for i in range(domain.dim(isl.dim_type.set))])
     shift = isl.BasicMap(f"{{ [{shift_domain}] -> [{shift_range}] }}")
-    new_op = op.apply_schedule(shift, name="shift_to_positive", skip_simplify=skip_simplify)
+    new_op = op.apply_schedule(shift, name="shift_to_zero", skip_simplify=skip_simplify)
 
     min_vals = [new_op.domain.dim_min_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
     assert all(min_val==0 for min_val in min_vals), f"{min_vals=}, {shift_range=}"

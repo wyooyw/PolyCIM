@@ -695,6 +695,7 @@ def dump_schedules(origin_op, new_op, **kwargs):
     schedule_dict["bases"] = None
     schedule_dict["affine"] = None
     schedule_dict["shift_to_positive"] = None
+    schedule_dict["shift_to_zero"] = None
     schedule_dict["s2h_mapping"] = None
     schedule_dict["coalescing"] = None
     schedule_dict["tiling"] = None
