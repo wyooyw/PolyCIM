@@ -1,5 +1,31 @@
 import numpy as np
 
+def conv2d(input, weight, dilation=1, stride=1):
+    assert len(input.shape) == 3, f"{input.shape=}"
+    assert len(weight.shape) == 4, f"{weight.shape=}"
+    ic, ih, iw = input.shape  # nb: batch size, ic: input channels
+    oc, kc, kh, kw = weight.shape  # oc: output channels, kc: kernel channels
+    assert ic == kc  # 输入通道数需要匹配卷积核的通道数
+    
+    effective_kh = kh + (kh - 1) * (dilation - 1)
+    effective_kw = kw + (kw - 1) * (dilation - 1)
+    
+    oh = (ih - effective_kh) // stride + 1
+    ow = (iw - effective_kw) // stride + 1
+    
+    output = np.zeros((oc, oh, ow), dtype=input.dtype)
+    
+    for _oc in range(oc):
+        for _oh in range(oh):
+            for _ow in range(ow):
+                input_window = input[:, 
+                                    _oh * stride: _oh * stride + kh * dilation: dilation,
+                                    _ow * stride: _ow * stride + kw * dilation: dilation]
+                weight_window = weight[_oc, :, :, :]
+                output[_oc, _oh, _ow] = np.sum(input_window * weight_window)
+    
+    return output
+
 def depth_wise_conv2d(input, weight, dilation=1, stride=1):
     assert len(input.shape) == 3
     assert len(weight.shape) == 3
@@ -51,6 +77,14 @@ def depth_wise_conv3d(input, weight, dilation=1, stride=1):
     return output
 
 if __name__ == "__main__":
+    # Add test for conv2d
+    input_conv2d = np.arange(32).reshape(1, 2, 4, 4).astype(np.float32)  # batch=1, channels=2, height=4, width=4
+    weight_conv2d = np.arange(18).reshape(3, 2, 2, 3).astype(np.float32)  # out_channels=3, in_channels=2, kernel_h=2, kernel_w=3
+    output_conv2d = conv2d(input_conv2d, weight_conv2d, dilation=1, stride=1)
+    print("Conv2D Output:")
+    print(output_conv2d)
+    print("Output shape:", output_conv2d.shape)
+    
     # Add test for 3D convolution
     input_3d = np.arange(128).reshape(2, 4, 4, 4).astype(np.int32)
     weight_3d = np.arange(16).reshape(2, 2, 2, 2).astype(np.int32)
