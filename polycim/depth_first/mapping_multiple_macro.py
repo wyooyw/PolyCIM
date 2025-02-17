@@ -302,12 +302,14 @@ def buffer_strategy_combination(op, n_macro_iters):
                 share_output_iters_group = list(filter(lambda x: x not in scalar_iters, share_output_iters_group))
                 
                 iter_comp = new_n_dim - n_macro_iters + 1
-                share_output_iters_group = list(filter(lambda x: x != iter_comp, share_output_iters_group))
+                iter_col = new_n_dim - 1
+                share_output_iters_group = list(filter(
+                    lambda x: x != iter_comp and x != iter_col, 
+                    share_output_iters_group
+                ))
 
                 new_shape = utils.get_box_hull_shape(op_reordered.domain)
 
-                # import pdb; pdb.set_trace()
-                
                 assert len(share_output_iters_group) == 0, f"Currently, not support partial sum between groups. It will be supported later."
                 assert len(share_output_iters_time) <= 2, f"{share_output_iters_time=}"
 
@@ -352,7 +354,7 @@ def optimal_multi_level_buffer_insersion_search(op, n_macro_iters):
     min_cost = float("inf")
     best_op = None
     begin_time = time.time()
-    use_time = 30
+    use_time = 0
     for new_op in buffer_strategy_combination(op, n_macro_iters):
         if memory_access_satisfy_constraint(new_op):
             cost = memory_access_cost(new_op)
@@ -399,6 +401,7 @@ def multi_level_buffer_insersion_pass(op, n_macro_iters, buffer_strategy):
         memory_names = buffer_strategy.output_memory_names,
         buffer_is_partial_sum = buffer_strategy.output_is_partial_sum,
         force_nondominate_iters = [n_dim - n_macro_iters + 1],
+        force_dominate_iters = [n_dim - 1],
     )
     new_op, layout_convert_code_W = insert_single_buffer_multi_level(
         op = new_op, 

@@ -21,6 +21,7 @@ def parse_explore_args(subparsers):
     parser.add_argument("--config-path", "-c", required=True, type=str, help="config path")
     parser.add_argument("--output-path", "-o", required=True, type=str, help="output path")
     parser.add_argument("--data-movement-full-vectorize", action="store_true", help="data movement full vectorize")
+    parser.add_argument("--force-axis-align", action="store_true", help="force axis aligned")
 
 def run_explore(args):
     args.output_path = to_abs_path(args.output_path)
@@ -51,5 +52,6 @@ def run_explore(args):
         delay_apply=delay_apply, 
         num_macros=num_macros, 
         enable_weight_rewrite=enable_weight_rewrite,
+        force_axis_align=args.force_axis_align,
         cim_config=cim_cfg
     )

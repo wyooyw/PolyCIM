@@ -406,10 +406,60 @@ def satisfies_constraints(combination, operator, **kwargs):
 
     return True
 
+def filter_bases(bases, operator, **kwargs):
+    if kwargs["force_axis_align"]:
+        new_bases = []
+        for base in bases:
+            num_nonzero = sum([int(i!=0) for i in base.corrdinate])
+            if num_nonzero == 1:
+                new_bases.append(base)
+
+        return new_bases
+    return bases
+
+def extend_scalar_dim_for_operator(operator):
+    n_dim = operator.domain.dim(isl.dim_type.set)
+    origin_dims = [f"i{i}" for i in range(n_dim)]
+    new_dims = ["0", *origin_dims]
+    origin_dims_str = ",".join(origin_dims)
+    new_dims_str = ",".join(new_dims)
+    extend_dim_scheduel = isl.BasicMap(f"{{ [{origin_dims_str}] -> [{new_dims_str}] }}")
+    new_op = operator.apply_schedule(extend_dim_scheduel, name="extend_dim")
+    return new_op
+
+def extend_scalar_dim_for_bases(bases, reuse_array_id):
+    assert reuse_array_id in (0,1)
+    n_dim = len(bases[0].corrdinate)
+    new_bases = [Base([1, *([0] * n_dim)], reuse_array_id, True)]
+    for base in bases:
+        new_corrdinate = tuple([0] + list(base.corrdinate))
+        new_bases.append(Base(new_corrdinate, base.reuse_array_id, base.is_trival))
+    return new_bases
+
+def create_scalar_axis_for_reuse(bases, operator, **kwargs):
+    reuse_cnt = {
+        0:len([base for base in bases if base.reuse_array_id == 0]), 
+        1:len([base for base in bases if base.reuse_array_id == 1])
+    }
+
+    if reuse_cnt[0] == 0:
+        operator = extend_scalar_dim_for_operator(operator)
+        bases = extend_scalar_dim_for_bases(bases, 0)
+
+    if reuse_cnt[1] == 0:
+        operator = extend_scalar_dim_for_operator(operator)
+        bases = extend_scalar_dim_for_bases(bases, 1)
+
+    return bases, operator
+
 @timing_decorator
 def affine_transform(operator, **kwargs):
     # 1. base construction
     bases = base_construction(operator, **kwargs)  
+
+    bases = filter_bases(bases, operator, **kwargs)
+
+    bases, operator = create_scalar_axis_for_reuse(bases, operator, **kwargs)
 
     # 2. base selection
     # select n_dim base from bases that satisfy:
@@ -543,7 +593,7 @@ def count_cim_compute_from_bases(op, bases, cim_cfg):
 
 
 class SearchSpace:
-    def __init__(self, cim_cfg, pad_count, delay_apply, num_macros, enable_weight_rewrite):
+    def __init__(self, cim_cfg, pad_count, delay_apply, num_macros, enable_weight_rewrite, force_axis_align):
         assert isinstance(pad_count, bool)
         assert isinstance(delay_apply, bool)
         assert isinstance(enable_weight_rewrite, bool)
@@ -553,11 +603,13 @@ class SearchSpace:
         self.num_macros = num_macros
         self.enable_weight_rewrite = enable_weight_rewrite
         self.record_padding_friendly = (not pad_count) and delay_apply
+        self.force_axis_align = force_axis_align
 
     def search(self, config):
         result = []
         min_compute_times = config.get("min_compute_times_ub", int(1e9))
         min_compute_ops = list()
+        min_compute_ops_info = []
         stats = {"count_val": list()}
         for op1,tile_sizes,dim_types1 in get_tqdm(self.pre_tiling(
             config
@@ -565,7 +617,7 @@ class SearchSpace:
             # print("a")
             begin_time = time.time()
             # for op2,bases in get_tqdm(self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1), desc="affine_transform"):
-            for op2,bases in self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1):
+            for op2,bases in self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1, force_axis_align=self.force_axis_align):
                 
                 for op3 in self.coalesce_and_tiling(op2, bases, return_schedule=self.delay_apply):
 
@@ -801,14 +853,15 @@ def dump_op(save_dir, origin_op, min_compute_times, min_compute_ops, min_compute
     print(f"op save to {save_dir}")
             
 
-def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_weight_rewrite, cim_config):
+def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_weight_rewrite, force_axis_align, cim_config):
     enable_mapping_multiple_macro = pad_count
 
     search_space = SearchSpace(cim_config, 
                               pad_count=pad_count, 
                               delay_apply=delay_apply,
                               num_macros=num_macros,
-                              enable_weight_rewrite=enable_weight_rewrite)
+                              enable_weight_rewrite=enable_weight_rewrite,
+                              force_axis_align=force_axis_align)
     for name,config in op_list.items():
         if isinstance(config, BasicOperator):
             config = {"op": config}
