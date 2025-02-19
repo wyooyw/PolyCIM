@@ -3,6 +3,7 @@ from polycim.op.base_operator import BasicOperator
 import polycim.utils.utils as utils
 import itertools
 from tqdm import tqdm
+from polycim.utils.math import factorize
 
 def multiply(factors):
     result = 1
@@ -74,7 +75,7 @@ def multi_level_tiling(operator, tiling_level, tiling_factors):
     new_operator.history_schedules.append({"tiling_factors":tiling_factors})
     return new_operator
 
-def multi_level_splitting_var_level(operator, tiling_factors):
+def multi_level_splitting_var_level(operator, tiling_factors, skip_simplify=False):
     """
     tiling_factors: 
     [
@@ -134,7 +135,7 @@ def multi_level_splitting_var_level(operator, tiling_factors):
         tiling_map = isl.BasicMap(f"[{','.join(param_names)}] -> {{ [{','.join(domain_iters)}] -> [{','.join(domain_iters)}] }}")
         tiling_map = tiling_map.intersect_domain(domain)
         
-    new_operator = operator.apply_schedule(tiling_map, name="pre_tiling")
+    new_operator = operator.apply_schedule(tiling_map, name="pre_tiling", skip_simplify=True)
     new_operator.history_schedules.append({"tiling_factors":tiling_factors})
     return new_operator
 
@@ -220,21 +221,7 @@ def combine_tilesize_by_symmetry_info(dim_factors, symmetry_info):
     assert set(tile_size_combinations).issubset(set(all_combinations))
 
     return tile_size_combinations
-    
-def factorize(N, T, depth=1, path=None, results=None):
-    if path is None:
-        path = []
-    
-    if results is None:
-        results = []
 
-    if T == 1:
-        results.append(path + [N])
-        return
-    for i in range(1, N+1):
-        if N % i == 0:
-            factorize(N // i, T - 1, i + 1, path + [i], results)
-    return results
 
 def filter_factors(factors):
     """
@@ -369,34 +356,76 @@ def multi_level_tiling_outer(operator, tiling_level, tiling_factors, inner_level
     new_operator =  operator.apply_schedule(tiling_map, skip_simplify=True)
     return new_operator
 
-def enumerate_tiling_factors_outer(operator, tiling_factor, inner_level=5):
+# def enumerate_tiling_factors_outer(operator, tiling_factor, inner_level=5):
+#     domain = operator.domain
+
+#     assert domain.is_box(), f"domain={domain} is not box"
+#     n_iter = domain.dim(isl.dim_type.set)
+
+#     domain_shape = utils.get_static_box_shape(domain)[:n_iter-inner_level]
+#     dim_factors = []
+#     for dim_size in domain_shape:
+#         factors = factorize(dim_size, tiling_factor)
+#         # factors = filter_factors(factors)
+#         factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
+#         # print(f"{len(factors)=}, {factors=}")
+#         # if len(factors) > 8:
+#         #     factors = factors[::4]
+#         dim_factors.append(factors)
+#     # import pdb; pdb.set_trace()
+#     # exit()
+#     # dim_factors = dim_factors[::4]
+#     for combination in itertools.product(*dim_factors):
+#         new_operator = multi_level_tiling_outer(operator, tiling_factor, combination, inner_level)
+#         yield new_operator
+
+
+def remove_all_one_factors(factors):
+    new_factors = []
+    for factor in factors:
+        new_factor = [f for f in factor if f!=1]
+        if len(new_factor) == 0:
+            new_factor = [1]
+        new_factors.append(new_factor)
+    return new_factors
+
+def multi_level_splitting_combination(operator, max_splitting_level, not_splitting = None):
+
     domain = operator.domain
+    assert max_splitting_level in (2,3), f"{max_splitting_level=}"
 
     assert domain.is_box(), f"domain={domain} is not box"
     n_iter = domain.dim(isl.dim_type.set)
 
-    domain_shape = utils.get_static_box_shape(domain)[:n_iter-inner_level]
+    domain_shape = utils.get_static_box_shape(domain)
     dim_factors = []
-    for dim_size in domain_shape:
-        factors = factorize(dim_size, tiling_factor)
-        # factors = filter_factors(factors)
-        factors = [factor for factor in factors if factor[-1]!=1 or max(factor)==1]
-        # print(f"{len(factors)=}, {factors=}")
-        # if len(factors) > 8:
-        #     factors = factors[::4]
-        dim_factors.append(factors)
-    # import pdb; pdb.set_trace()
-    # exit()
-    # dim_factors = dim_factors[::4]
-    for combination in itertools.product(*dim_factors):
-        new_operator = multi_level_tiling_outer(operator, tiling_factor, combination, inner_level)
-        yield new_operator
+    for i,dim_size in enumerate(domain_shape):
+        if not_splitting is not None and i in not_splitting:
+            dim_factors.append(((dim_size,),))
+            continue
+        factors = factorize(dim_size, max_splitting_level)
+        factors = remove_all_one_factors(factors)
+        factors = list({tuple(factor) for factor in factors})
+        dim_factors.append(tuple(factors))
+    dim_factors = tuple(dim_factors)
 
-def memory_tiling_pass(op_list):
+    combination_list = list(itertools.product(*dim_factors))
+
+    new_op_list = []
+    for idx,combination in enumerate(combination_list):
+        new_operator = multi_level_splitting_var_level(operator, combination, skip_simplify=True)
+        new_op_list.append(new_operator)
+    return new_op_list
+
+
+def memory_tiling_pass(op_list, not_splitting = None):
     new_op_list = []
     for op in op_list:
-        new_op_list.append(op)
-        for new_op in enumerate_tiling_factors_outer(op, 2, inner_level=5):
+        for new_op in multi_level_splitting_combination(
+                op, 
+                max_splitting_level=2, 
+                not_splitting=not_splitting
+            ):
             new_op_list.append(new_op)
 
     return new_op_list

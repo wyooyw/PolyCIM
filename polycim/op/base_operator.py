@@ -192,6 +192,21 @@ class DataMovement:
             self.type_,
         )
 
+class PartialSumDataMovement(DataMovement):
+    def __init__(self, domain, domain_partial_sum, access_I, access_O, level, type_):
+        super().__init__(domain, access_I, access_O, level, type_)
+        self.domain_partial_sum = domain_partial_sum
+
+    def convex_hull(self):
+        return PartialSumDataMovement(
+            self.domain.convex_hull(),
+            self.domain_partial_sum.convex_hull(),
+            self.access_I.convex_hull(),
+            self.access_O.convex_hull(),
+            self.level,
+            self.type_,
+        )
+
 
 class DataMovementOperator:
     def __init__(

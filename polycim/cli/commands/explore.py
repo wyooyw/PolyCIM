@@ -20,6 +20,11 @@ def parse_explore_args(subparsers):
     parser.add_argument("--op-id", "-i", required=True, type=str, help="operator id")
     parser.add_argument("--config-path", "-c", required=True, type=str, help="config path")
     parser.add_argument("--output-path", "-o", required=True, type=str, help="output path")
+    parser.add_argument("--data-movement-full-vectorize", action="store_true", help="data movement full vectorize")
+    parser.add_argument("--disable-pretile", action="store_true", help="disable pretile")
+    parser.add_argument("--disable-affine", action="store_true", help="disable affine")
+    parser.add_argument("--disable-weight-rewrite", action="store_true", help="disable weight rewrite")
+    parser.add_argument("--disable-second-stage", action="store_true", help="disable second stage")
 
 def run_explore(args):
     args.output_path = to_abs_path(args.output_path)
@@ -44,11 +49,13 @@ def run_explore(args):
     # curr_time_str = curr_time_str + f"_{cim_cfg.n_comp}x{cim_cfg.n_group_vcol*8}"
     save_dir = os.path.join(args.output_path)
     run_op_list(
+        args,
         op_list, 
         save_dir, 
         pad_count=pad_count, 
         delay_apply=delay_apply, 
         num_macros=num_macros, 
-        enable_weight_rewrite=enable_weight_rewrite,
+        # enable_weight_rewrite=enable_weight_rewrite,
+        # force_axis_align=args.force_axis_align,
         cim_config=cim_cfg
     )

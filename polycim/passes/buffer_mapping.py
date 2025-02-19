@@ -9,12 +9,23 @@ from tqdm import tqdm
 
 import polycim.utils.utils as utils
 from polycim.op.base_operator import (AccessRelation, BasicOperator, DataMovement,
-                           DataMovementOperator)
+                           DataMovementOperator, PartialSumDataMovement)
 from polycim.config import get_memory_sizes
 from polycim.utils.utils import (get_box_hull_shape, rename_all_dims_for_basic_map,
                          rename_all_dims_for_basic_set,
                          rename_out_dims_for_basic_map)
 from polycim.codegen_.codegen_data_layout_convert import data_layout_convert_codegen
+from polycim.utils.logger import get_logger
+from polycim.utils.dominate import (
+    get_dominate_iters_of_map,
+    get_dominate_iters_of_pw_multi_aff,
+    get_dominate_iters_of_pw_multi_aff_per_out,
+    get_non_dominate_iters_of_pw_multi_aff
+)
+from polycim.op.buffer_manager import BufferManager
+from functools import partial
+
+logger = get_logger(__name__)
 
 def find_domain_iters_exist_in_range(aff, return_name=True):
 
@@ -54,7 +65,7 @@ def pw_aff_to_aff(pw_aff):
 
 
 def build_domain_aligned_buffer_exclude_iters(
-    domain, buffer_name, exclude_iter_names=[]
+    domain, buffer_name, exclude_iter_names=[], force_layout_inner_iters = None
 ):
     """
     args:
@@ -63,7 +74,7 @@ def build_domain_aligned_buffer_exclude_iters(
     return:
         access relation: [i,j,k] -> A[i,k]
     """
-
+    n_dim = domain.dim(isl.dim_type.set)
     shape = get_box_hull_shape(domain)
     iter_names = domain.get_var_names(isl.dim_type.set)
     n_iter = len(iter_names)
@@ -73,9 +84,21 @@ def build_domain_aligned_buffer_exclude_iters(
         set(iter_names)
     ), f"{exclude_iter_names=}, {iter_names=}"
 
-    iter_in_array_names = [
-        iter_name for iter_name in iter_names if iter_name not in exclude_iter_names
+    iter_in_array_ids = [
+        i for i in range(n_dim) if iter_names[i] not in exclude_iter_names
     ]
+    if force_layout_inner_iters is not None:
+        assert isinstance(force_layout_inner_iters, list) or isinstance(force_layout_inner_iters, tuple)
+        assert all([type(i) == int for i in force_layout_inner_iters])
+        if not set(force_layout_inner_iters).issubset(set(iter_in_array_ids)):
+            logger.debug(f"{force_layout_inner_iters=} is not subset of {iter_in_array_ids=}. This maybe caused by scalar dimensions.")
+        iter_in_array_ids = [i for i in iter_in_array_ids if i not in force_layout_inner_iters]
+        iter_in_array_ids = iter_in_array_ids + list(force_layout_inner_iters)
+
+    iter_in_array_names = [
+        iter_names[i] for i in iter_in_array_ids
+    ]
+
     access_relation = isl.BasicMap(
         f"{{ [{','.join(iter_names)}] -> {buffer_name}[{','.join(iter_in_array_names)}] }}"
     )
@@ -97,7 +120,7 @@ def init_force_iters(domain_iter_names, force_iters=None):
             new_force_iters.append(i)
     return new_force_iters
 
-def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominate_iters=None, force_nondominate_iters=None):
+def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominate_iters=None, force_nondominate_iters=None, force_layout_inner_iters=None):
     """
     1.get domain aligned buffer
     2.map this aligned buffer to origin buffer
@@ -114,19 +137,16 @@ def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominat
     force_dominate_iters = init_force_iters(domain_iter_names, force_dominate_iters)
     force_nondominate_iters = init_force_iters(domain_iter_names, force_nondominate_iters)
     
-    involve_dims = get_dominate_iters_of_pw_multi_aff(
-        acc_rel.as_pw_multi_aff(), return_name=True
-    )
+    involve_dims = get_dominate_iters_of_map(acc_rel, return_name=True)
     involve_dims = involve_dims | set(force_dominate_iters)
     involve_dims = involve_dims - set(force_nondominate_iters)
-    # import pdb; pdb.set_trace()
 
     domain_iter_names_not_exist_in_lb_ub = list(
         set(domain_iter_names) - set(involve_dims)
     )
 
     aligned_acc_rel = build_domain_aligned_buffer_exclude_iters(
-        domain, align_buffer_name, domain_iter_names_not_exist_in_lb_ub
+        domain, align_buffer_name, domain_iter_names_not_exist_in_lb_ub, force_layout_inner_iters
     )
     # one to many
     # buffer_mapping = acc_rel.reverse().apply_range(aligned_acc_rel)
@@ -138,7 +158,7 @@ def map_domain_aligned_buffer_to_origin_buffer_v2(domain, acc_rel, force_dominat
 
 
 def map_domain_aligned_buffer_to_origin_buffer_for_weight(
-    domain, acc_rel, force_inner_level=4
+    domain, acc_rel, force_inner_level=4, force_layout_inner_iters=None
 ):
     """
     1.get domain aligned buffer
@@ -152,8 +172,8 @@ def map_domain_aligned_buffer_to_origin_buffer_for_weight(
     n_domain_dim = acc_rel.dim(isl.dim_type.in_)
 
     domain_iter_names = acc_rel.get_var_names(isl.dim_type.in_)
-    involve_dims = get_dominate_iters_of_pw_multi_aff(
-        acc_rel.as_pw_multi_aff(), return_name=True
+    involve_dims = get_dominate_iters_of_map(
+        acc_rel, return_name=True
     )
     # import pdb; pdb.set_trace()
     force_involve_dims = domain_iter_names[-force_inner_level:]
@@ -164,7 +184,7 @@ def map_domain_aligned_buffer_to_origin_buffer_for_weight(
     )
 
     aligned_acc_rel = build_domain_aligned_buffer_exclude_iters(
-        domain, align_buffer_name, domain_iter_names_not_exist_in_lb_ub
+        domain, align_buffer_name, domain_iter_names_not_exist_in_lb_ub, force_layout_inner_iters
     )
 
     # one to many
@@ -218,55 +238,6 @@ def get_pieces_from_pw_multi_aff(pw_multi_aff):
     return record
 
 
-def get_dominate_iters_of_pw_multi_aff_per_out(pw_multi_aff, return_name=True):
-    """
-    {[i0,i1,..,ik] -> [f(i1,i2)]}
-    return {i1,i2}
-    """
-    dim_names = [
-        pw_multi_aff.get_dim_name(isl.dim_type.in_, i)
-        for i in range(pw_multi_aff.dim(isl.dim_type.in_))
-    ]
-    n_dim_range = pw_multi_aff.dim(isl.dim_type.out)
-
-    dominate_dims = []
-    for i in range(n_dim_range):
-        dominate_dims.append(set())
-
-    for cond, multi_aff in get_pieces_from_pw_multi_aff(pw_multi_aff):
-        for dim in range(n_dim_range):
-            aff = multi_aff.get_at(dim)
-            for i in range(aff.dim(isl.dim_type.in_)):
-                if aff.involves_dims(isl.dim_type.in_, i, 1):
-                    dominate_dims[dim].add(dim_names[i] if return_name else i)
-
-    return dominate_dims
-
-
-def get_dominate_iters_of_pw_multi_aff(pw_multi_aff, return_name=True):
-    """
-    {[i0,i1,..,ik] -> [f(i1,i2)]}
-    return {i1,i2}
-    """
-    dim_names = [
-        pw_multi_aff.get_dim_name(isl.dim_type.in_, i)
-        for i in range(pw_multi_aff.dim(isl.dim_type.in_))
-    ]
-    n_dim_range = pw_multi_aff.dim(isl.dim_type.out)
-
-    dominate_dims = set()
-
-    for cond, multi_aff in get_pieces_from_pw_multi_aff(pw_multi_aff):
-        for dim in range(n_dim_range):
-            aff = multi_aff.get_at(dim)
-            for i in range(aff.dim(isl.dim_type.in_)):
-                # coef = aff.get_coefficient_val(isl.dim_type.in_, i)
-                if aff.involves_dims(isl.dim_type.in_, i, 1):
-                    dominate_dims.add(dim_names[i] if return_name else i)
-
-    return dominate_dims
-
-
 def get_local_buffer_axis_mapping(domain, acc_rel, level):
     """
     local_to_global_buf_axis_mapping = [1,2] means local buffer axis [0,1] map to global buffer axis [1,2]
@@ -304,7 +275,7 @@ def get_local_buffer_axis_mapping(domain, acc_rel, level):
     return local_to_global_buf_axis_mapping
 
 
-def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level):
+def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level, is_partial_sum=False):
     local_to_global_buf_axis_mapping = get_local_buffer_axis_mapping(
         domain, acc_rel, level
     )
@@ -319,26 +290,33 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
         prefix_acc_rel
     )  # [level:]
     local_buffer_dynamic_shape = [
-        used_global_buffer_dynamic_shape[local_to_global_buf_axis_mapping[i]]
-        for i in range(len(local_to_global_buf_axis_mapping))
+        used_global_buffer_dynamic_shape[axis]
+        for axis in local_to_global_buf_axis_mapping
     ]
     # print(f"{local_buffer_dynamic_shape = }")
     # check prefix_acc_rel is continous on given dim
 
-    lower_bound_per_dim = [prefix_acc_rel.dim_min(i) for i in range(n_buf_dim)]
-    lb_aff_per_dim = lower_bound_per_dim
+    lb_aff_per_dim = [prefix_acc_rel.dim_min(i) for i in range(n_buf_dim)]
+    if is_partial_sum:
+        lb_aff_per_dim_partial_sum = [prefix_acc_rel.dim_min(i) for i in range(n_buf_dim)]
 
     n_local_buf_dim = len(local_to_global_buf_axis_mapping)  # - level
+    if is_partial_sum:
+        n_local_buf_dim_partial_sum = n_local_buf_dim + 1
 
     param_names = acc_rel.get_var_names(isl.dim_type.param)
     domain_names = acc_rel.get_var_names(isl.dim_type.in_)
     range_names = acc_rel.get_var_names(isl.dim_type.out)
 
     local_buffer_iters = [utils.get_unique_name() for i in range(n_local_buf_dim)]
-
+    if is_partial_sum:
+        local_buffer_iters_partial_sum = [utils.get_unique_name()] + local_buffer_iters
     # insert local buffer dim into lb_aff_per_dim's domain
     # For example: {[i0,i1] -> Buffer[j0,j1,j2]}  -> {[i0,i1,a_,b_] -> Buffer[j0,j1,j2]}
     # a_,b_ is local buffer dim
+    # if is_partial_sum:
+    #     import pdb; pdb.set_trace()
+
     for i in range(len(lb_aff_per_dim)):
 
         lb_aff = lb_aff_per_dim[i]
@@ -348,6 +326,16 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
                 isl.dim_type.in_, level + j, isl.Id(local_buffer_iters[j])
             )
         lb_aff_per_dim[i] = lb_aff
+
+    if is_partial_sum:
+        for i in range(len(lb_aff_per_dim_partial_sum)):
+            lb_aff = lb_aff_per_dim_partial_sum[i]
+            lb_aff = lb_aff.insert_dims(isl.dim_type.in_, level, n_local_buf_dim_partial_sum)
+            for j in range(n_local_buf_dim_partial_sum):
+                lb_aff = lb_aff.set_dim_id(
+                    isl.dim_type.in_, level + j, isl.Id(local_buffer_iters_partial_sum[j])
+                )
+            lb_aff_per_dim_partial_sum[i] = lb_aff
 
     # build buffer's access relation
     affs = []
@@ -380,11 +368,24 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
 
     # build local buffer's access relation
     affs = []
-    for i in range(n_local_buf_dim):
-        aff = isl.Aff(f"{{ [{aff_domain_def}] -> [({local_buffer_iters[i]})] }}")
-        affs.append(aff)
+    if is_partial_sum:
+        aff_domain_iters = lb_aff_per_dim_partial_sum[0].get_var_names(isl.dim_type.in_)
+        aff_domain_def = ",".join(aff_domain_iters)
+
+    if is_partial_sum:
+        for i in range(n_local_buf_dim_partial_sum):
+            aff = isl.Aff(f"{{ [{aff_domain_def}] -> [({local_buffer_iters_partial_sum[i]})] }}")
+            affs.append(aff)
+    else:
+        for i in range(n_local_buf_dim):
+            aff = isl.Aff(f"{{ [{aff_domain_def}] -> [({local_buffer_iters[i]})] }}")
+            affs.append(aff)
+
     aff_list = make_affs_to_aff_list(affs)
     local_buffer_acc_rel = isl.BasicMap.from_aff_list(affs[0].domain().space, aff_list)
+
+    # if is_partial_sum:
+    #     import pdb; pdb.set_trace()
 
     # build assign domain
     assign_domain = domain.project_out_except(iter_names[:level], [isl.dim_type.set])
@@ -396,13 +397,38 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
 
     ub_mpf = utils.multi_pw_aff_from_pw_affs(local_buffer_dynamic_shape)
     ub_mpf = ub_mpf.add_constant_val(isl.Val.int_from_si(ub_mpf.get_ctx(), -1))
-
-    # if level==2:
-    #     import pdb; pdb.set_trace()
     assign_domain = utils.mpf_upper_bound_for_basic_set(
         ub_mpf, assign_domain, n_local_buf_dim
     )
     assign_domain = utils.zero_lower_bound_for_basic_set(assign_domain, n_local_buf_dim)
+
+    if is_partial_sum:
+
+        assign_domain_partial_sum = domain.project_out_except(iter_names[:level], [isl.dim_type.set])
+        assign_domain_partial_sum = assign_domain_partial_sum.add_dims(isl.dim_type.set, n_local_buf_dim_partial_sum)
+        for i in range(n_local_buf_dim_partial_sum):
+            assign_domain_partial_sum = assign_domain_partial_sum.set_dim_name(
+                isl.dim_type.set, level + i, local_buffer_iters_partial_sum[i]
+            )
+        # build a PwAff same as local_buffer_dynamic_shape[0], but the range value is constant c
+        # pwaff = isl.PwAff(local_buffer_dynamic_shape[0].get_space())
+        # pwaff = pwaff.add_constant_val(isl.Val.int_from_si(pwaff.get_ctx(), -1))
+        shape = utils.get_box_hull_shape(domain)
+        pf = local_buffer_dynamic_shape[0].zero_on_domain(local_buffer_dynamic_shape[0].domain().get_space())
+        pf = pf.intersect_domain(local_buffer_dynamic_shape[0].domain())
+        pf = pf.add_constant_val(isl.Val.int_from_si(pf.get_ctx(), shape[level]))
+        
+        ub_mpf = utils.multi_pw_aff_from_pw_affs([pf] + local_buffer_dynamic_shape)
+        ub_mpf = ub_mpf.add_constant_val(isl.Val.int_from_si(ub_mpf.get_ctx(), -1))
+        
+        assign_domain_partial_sum = utils.mpf_upper_bound_for_basic_set(
+            ub_mpf, assign_domain_partial_sum, n_local_buf_dim_partial_sum
+        )
+        assign_domain_partial_sum = utils.zero_lower_bound_for_basic_set(assign_domain_partial_sum, n_local_buf_dim_partial_sum)
+        # import pdb; pdb.set_trace()
+        # pass
+    else:
+        assign_domain_partial_sum = None
 
     # set tuple name
     buffer_name = acc_rel.get_tuple_name(isl.dim_type.out)
@@ -413,7 +439,7 @@ def map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(domain, acc_rel, level
         isl.dim_type.out, f"{buffer_name}_{level}"
     )
 
-    return assign_domain, local_buffer_acc_rel, assign_buffer_acc_rel
+    return assign_domain, assign_domain_partial_sum, local_buffer_acc_rel, assign_buffer_acc_rel
 
 
 def get_local_buffer_axis_mapping_for_weight(domain, acc_rel, level, force_inner_level):
@@ -694,7 +720,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
 
 
 def map_access_to_buffer(
-    origin_access, assign_buffer_input_access, assign_buffer_output_access, level
+    origin_access, assign_buffer_input_access, assign_buffer_output_access, level, buffer_name, is_partial_sum=False
 ):
     """
     origin_access: compute domain -> global array
@@ -711,6 +737,10 @@ def map_access_to_buffer(
         isl.dim_type.param, 0, isl.dim_type.in_, 0, level
     )
 
+    if is_partial_sum:
+        # remove domain[0]
+        assign_buffer_output_access = assign_buffer_output_access.remove_dims(isl.dim_type.in_, 0, 1)
+
     global_local_buffer_mapping = assign_buffer_input_access.reverse().apply_range(
         assign_buffer_output_access
     )
@@ -722,6 +752,13 @@ def map_access_to_buffer(
     local_buffer_access = local_buffer_access.move_dims(
         isl.dim_type.in_, 0, isl.dim_type.param, 0, level
     )
+
+    if is_partial_sum:
+        cons = isl.Constraint.equality_alloc(local_buffer_access.get_space())
+        cons = cons.set_coefficient_val(isl.dim_type.in_, level, -1)
+        cons = cons.set_coefficient_val(isl.dim_type.out, 0, 1)
+        local_buffer_access = local_buffer_access.add_constraint(cons)
+
     return local_buffer_access
 
 
@@ -786,6 +823,14 @@ def insert_single_buffer_single_level_pass(op_list, buffer_name, buffer_level):
 
 
 def parse_buffer_levels(op, buffer_levels):
+    """
+    Replace negative level with positive level
+    
+    Example:
+        n_dim = 4, buffer_levels = [0,-1]
+        => new_buffer_levels = [0, 3]
+    
+    """
 
     n_domain_dim = op.domain.dim(isl.dim_type.set)
     new_buffer_levels = []
@@ -800,13 +845,22 @@ def parse_buffer_levels(op, buffer_levels):
 
 
 def insert_single_buffer_multi_level(
-    op, buffer_name, buffer_levels, memory_names, force_inner_level=5, force_dominate_iters=None, force_nondominate_iters=None
+    op, buffer_name, buffer_levels, memory_names, force_inner_level=5, force_dominate_iters=None, force_nondominate_iters=None, force_layout_inner_iters=None, buffer_is_partial_sum=None
 ):
     assert buffer_name in ["I", "O", "W"]
     buffer_levels = parse_buffer_levels(op, buffer_levels)
 
     assert isinstance(buffer_levels, list)
     buffer_levels = sorted(buffer_levels)
+
+    if buffer_is_partial_sum is None:
+        buffer_is_partial_sum = [False] * len(buffer_levels)
+    else:
+        assert isinstance(buffer_is_partial_sum, list)
+        assert len(buffer_is_partial_sum) == len(buffer_levels)
+        assert all([isinstance(i, bool) for i in buffer_is_partial_sum])
+        if buffer_name in ("I", "W"):
+            assert not any(buffer_is_partial_sum), f"{buffer_name=}, {buffer_is_partial_sum=}"
 
     # Align data layout
     ori_acc_rel = op.get_access_by_name(buffer_name)
@@ -816,6 +870,7 @@ def insert_single_buffer_multi_level(
                 op.domain,
                 ori_acc_rel,
                 force_inner_level=force_inner_level,
+                force_layout_inner_iters=force_layout_inner_iters,
             )
         )
     else:
@@ -824,7 +879,8 @@ def insert_single_buffer_multi_level(
                 op.domain, 
                 ori_acc_rel,
                 force_dominate_iters,
-                force_nondominate_iters
+                force_nondominate_iters,
+                force_layout_inner_iters,
             )
         )
     if "O" in buffer_name:
@@ -834,7 +890,7 @@ def insert_single_buffer_multi_level(
 
     
     aligned_acc_rel_range_size = utils.get_box_hull_shape(aligned_acc_rel.range())
-    print(f"{buffer_name=}, {aligned_acc_rel_range_size=}")
+    # print(f"{buffer_name=}, {aligned_acc_rel_range_size=}")
     # import pdb; pdb.set_trace()
     compute_acc_rel = aligned_acc_rel
     data_movement_list = []
@@ -857,16 +913,20 @@ def insert_single_buffer_multi_level(
             )
             # import pdb; pdb.set_trace()
         else:
-            assign_domain, assign_local_buffer_acc_rel, assign_global_buffer_acc_rel = (
+            assign_domain, assign_domain_partial_sum, assign_local_buffer_acc_rel, assign_global_buffer_acc_rel = (
                 map_prefix_domain_aligned_buffer_to_aligned_buffer_v2(
-                    op.domain, compute_acc_rel, buffer_level
+                    op.domain, compute_acc_rel, buffer_level, 
+                    is_partial_sum=buffer_is_partial_sum[idx]
                 )
             )
+        
         compute_acc_rel = map_access_to_buffer(
             compute_acc_rel,
             assign_global_buffer_acc_rel,
             assign_local_buffer_acc_rel,
             buffer_level,
+            buffer_name,
+            is_partial_sum=buffer_is_partial_sum[idx]
         )
         if buffer_name in ["I", "W"]:
             access_I = AccessRelation(
@@ -883,16 +943,30 @@ def insert_single_buffer_multi_level(
                 memory_names[idx],
             )
             access_I = AccessRelation(
-                assign_local_buffer_acc_rel.intersect_domain(assign_domain),
+                assign_local_buffer_acc_rel.intersect_domain(
+                    assign_domain_partial_sum if buffer_is_partial_sum[idx] else assign_domain
+                ),
                 memory_names[idx + 1],
             )
-        datamove = DataMovement(
-            domain=assign_domain,
-            access_I=access_I,
-            access_O=access_O,
-            level=buffer_level,
-            type_=buffer_name,
-        )
+        # if buffer_name == "O":
+        #     import pdb; pdb.set_trace()
+        if buffer_is_partial_sum[idx]:
+            datamove = PartialSumDataMovement(
+                domain=assign_domain,
+                domain_partial_sum=assign_domain_partial_sum,
+                access_I=access_I,
+                access_O=access_O,
+                level=buffer_level,
+                type_=buffer_name,
+            )
+        else:
+            datamove = DataMovement(
+                domain=assign_domain,
+                access_I=access_I,
+                access_O=access_O,
+                level=buffer_level,
+                type_=buffer_name,
+            )
         data_movement_list.append(datamove)
 
     accesses = {"I": op.access_I, "O": op.access_O, "W": op.access_W}
@@ -942,18 +1016,26 @@ Buffer Searching
 
 
 def get_valid_buffer_positions(acc_rel):
-    dominate_iters_per_dim = get_dominate_iters_of_pw_multi_aff_per_out(
-        acc_rel.as_pw_multi_aff(), return_name=False
+    """
+    // level 0
+    for i0
+        // level 1
+        for i1 (dominate)
+            // level 2 (insert buffer here)
+            for i2
+    """
+    dominate_iters = get_dominate_iters_of_map(
+        acc_rel, return_name=False
     )
     # print(f"{dominate_iters_per_dim=}")
-    dominate_iters = reduce(lambda x, y: x.union(y), dominate_iters_per_dim)
+    # dominate_iters = reduce(lambda x, y: x.union(y), dominate_iters_per_dim)
     assert type(dominate_iters) == set
     dominate_iters = sorted(list(dominate_iters))
     valid_buffer_positions = [i + 1 for i in dominate_iters]
     return valid_buffer_positions
 
 
-def buffer_level_serching(
+def buffer_level_combination(
     op,
     buffer_name,
     num_buffer_level,
@@ -1028,7 +1110,7 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
 
     new_ops = []
     for op in tqdm(op_list):
-        input_buffer_level_combinations = buffer_level_serching(
+        input_buffer_level_combinations = buffer_level_combination(
             op, "I", num_buffer_level=1, level_min=0, level_max=macro_compute_level + 1
         )
         # input_buffer_level_combinations = input_buffer_level_combinations[2:]
@@ -1049,14 +1131,19 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
 
 def memory_access_cost(op):
     bandwidth_factor = {
-        # ("global", "input_memory"): 4,
-        ("input_memory", "pim_input_reg_buffer"): 1024,
-        # ("pim_input_reg_buffer"): 1,
-        # ("global", "macro"): 4
+        # input
+        ("global", "input_memory"): 64,
+        ("input_memory", "pim_input_reg_buffer"): 128,
+        # weight
+        ("global", "macro"): 64,
+        # output
+        ("pim_output_reg_buffer", "output_memory"): 128,
+        ("output_memory", "output_memory"): 128,
+        ("output_memory", "global"): 64,
     }
     total_cost = 0
     # cost of moving I and W
-    for buffer_name in ["I", "W"]:
+    for buffer_name in ["I", "W", "O"]:
         for datamove in op.data_movement[buffer_name]:
             # TODO: consider data type, int8 / int32
             # data_volumn = datamove.domain.count_val()
@@ -1071,18 +1158,21 @@ def memory_access_cost(op):
             outer_domain = domain.project_out(
                 isl.dim_type.set, domain_size - n_inner_level, n_inner_level
             )
-            outer_domain_time = outer_domain.count_val()
+            outer_domain_time = outer_domain.count_val().get_num_si()
 
             access_O_sizes = [
-                int(str(datamove.access_O.offsets.range().dim_max_val(i)))
+                int(str(datamove.access_O.offsets.range().dim_max_val(i))) + 1
                 for i in range(n_access_O_dim)
             ]
             access_I_sizes = [
-                int(str(datamove.access_I.offsets.range().dim_max_val(i)))
+                int(str(datamove.access_I.offsets.range().dim_max_val(i))) + 1
                 for i in range(n_access_I_dim)
             ]
-            assert access_O_sizes == access_I_sizes[n_access_I_dim - n_inner_level :]
-            tensorize_data_volumn = reduce(lambda x, y: x * y, access_O_sizes)
+            # if isinstance(datamove, PartialSumDataMovement):
+            #     import pdb; pdb.set_trace()
+            #     pass
+            tensorize_data_volumn_from_O = reduce(lambda x, y: x * y, access_O_sizes)
+            tensorize_data_volumn = tensorize_data_volumn_from_O
 
             src_memory_name = datamove.access_I.memory_name
             dst_memory_name = datamove.access_O.memory_name
@@ -1170,7 +1260,9 @@ def extract_buffer_defines(op):
 
 
 def memory_access_satisfy_constraint(op):
-    buffer_name_to_info = extract_buffer_defines(op)
+    buffer_manager = BufferManager()
+    buffer_manager.add_buffers_from_op(op)
+    buffer_name_to_info = buffer_manager.get_buffer_name_to_info()
 
     buffer_type_to_use_size = dict()
     # get each memory type's use size
@@ -1185,10 +1277,11 @@ def memory_access_satisfy_constraint(op):
     satisfy = True
     for memory_name, use_size in buffer_type_to_use_size.items():
         size_limit = buffer_type_to_size[memory_name]
-        if memory_name == "pim_input_reg_buffer" and use_size > size_limit:
+        if use_size > size_limit:
             satisfy = False
-            print(f"Memory not satisfy! {memory_name=}, {use_size=}, {size_limit=}")
-            break
+            logger.info(f"Memory not satisfy! {memory_name=}, {use_size=}, {size_limit=}")
+            # break
+    # import pdb; pdb.set_trace()
     return satisfy
 
 

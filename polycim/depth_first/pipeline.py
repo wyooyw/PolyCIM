@@ -1,10 +1,10 @@
 from polycim.passes.multi_level_tiling import enumerate_tiling_factors
 import polycim.op.benchmark as benchmark
 from polycim.passes.multi_level_tiling import (
-    factorize, 
     multi_level_splitting_var_level, 
     combine_tilesize_by_symmetry_info
 )
+from polycim.utils.math import factorize
 import islpy as isl
 import polycim.utils.utils as utils
 import itertools
@@ -47,7 +47,8 @@ from polycim.codegen_.codegen_data_layout_convert import (
     gcc_compile_data_layout_convert_code
 )
 from polycim.cli.arguments import get_args
-
+from dataclasses import asdict
+import json
 execution_times = {}
 
 def timing_decorator(func):
@@ -98,7 +99,7 @@ def remove_all_one_factors(factors):
     return new_factors
 
 @timing_decorator
-def pre_tiling(config):
+def pre_tiling(args, config):
     operator = config["op"]
     symmetry_info = config.get("symmetry_info", None)
     dim_types = config.get("dim_types", None)
@@ -139,6 +140,13 @@ def pre_tiling(config):
     #     ((1,), (4, 14), (4, 14), (17, 3), (17, 3))
     # ]
     # combination_list = combination_list[10:14]
+    if args.disable_pretile:
+        combination_list = [
+            combination for combination in combination_list if all(
+                [len(factors) == 1 for factors in combination]
+            )
+        ]
+
     for idx,combination in enumerate(combination_list):
         new_operator = multi_level_splitting_var_level(operator, combination)
         new_dim_types = change_dim_types_for_pre_tiling(combination, dim_types)
@@ -155,6 +163,8 @@ class Base:
         self.corrdinate = tuple(corrdinate)
         self.reuse_array_id = reuse_array_id
         self.is_trival = is_trival
+        self.n_non_zero = sum([int(i!=0) for i in corrdinate])
+        self.is_skewed = self.n_non_zero >= 2
 
     def __str__(self):
         return f"Base(corrdinate={self.corrdinate}, reuse_array_id={self.reuse_array_id}, is_trival={self.is_trival})"
@@ -318,7 +328,7 @@ def get_rank_key(base_combination):
             num_non_zero += sum(nonzero)
     return num_non_zero
 
-def select_bases(bases, operator):
+def select_bases(bases, operator, **kwargs):
     n_dim = operator.domain.dim(isl.dim_type.set)
     selected_bases = []
     
@@ -329,7 +339,7 @@ def select_bases(bases, operator):
     start_time = time.time()
 
     for i,combination in enumerate(base_combinations):
-        if satisfies_constraints(combination, operator):
+        if satisfies_constraints(combination, operator, **kwargs):
             rank_key = get_rank_key(combination)
             selected_bases.append((rank_key, combination))
     selected_bases = sorted(selected_bases, key=lambda x: x[0])
@@ -344,7 +354,7 @@ def select_bases(bases, operator):
     # print(f"{len(selected_bases)} selected bases from {len(bases)} bases")
     return selected_bases
 
-def satisfies_constraints(combination, operator):
+def satisfies_constraints(combination, operator, **kwargs):
     # Extract the coordinates from each item in the combination
     matrix = np.array([item.corrdinate for item in combination])
 
@@ -353,12 +363,17 @@ def satisfies_constraints(combination, operator):
     # if not (0 in reuse_ids and 1 in reuse_ids):
     #     return False
     reuse_ids = {0:0, 1:0}
+    reuse_by_skewed_base_ids = {0:0, 1:0}
     for item in combination:
+        nonzero_count = sum([int(i!=0) for i in item.corrdinate])
+        is_skewed_base = nonzero_count >= 2
         if item.reuse_array_id in (0,1):
             reuse_ids[item.reuse_array_id] += 1
+            if is_skewed_base:
+                reuse_by_skewed_base_ids[item.reuse_array_id] += 1
     if reuse_ids[0] < 1 or reuse_ids[1] < 1:
         return False
-    if reuse_ids[0] > 2 or reuse_ids[1] > 2:
+    if reuse_by_skewed_base_ids[0] > 2 or reuse_by_skewed_base_ids[1] > 2:
         return False
 
     # Check if the matrix is square and invertible
@@ -368,20 +383,104 @@ def satisfies_constraints(combination, operator):
     # Calculate the determinant to check if the matrix is invertible
     if np.linalg.det(matrix) == 0:
         return False
+    # return True
+    # filter by tiles
+    reuse_bases = [base for base in combination if base.reuse_array_id in (0,1)]
+    participate_skewing_dims = set()
+    for base in reuse_bases:
+        nonzero_dims = [i for i,corr in enumerate(base.corrdinate) if corr!=0]
+        if len(nonzero_dims) > 1:
+            participate_skewing_dims.update(nonzero_dims)
+    tile_sizes = kwargs["tile_sizes"]
+
+    cur_dim = 0
+    tile_check_is_valid = True
+    for i,tile_size in enumerate(tile_sizes):
+        if len(tile_size) > 1:
+            is_valid = False
+            for j in range(len(tile_size)):
+                _dim = cur_dim + j
+                if _dim in participate_skewing_dims:
+                    is_valid = True
+                    break
+            
+            if not is_valid:
+                tile_check_is_valid = False
+                break
+        
+        cur_dim += len(tile_size)
+
+    if not tile_check_is_valid:
+        return False
 
     return True
+
+def filter_bases(bases, operator, **kwargs):
+    if kwargs["force_axis_align"]:
+        new_bases = []
+        for base in bases:
+            num_nonzero = sum([int(i!=0) for i in base.corrdinate])
+            if num_nonzero == 1:
+                new_bases.append(base)
+
+        return new_bases
+    return bases
+
+def extend_scalar_dim_for_operator(operator):
+    n_dim = operator.domain.dim(isl.dim_type.set)
+    origin_dims = [f"i{i}" for i in range(n_dim)]
+    new_dims = ["0", *origin_dims]
+    origin_dims_str = ",".join(origin_dims)
+    new_dims_str = ",".join(new_dims)
+    extend_dim_scheduel = isl.BasicMap(f"{{ [{origin_dims_str}] -> [{new_dims_str}] }}")
+    new_op = operator.apply_schedule(extend_dim_scheduel, name="extend_dim")
+    return new_op
+
+def extend_scalar_dim_for_bases(bases, reuse_array_id):
+    assert reuse_array_id in (0,1)
+    n_dim = len(bases[0].corrdinate)
+    new_bases = [Base([1, *([0] * n_dim)], reuse_array_id, True)]
+    for base in bases:
+        new_corrdinate = tuple([0] + list(base.corrdinate))
+        new_bases.append(Base(new_corrdinate, base.reuse_array_id, base.is_trival))
+    return new_bases
+
+def create_scalar_axis_for_reuse(bases, operator, kwargs):
+    reuse_cnt = {
+        0:len([base for base in bases if base.reuse_array_id == 0 and not base.is_skewed]), 
+        1:len([base for base in bases if base.reuse_array_id == 1 and not base.is_skewed])
+    }
+
+    if reuse_cnt[0] == 0:
+        operator = extend_scalar_dim_for_operator(operator)
+        bases = extend_scalar_dim_for_bases(bases, 0)
+        kwargs["tile_sizes"] = ((1,), *kwargs["tile_sizes"])
+        kwargs["dim_types"] = ["_"] + kwargs["dim_types"]
+
+    if reuse_cnt[1] == 0:
+        operator = extend_scalar_dim_for_operator(operator)
+        bases = extend_scalar_dim_for_bases(bases, 1)
+        kwargs["tile_sizes"] = ((1,), *kwargs["tile_sizes"])
+        kwargs["dim_types"] = ["_"] + kwargs["dim_types"]
+
+    return bases, operator
 
 @timing_decorator
 def affine_transform(operator, **kwargs):
     # 1. base construction
     bases = base_construction(operator, **kwargs)  
 
+    bases = filter_bases(bases, operator, **kwargs)
+
+    bases, operator = create_scalar_axis_for_reuse(bases, operator, kwargs)
+    # import pdb; pdb.set_trace()
+
     # 2. base selection
     # select n_dim base from bases that satisfy:
     #  constraint1: for each array, at least one base is selected to reuse it.
     #  constraint2: the selected bases are linear independent
     # find all selection combinations
-    selected_bases_list = select_bases(bases, operator)
+    selected_bases_list = select_bases(bases, operator, **kwargs)
     # print(f"{kwargs['tile_sizes']=}")
     # print(f"{len(selected_bases_list)=}\n")
     # return []
@@ -508,29 +607,31 @@ def count_cim_compute_from_bases(op, bases, cim_cfg):
 
 
 class SearchSpace:
-    def __init__(self, cim_cfg, pad_count, delay_apply, num_macros, enable_weight_rewrite):
+    def __init__(self, args, cim_cfg, pad_count, delay_apply, num_macros):
         assert isinstance(pad_count, bool)
         assert isinstance(delay_apply, bool)
-        assert isinstance(enable_weight_rewrite, bool)
+        self.args = args
         self.cim_cfg = cim_cfg
         self.pad_count = pad_count
         self.delay_apply = delay_apply
         self.num_macros = num_macros
-        self.enable_weight_rewrite = enable_weight_rewrite
+        self.enable_weight_rewrite = not args.disable_weight_rewrite
         self.record_padding_friendly = (not pad_count) and delay_apply
+        self.force_axis_align = args.disable_affine
 
     def search(self, config):
         result = []
         min_compute_times = config.get("min_compute_times_ub", int(1e9))
         min_compute_ops = list()
+        min_compute_ops_info = []
         stats = {"count_val": list()}
         for op1,tile_sizes,dim_types1 in get_tqdm(self.pre_tiling(
             config
-        ), desc="pre_tiling"):            
+        ), desc="pre_tiling"):
             # print("a")
             begin_time = time.time()
             # for op2,bases in get_tqdm(self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1), desc="affine_transform"):
-            for op2,bases in self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1):
+            for op2,bases in self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1, force_axis_align=self.force_axis_align):
                 
                 for op3 in self.coalesce_and_tiling(op2, bases, return_schedule=self.delay_apply):
 
@@ -620,7 +721,7 @@ class SearchSpace:
         
 
     def pre_tiling(self, config):
-        return pre_tiling(config)
+        return pre_tiling(self.args, config)
         # return [op]
 
     def affine_transform(self, op, **kwargs):
@@ -633,18 +734,19 @@ def show_result(min_compute_times, min_compute_ops, cim_cfg, flops, is_print=Tru
     flops_per_cim_compute = flops / min_compute_times
     peak_flops_per_cim_compute = cim_cfg.n_comp * cim_cfg.n_group_vcol
     use_rate_percent = flops_per_cim_compute / peak_flops_per_cim_compute * 100
+    
+    result = OrderedDict()
+    result["cim_cfg"] = asdict(cim_cfg)
+    result["flops"] = flops
+    result["min_compute_times"] = min_compute_times
+    result["len(min_compute_ops)"] = len(min_compute_ops)
+    result["flops_per_cim_compute"] = flops_per_cim_compute
+    result["peak_flops_per_cim_compute"] = peak_flops_per_cim_compute
+    result["use_rate"] = use_rate_percent
 
-    s = f"{cim_cfg.n_comp=}, {cim_cfg.n_group_vcol=}\n"
-    s += f"min_compute_times: {min_compute_times}\n"
-    s += f"len(min_compute_ops): {len(min_compute_ops)}\n"
-    s += f"cim: {cim_cfg.n_comp} comp, {cim_cfg.n_group_vcol} group_vcol\n"
-    s += f"flops={flops}\n"
-    s += f"flops_per_cim_compute={flops_per_cim_compute}\n"
-    s += f"peak_flops_per_cim_compute={peak_flops_per_cim_compute}\n"
-    s += f"use_rate={use_rate_percent:.2f}%\n"
     if is_print:
-        print(s)
-    return s
+        print(json.dumps(result, indent=4))
+    return result
 
 # dump_index = 0
 def dump_schedules(origin_op, new_op, **kwargs):
@@ -659,6 +761,7 @@ def dump_schedules(origin_op, new_op, **kwargs):
     schedule_dict["bases"] = None
     schedule_dict["affine"] = None
     schedule_dict["shift_to_positive"] = None
+    schedule_dict["shift_to_zero"] = None
     schedule_dict["s2h_mapping"] = None
     schedule_dict["coalescing"] = None
     schedule_dict["tiling"] = None
@@ -754,23 +857,25 @@ def dump_op(save_dir, origin_op, min_compute_times, min_compute_ops, min_compute
             break
 
         # save result
-        result_str = show_result(min_compute_times, min_compute_ops, cim_cfg, flops, is_print=False)
+        result_json = show_result(min_compute_times, min_compute_ops, cim_cfg, flops, is_print=False)
         min_compute_op_info = min_compute_ops_info[op_idx]
-        result_str += f"min_compute_op_need_macros={min_compute_op_info.get('need_macros', None)}\n"
-        result_str += f"min_compute_op_padding_friendly={min_compute_op_info.get('padding_friendly', None)}\n"
-        with open(os.path.join(save_dir_solution, f"result.txt"), "w") as f:
-            f.write(result_str)
+        result_json["min_compute_op_need_macros"] = min_compute_op_info.get("need_macros", None)
+        result_json["min_compute_op_padding_friendly"] = min_compute_op_info.get("padding_friendly", None)
+        with open(os.path.join(save_dir_solution, f"result.json"), "w") as f:
+            json.dump(result_json, f, indent=4)
+
     print(f"op save to {save_dir}")
             
 
-def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_weight_rewrite, cim_config):
+def run_op_list(args, op_list, save_dir, pad_count, delay_apply, num_macros, cim_config):
+    # enable_weight_rewrite, force_axis_align, 
     enable_mapping_multiple_macro = pad_count
 
-    search_space = SearchSpace(cim_config, 
+    search_space = SearchSpace(args,
+                              cim_config, 
                               pad_count=pad_count, 
                               delay_apply=delay_apply,
-                              num_macros=num_macros,
-                              enable_weight_rewrite=enable_weight_rewrite)
+                              num_macros=num_macros)
     for name,config in op_list.items():
         if isinstance(config, BasicOperator):
             config = {"op": config}
@@ -783,11 +888,15 @@ def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_we
         op = config["op"]
         flops = int(str(op.domain.count_val()))
         show_result(min_compute_times, min_compute_ops, cim_config, flops)
+        
+        dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_config, flops)        
+        
+        if args.disable_second_stage:
+            continue
 
         if enable_mapping_multiple_macro:
-            new_op = mapping_multiple_macro(min_compute_ops[0], cim_config, enable_weight_rewrite=enable_weight_rewrite)
+            new_op = mapping_multiple_macro(args, min_compute_ops[0], cim_config)
         # print("\n")
-        dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_config, flops)        
         
         # save data layout convert code
         data_layout_convert_code = new_op.attr["data_layout_convert_code"]
