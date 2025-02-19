@@ -1,6 +1,6 @@
 import polycim.op.benchmark as benchmark
 from collections import OrderedDict
-from polycim.op.calculate import depth_wise_conv2d, depth_wise_conv3d
+from polycim.op.calculate import conv2d, depth_wise_conv2d, depth_wise_conv3d
 from functools import partial
 def get_op_list():
 
@@ -8,8 +8,14 @@ def get_op_list():
     dim_types_for_dwconv2d = ["c", "oh", "ow", "kh", "kw"]
 
     op_list = OrderedDict()
+    op_list["conv2d"] = {
+        "op": benchmark.get_op_conv2d(oc=2, ic=3, oh=32, ow=32, kh=3, kw=3, stride=1,virtual_axis=False),
+        "symmetry_info": ((2,4),(3,5)),
+        "dim_types": ["oc", "ic", "oh", "ow", "kh", "kw"],
+        "verify_fn": conv2d,
+    }
     op_list["test"] = {
-        "op": benchmark.get_op_dwconv2d(ic=1, oh=4, ow=4, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
+        "op": benchmark.get_op_dwconv2d(ic=1, oh=8, ow=8, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
         "symmetry_info": symmetry_info_for_dwconv2d,
         "dim_types": dim_types_for_dwconv2d,
         "verify_fn": depth_wise_conv2d,
@@ -22,7 +28,7 @@ def get_op_list():
         "verify_fn": partial(depth_wise_conv2d, dilation=2),
     }
     op_list["test3d"] = {
-        "op": benchmark.get_op_dwconv3d(ic=1, ox=2, oy=2, oz=2, kx=3, ky=3, kz=3, stride=1),
+        "op": benchmark.get_op_dwconv3d(ic=4, ox=4, oy=4, oz=4, kx=3, ky=3, kz=3, stride=1),
         "symmetry_info": ((1,4),(2,5),(3,6)),
         "dim_types": ["c", "ox", "oy", "oz", "kx", "ky", "kz"],
         "max_tiling_level": 2,
