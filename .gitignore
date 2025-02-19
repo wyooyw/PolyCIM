@@ -3,6 +3,8 @@ __pycache__/
 .temp_save/
 .temp/
 .save/
+.test/
+test.py
 *.log
 islplot/
 *.onnx
@@ -10,3 +12,4 @@ __pycache__/
 .package
 instructions
 *.egg-info
+*.db
