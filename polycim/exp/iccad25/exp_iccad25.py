@@ -44,7 +44,7 @@ def explore(temp_dir, cim_cfg_path, op_id, axis_align):
         "--data-movement-full-vectorize",
     ]
     if axis_align:
-        cmd.append("--force-axis-align")
+        cmd.append("--disable-affine")
     subprocess.run(cmd, check=True)
 
 def verify(temp_dir, cim_cfg_path, op_id, cim_count, axis_align):

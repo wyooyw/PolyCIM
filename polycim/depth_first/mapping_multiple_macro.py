@@ -35,12 +35,12 @@ def get_scalar_iters(domain):
     scalar_iters = {i for i in range(n_dim) if shape[i] == 1}
     return scalar_iters
 
-def mapping_multiple_macro(op, cim_cfg, **kwargs):
-    assert "enable_weight_rewrite" in kwargs
-    if kwargs["enable_weight_rewrite"]:
-        return mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs)
-    else:
+def mapping_multiple_macro(args, op, cim_cfg, **kwargs):
+    # assert "enable_weight_rewrite" in kwargs
+    if args.disable_weight_rewrite:
         return mapping_multiple_macro_disable_weight_rewrite(op, cim_cfg, **kwargs)
+    else:
+        return mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs)
 
 def get_candidate_iters(op):
     share_input_iters = get_non_dominate_iters_of_pw_multi_aff(op.access_I.as_pw_multi_aff(), return_name=False)

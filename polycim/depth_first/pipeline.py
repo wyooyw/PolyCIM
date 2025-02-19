@@ -99,7 +99,7 @@ def remove_all_one_factors(factors):
     return new_factors
 
 @timing_decorator
-def pre_tiling(config):
+def pre_tiling(args, config):
     operator = config["op"]
     symmetry_info = config.get("symmetry_info", None)
     dim_types = config.get("dim_types", None)
@@ -140,6 +140,13 @@ def pre_tiling(config):
     #     ((1,), (4, 14), (4, 14), (17, 3), (17, 3))
     # ]
     # combination_list = combination_list[10:14]
+    if args.disable_pretile:
+        combination_list = [
+            combination for combination in combination_list if all(
+                [len(factors) == 1 for factors in combination]
+            )
+        ]
+
     for idx,combination in enumerate(combination_list):
         new_operator = multi_level_splitting_var_level(operator, combination)
         new_dim_types = change_dim_types_for_pre_tiling(combination, dim_types)
@@ -156,6 +163,8 @@ class Base:
         self.corrdinate = tuple(corrdinate)
         self.reuse_array_id = reuse_array_id
         self.is_trival = is_trival
+        self.n_non_zero = sum([int(i!=0) for i in corrdinate])
+        self.is_skewed = self.n_non_zero >= 2
 
     def __str__(self):
         return f"Base(corrdinate={self.corrdinate}, reuse_array_id={self.reuse_array_id}, is_trival={self.is_trival})"
@@ -436,19 +445,23 @@ def extend_scalar_dim_for_bases(bases, reuse_array_id):
         new_bases.append(Base(new_corrdinate, base.reuse_array_id, base.is_trival))
     return new_bases
 
-def create_scalar_axis_for_reuse(bases, operator, **kwargs):
+def create_scalar_axis_for_reuse(bases, operator, kwargs):
     reuse_cnt = {
-        0:len([base for base in bases if base.reuse_array_id == 0]), 
-        1:len([base for base in bases if base.reuse_array_id == 1])
+        0:len([base for base in bases if base.reuse_array_id == 0 and not base.is_skewed]), 
+        1:len([base for base in bases if base.reuse_array_id == 1 and not base.is_skewed])
     }
 
     if reuse_cnt[0] == 0:
         operator = extend_scalar_dim_for_operator(operator)
         bases = extend_scalar_dim_for_bases(bases, 0)
+        kwargs["tile_sizes"] = ((1,), *kwargs["tile_sizes"])
+        kwargs["dim_types"] = ["_"] + kwargs["dim_types"]
 
     if reuse_cnt[1] == 0:
         operator = extend_scalar_dim_for_operator(operator)
         bases = extend_scalar_dim_for_bases(bases, 1)
+        kwargs["tile_sizes"] = ((1,), *kwargs["tile_sizes"])
+        kwargs["dim_types"] = ["_"] + kwargs["dim_types"]
 
     return bases, operator
 
@@ -459,7 +472,8 @@ def affine_transform(operator, **kwargs):
 
     bases = filter_bases(bases, operator, **kwargs)
 
-    bases, operator = create_scalar_axis_for_reuse(bases, operator, **kwargs)
+    bases, operator = create_scalar_axis_for_reuse(bases, operator, kwargs)
+    # import pdb; pdb.set_trace()
 
     # 2. base selection
     # select n_dim base from bases that satisfy:
@@ -593,17 +607,17 @@ def count_cim_compute_from_bases(op, bases, cim_cfg):
 
 
 class SearchSpace:
-    def __init__(self, cim_cfg, pad_count, delay_apply, num_macros, enable_weight_rewrite, force_axis_align):
+    def __init__(self, args, cim_cfg, pad_count, delay_apply, num_macros):
         assert isinstance(pad_count, bool)
         assert isinstance(delay_apply, bool)
-        assert isinstance(enable_weight_rewrite, bool)
+        self.args = args
         self.cim_cfg = cim_cfg
         self.pad_count = pad_count
         self.delay_apply = delay_apply
         self.num_macros = num_macros
-        self.enable_weight_rewrite = enable_weight_rewrite
+        self.enable_weight_rewrite = not args.disable_weight_rewrite
         self.record_padding_friendly = (not pad_count) and delay_apply
-        self.force_axis_align = force_axis_align
+        self.force_axis_align = args.disable_affine
 
     def search(self, config):
         result = []
@@ -613,7 +627,7 @@ class SearchSpace:
         stats = {"count_val": list()}
         for op1,tile_sizes,dim_types1 in get_tqdm(self.pre_tiling(
             config
-        ), desc="pre_tiling"):            
+        ), desc="pre_tiling"):
             # print("a")
             begin_time = time.time()
             # for op2,bases in get_tqdm(self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1), desc="affine_transform"):
@@ -707,7 +721,7 @@ class SearchSpace:
         
 
     def pre_tiling(self, config):
-        return pre_tiling(config)
+        return pre_tiling(self.args, config)
         # return [op]
 
     def affine_transform(self, op, **kwargs):
@@ -853,15 +867,15 @@ def dump_op(save_dir, origin_op, min_compute_times, min_compute_ops, min_compute
     print(f"op save to {save_dir}")
             
 
-def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_weight_rewrite, force_axis_align, cim_config):
+def run_op_list(args, op_list, save_dir, pad_count, delay_apply, num_macros, cim_config):
+    # enable_weight_rewrite, force_axis_align, 
     enable_mapping_multiple_macro = pad_count
 
-    search_space = SearchSpace(cim_config, 
+    search_space = SearchSpace(args,
+                              cim_config, 
                               pad_count=pad_count, 
                               delay_apply=delay_apply,
-                              num_macros=num_macros,
-                              enable_weight_rewrite=enable_weight_rewrite,
-                              force_axis_align=force_axis_align)
+                              num_macros=num_macros)
     for name,config in op_list.items():
         if isinstance(config, BasicOperator):
             config = {"op": config}
@@ -877,8 +891,11 @@ def run_op_list(op_list, save_dir, pad_count, delay_apply, num_macros, enable_we
         
         dump_op(os.path.join(save_dir, name), op, min_compute_times, min_compute_ops, min_compute_ops_info, cim_config, flops)        
         
+        if args.disable_second_stage:
+            continue
+
         if enable_mapping_multiple_macro:
-            new_op = mapping_multiple_macro(min_compute_ops[0], cim_config, enable_weight_rewrite=enable_weight_rewrite)
+            new_op = mapping_multiple_macro(args, min_compute_ops[0], cim_config)
         # print("\n")
         
         # save data layout convert code
