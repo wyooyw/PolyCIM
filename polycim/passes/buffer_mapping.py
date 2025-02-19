@@ -91,7 +91,7 @@ def build_domain_aligned_buffer_exclude_iters(
         assert isinstance(force_layout_inner_iters, list) or isinstance(force_layout_inner_iters, tuple)
         assert all([type(i) == int for i in force_layout_inner_iters])
         if not set(force_layout_inner_iters).issubset(set(iter_in_array_ids)):
-            logger.warning(f"{force_layout_inner_iters=} is not subset of {iter_in_array_ids=}. This maybe caused by scalar dimensions.")
+            logger.debug(f"{force_layout_inner_iters=} is not subset of {iter_in_array_ids=}. This maybe caused by scalar dimensions.")
         iter_in_array_ids = [i for i in iter_in_array_ids if i not in force_layout_inner_iters]
         iter_in_array_ids = iter_in_array_ids + list(force_layout_inner_iters)
 
@@ -1132,14 +1132,14 @@ def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
 def memory_access_cost(op):
     bandwidth_factor = {
         # input
-        ("global", "input_memory"): 1024,
-        ("input_memory", "pim_input_reg_buffer"): 1024,
+        ("global", "input_memory"): 64,
+        ("input_memory", "pim_input_reg_buffer"): 128,
         # weight
-        ("global", "macro"): 1024,
+        ("global", "macro"): 64,
         # output
-        ("pim_output_reg_buffer", "output_memory"): 1024,
-        ("output_memory", "output_memory"): 1024,
-        ("output_memory", "global"): 1024,
+        ("pim_output_reg_buffer", "output_memory"): 128,
+        ("output_memory", "output_memory"): 128,
+        ("output_memory", "global"): 64,
     }
     total_cost = 0
     # cost of moving I and W
@@ -1168,9 +1168,9 @@ def memory_access_cost(op):
                 int(str(datamove.access_I.offsets.range().dim_max_val(i))) + 1
                 for i in range(n_access_I_dim)
             ]
-            if isinstance(datamove, PartialSumDataMovement):
-                import pdb; pdb.set_trace()
-                pass
+            # if isinstance(datamove, PartialSumDataMovement):
+            #     import pdb; pdb.set_trace()
+            #     pass
             tensorize_data_volumn_from_O = reduce(lambda x, y: x * y, access_O_sizes)
             tensorize_data_volumn = tensorize_data_volumn_from_O
 
@@ -1279,8 +1279,8 @@ def memory_access_satisfy_constraint(op):
         size_limit = buffer_type_to_size[memory_name]
         if use_size > size_limit:
             satisfy = False
-            logger.debug(f"Memory not satisfy! {memory_name=}, {use_size=}, {size_limit=}")
-            break
+            logger.info(f"Memory not satisfy! {memory_name=}, {use_size=}, {size_limit=}")
+            # break
     # import pdb; pdb.set_trace()
     return satisfy
 
