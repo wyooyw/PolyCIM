@@ -13,6 +13,9 @@ from polycim.op.calculate import depth_wise_conv2d
 from polycim.exp.op_list import get_op_list
 from polycim.exp.iccad25.exp_iccad25 import run_op
 
+def ceil(a, b):
+    return int(math.ceil(a / b))
+
 @pytest.mark.parametrize("cim_cfg_path, op_id, cim_count, axis_align", [
     *[("c16b32.json", op_id, cim_count, axis_align)
         for op_id, cim_count, axis_align in [
@@ -20,12 +23,12 @@ from polycim.exp.iccad25.exp_iccad25 import run_op
             *[("C2", _cim_count, _axis_align ) for _cim_count, _axis_align in [ (784, False), (-1, True) ]],
         ]
     ],
-    *[("g2m2c16b32.json", op_id, cim_count)
+    *[("g2m2c16b32.json", op_id, cim_count, False)
         for op_id, cim_count in [
             ("C1", 3136 // 2), ("C2", 784 // 2),
         ]
     ],
-    *[("g4m4c16b32.json", op_id, cim_count)
+    *[("g4m4c16b32.json", op_id, cim_count, False)
         for op_id, cim_count in [
             ("C1", 3136 // 4), ("C2", 784 // 4),
         ]
@@ -52,17 +55,17 @@ from polycim.exp.iccad25.exp_iccad25 import run_op
             ("C15", -1)
         ]
     ],
-    *[("g2m2c32b64.json", op_id, cim_count)
+    *[("g2m2c32b64.json", op_id, cim_count, False)
         for op_id, cim_count in [
             ("C1", 1568 // 2), ("C2", 392 // 2), ("C4", 28 // 2), ("C7", ceil(7, 2)), ("C12", 98 // 2) 
         ]
     ],
-    *[("g4m4c32b64.json", op_id, cim_count)
+    *[("g4m4c32b64.json", op_id, cim_count, False)
         for op_id, cim_count in [
             ("C1", ceil(1568, 4)), ("C2", ceil(392, 4)), ("C4", ceil(28, 4)), ("C7", ceil(7, 4)), ("C12", -1) 
         ]
     ],
-    *[("c64b64.json", op_id, cim_count)
+    *[("c64b64.json", op_id, cim_count, False)
         for op_id, cim_count in [
             # small kernels
             ("C1", 1568), ("C2", 392), ("C4", 28), ("C7", 7), ("C12", 98),
