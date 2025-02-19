@@ -1,6 +1,8 @@
 import islpy as isl
 import yaml
 from collections import OrderedDict
+from functools import partial
+
 def gen_ast(domain, schedule, context=None):
     if context is None:
         context = isl.Set("{ : }")
@@ -328,3 +330,29 @@ def get_dominate_iters_of_pw_multi_aff_per_out(pw_multi_aff, return_name=True):
                     dominate_dims[dim].add(dim_names[i] if return_name else i)
         
     return dominate_dims
+
+
+def record_points(point, record):
+    multi_val = point.get_multi_val()
+    val = [int(str(multi_val.get_val(i))) for i in range(len(multi_val))]
+    record.append(val)
+
+
+def get_points(set_):
+    points = []
+    record_points_fn = partial(record_points, record=points)
+    set_.foreach_point(record_points_fn)
+    return points
+
+def show_set(set_):
+    points = get_points(set_)
+    for i, point in enumerate(points):
+        print(f"{i}: {point}")
+
+def show_map(map_):
+    n_domain = map_.domain().dim(isl.dim_type.set)
+    points = get_points(map_.wrap())
+    for i, point in enumerate(points):
+        lhs = point[:n_domain]
+        rhs = point[n_domain:]
+        print(f"{i}: {lhs} -> {rhs}")
