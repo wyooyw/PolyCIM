@@ -148,7 +148,9 @@ class BasicOperator:
     def concrete_access_W(self):
         return self.concrete_access(self.access_W)
 
-    def set_attr(self, key, value):
+    def set_attr(self, key, value, overwrite=False):
+        if key in self.attr and not overwrite:
+            raise Exception(f"Key {key} already exists")
         self.attr[key] = value
 
 
