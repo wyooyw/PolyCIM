@@ -26,8 +26,15 @@ class TensorAccessRelation(AccessRelation):
             self.offsets.convex_hull(), self.sizes.convex_hull(), self.memory_name
         )
 
+class Operator:
+    def __init__(self):
+        pass
 
-class BasicOperator:
+    def apply_schedule(self, schedule, reverse_schedule=None, skip_simplify=False, name=None):
+        raise NotImplementedError
+
+
+class BasicOperator(Operator):
     def __init__(
         self,
         domain,
@@ -154,7 +161,7 @@ class BasicOperator:
         self.attr[key] = value
 
 
-class DataMovement:
+class DataMovement(Operator):
     def __init__(self, domain, access_I, access_O, level, type_):
         assert type(access_I) in (
             isl.BasicMap,

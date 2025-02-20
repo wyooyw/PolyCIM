@@ -7,7 +7,7 @@ import tempfile
 import json
 
 from polycim.config import get_config
-from polycim.depth_first.pipeline import run_op_list
+from polycim.depth_first.pipeline2 import run_op_list
 
 from polycim.utils.logger import get_logger
 from polycim.cli.common import show_args, to_abs_path
