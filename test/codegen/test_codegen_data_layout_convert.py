@@ -4,7 +4,7 @@ from polycim.codegen_.codegen_data_layout_convert import data_layout_convert
 import polycim.op.benchmark as benchmark
 import polycim.utils.utils as utils
 import pytest
-from polycim.passes.multi_level_tiling import multi_level_splitting_var_level
+from polycim.passes.multi_level_tiling_pass import multi_level_splitting_var_level
 
 def test_codegen_data_layout_convert_transpose():
     accrel_lhs = isl.Map("{ [i, j] -> A[i, j] : 0 <= i < 4 and 0 <= j < 4 }")

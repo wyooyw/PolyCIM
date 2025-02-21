@@ -1,6 +1,6 @@
-from polycim.passes.multi_level_tiling import enumerate_tiling_factors
+from polycim.passes.multi_level_tiling_pass import enumerate_tiling_factors
 import polycim.op.benchmark as benchmark
-from polycim.passes.multi_level_tiling import (
+from polycim.passes.multi_level_tiling_pass import (
     multi_level_splitting_var_level, 
     combine_tilesize_by_symmetry_info
 )
@@ -9,7 +9,7 @@ import islpy as isl
 import polycim.utils.utils as utils
 import itertools
 from tqdm import tqdm
-from polycim.passes.affine_transform import (
+from polycim.passes.affine_transform_pass import (
     parse_operator,
     find_base,
     base_to_coor_transform_schedule,
@@ -20,7 +20,7 @@ from collections import OrderedDict
 import numpy as np
 import time
 from sympy import Matrix
-from polycim.passes.hardware_merge_tiling import (
+from polycim.passes.hardware_mapping_pass import (
     get_coalescing_schedule_from_mapping,
     get_reverse_coalescing_schedule_from_mapping,
     _get_hardware_tiling_schedule
@@ -39,7 +39,7 @@ from polycim.depth_first.timeout import timeout
 from functools import reduce
 import math
 from polycim.passes.loop_padding import loop_padding_to_box_all, shift_to_zero
-from polycim.depth_first.mapping_multiple_macro import mapping_multiple_macro
+from polycim.passes.mapping_multi_macro_pass import mapping_multiple_macro
 from polycim.codegen_.codegen_cimdsl import codegen_pass
 from polycim.passes.tensorize import tensorize_pass
 from polycim.passes.backend import backend_compile_and_profile_pass
@@ -151,24 +151,6 @@ def pre_tiling(args, config):
 
     return new_op_list
 
-class Base:
-    def __init__(self, corrdinate, reuse_array_id, is_trival):
-        self.corrdinate = tuple(corrdinate)
-        self.reuse_array_id = reuse_array_id
-        self.is_trival = is_trival
-        self.n_non_zero = sum([int(i!=0) for i in corrdinate])
-        self.is_skewed = self.n_non_zero >= 2
-
-    def __str__(self):
-        return f"Base(corrdinate={self.corrdinate}, reuse_array_id={self.reuse_array_id}, is_trival={self.is_trival})"
-
-    def __eq__(self, other):
-        if isinstance(other, Base):
-            return self.corrdinate == other.corrdinate
-        return False
-
-    def __hash__(self):
-        return hash(self.corrdinate)
 
 def record_points(point, record):
     multi_val = point.get_multi_val()

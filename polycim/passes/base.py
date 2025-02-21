@@ -1,5 +1,7 @@
-from polycim.op.base_operator import Operator
 import copy
+
+from polycim.op.base_operator import Operator
+
 
 class Pass:
     def __init__(self):

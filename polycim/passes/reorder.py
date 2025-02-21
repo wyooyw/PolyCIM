@@ -1,6 +1,8 @@
-import islpy as isl
 import itertools
+
+import islpy as isl
 from tqdm import tqdm
+
 
 def reorder_outer(operator, inner_level):
     n_domain_iter = operator.domain.dim(isl.dim_type.set)

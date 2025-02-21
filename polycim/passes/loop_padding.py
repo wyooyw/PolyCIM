@@ -1,8 +1,11 @@
-import islpy as isl
-from polycim.op.base_operator import BasicOperator
-from polycim.config import get_config
-import polycim.utils.utils as utils
 import copy
+
+import islpy as isl
+
+import polycim.utils.utils as utils
+from polycim.config import get_config
+from polycim.op.base_operator import BasicOperator
+
 
 def loop_padding(op, _):
     

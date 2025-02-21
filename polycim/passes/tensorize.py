@@ -1,15 +1,17 @@
+from typing import Optional
+
 import islpy as isl
 from tqdm import tqdm
 
 import polycim.utils.utils as utils
-from polycim.op.base_operator import (AccessRelation, BasicOperator, DataMovement,
-                           DataMovementOperator, TensorAccessRelation, PartialSumDataMovement)
 from polycim.cli.arguments import get_args
-from polycim.passes.base import Schedule
-from polycim.passes.base import DepthFirstPass
-from polycim.passes.base import SchedulePassResult
-from typing import Optional
 from polycim.config import CIMConfig
+from polycim.op.base_operator import (AccessRelation, DataMovement,
+                                      DataMovementOperator,
+                                      PartialSumDataMovement,
+                                      TensorAccessRelation)
+from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
+
 
 def pwaffs_to_map(affs):
     pw_aff_list = utils.make_pw_affs_to_aff_list(affs)

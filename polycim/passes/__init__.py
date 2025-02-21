@@ -1,14 +1,14 @@
-from .pre_tiling_pass import PreTilingPass
-from .affine_pass import AffinePass
-from .hardware_mapping_pass import HardwareMappingPass
-from .utilization_evaluate_pass import UtilizationEvaluatePass
-from .dump_op_pass import DumpOpPass
-from .mapping_multi_macro_pass import MappingMultiMacroPass
-from .tensorize import TensorizePass
-from .codegen_pass import CodegenPass
+from .affine_transform_pass import AffinePass
 from .backend import BackendCompilePass
+from .buffer_mapping import BufferMappingPass
+from .codegen_pass import CodegenPass
+from .dump_op_pass import DumpOpPass
 from .filter_single_op_pass import FilterSingleOpPass
-
+from .hardware_mapping_pass import HardwareMappingPass
+from .mapping_multi_macro_pass import MappingMultiMacroPass
+from .multi_level_tiling_pass import PreTilingPass
+from .tensorize import TensorizePass
+from .utilization_evaluate_pass import UtilizationEvaluatePass
 
 __all__ = [
     "PreTilingPass",
@@ -21,4 +21,5 @@ __all__ = [
     "CodegenPass",
     "BackendCompilePass",
     "FilterSingleOpPass",
+    "BufferMappingPass",
 ]

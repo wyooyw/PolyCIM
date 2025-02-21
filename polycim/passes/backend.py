@@ -1,13 +1,14 @@
-import islpy as isl
-import os
 import json
-from dataclasses import dataclass
+import os
 import subprocess
-from polycim.passes.base import DepthFirstPass
-from polycim.passes.base import Schedule
-from polycim.passes.base import SchedulePassResult
+from dataclasses import dataclass
 from typing import Optional
+
+from polycim.codegen_.codegen_data_layout_convert import \
+    gcc_compile_data_layout_convert_code
 from polycim.config import CIMConfig
+from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
+
 
 def dump_op_basic_info(op, path):
     n_compute = op.domain.count_val()
@@ -140,6 +141,8 @@ def backend_compile(op, save_dir, config_file):
     code_file = os.path.join(os.path.abspath(save_dir), "final_code.json")
     output_dir = os.path.join(os.path.abspath(save_dir), "output")
 
+
+
 class BackendCompilePass(DepthFirstPass):
     def __init__(self, 
             args,
@@ -165,5 +168,19 @@ class BackendCompilePass(DepthFirstPass):
             save_dir=os.path.join(self.args.output_path, operator.attr["name"], str(self.cnt)),
             config_file=self.args.config_path
         )
+        self.data_layout_compile(operator)
         self.cnt += 1
         return [SchedulePassResult(operator, Schedule())]
+
+    def data_layout_compile(self, operator):
+        # save data layout convert code
+        data_layout_convert_code = operator.attr["data_layout_convert_code"]
+        save_op_dir = os.path.join(self.args.output_path, operator.attr["name"], str(self.cnt))
+        os.makedirs(save_op_dir, exist_ok=True)
+        # import pdb; pdb.set_trace()
+        for key, value in data_layout_convert_code.items():
+            code_path = os.path.join(save_op_dir, f"convert_{key}.cpp")   
+            with open(code_path, "w") as f:
+                f.write(value)
+            exe_path = os.path.join(save_op_dir, f"convert_{key}.o")
+            gcc_compile_data_layout_convert_code(code_path, exe_path)

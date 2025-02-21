@@ -3,8 +3,8 @@ import os
 if int(os.environ.get("NEW_ALGO", 0))==1:
     from affine_transform_new import auto_skewing_pass
 else:
-    from polycim.passes.affine_transform import auto_skewing_pass
-from polycim.passes.hardware_merge_tiling import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
+    from polycim.passes.affine_transform_pass import auto_skewing_pass
+from polycim.passes.hardware_mapping_pass import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
 # from hardware_merge_tiling_4d_macro import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
 import islpy as isl
 from polycim.passes.buffer_mapping import (
@@ -17,7 +17,7 @@ from codegen import codegen_pass
 from polycim.passes.loop_padding import loop_padding_pass
 from polycim.passes.tensorize import tensorize_pass
 from polycim.passes.backend import backend_compile_and_profile_pass
-from polycim.passes.multi_level_tiling import pre_tiling_pass, memory_tiling_pass
+from polycim.passes.multi_level_tiling_pass import pre_tiling_pass, memory_tiling_pass
 import polycim.op.benchmark as benchmark
 import json
 from polycim.config import get_config

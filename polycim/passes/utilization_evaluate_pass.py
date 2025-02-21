@@ -1,21 +1,13 @@
-import json
+from functools import reduce
+
 import islpy as isl
-from typing import Optional
-from polycim.passes.base import Schedule
-from polycim.passes.base import DepthFirstPass
-from polycim.passes.base import SchedulePassResult
+
 import polycim.utils.utils as utils
 from polycim.config import CIMConfig
-from polycim.passes.multi_level_tiling import (
-    remove_all_one_factors,
-    combine_tilesize_by_symmetry_info,
-    multi_level_splitting_var_level,
-)
-from polycim.utils.math import factorize
-from polycim.depth_first.timeout import timeout
 from polycim.depth_first.count_minimal_macro import count_minimal_needed_macro
+from polycim.depth_first.timeout import timeout
 from polycim.passes.base import BreadthFirstPass
-from functools import reduce
+
 
 @timeout(seconds=4)
 def count_val(domain):

@@ -1,17 +1,9 @@
-import json
-import islpy as isl
 from typing import Optional
-from polycim.passes.base import Schedule
-from polycim.passes.base import DepthFirstPass
-from polycim.passes.base import SchedulePassResult
-import polycim.utils.utils as utils
-from polycim.passes.multi_level_tiling import (
-    remove_all_one_factors,
-    combine_tilesize_by_symmetry_info,
-    multi_level_splitting_var_level,
-)
+
 from polycim.codegen_.codegen_cimdsl import codegen_pass
 from polycim.config import CIMConfig
+from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
+
 
 class CodegenPass(DepthFirstPass):
     def __init__(self, 

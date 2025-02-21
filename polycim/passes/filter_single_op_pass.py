@@ -1,5 +1,6 @@
 from polycim.passes.base import BreadthFirstPass
 
+
 class FilterSingleOpPass(BreadthFirstPass):
     def __init__(self):
         super().__init__()
