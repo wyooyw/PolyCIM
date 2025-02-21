@@ -2,7 +2,7 @@ import json
 import islpy as isl
 from typing import Optional
 from polycim.passes.base import Schedule
-from polycim.passes.base import SchedulePass
+from polycim.passes.base import DepthFirstPass
 from polycim.passes.base import SchedulePassResult
 import polycim.utils.utils as utils
 from polycim.passes.multi_level_tiling import (
@@ -42,7 +42,7 @@ class PreTilingSchedule(Schedule):
     def __eq__(self, other):
         return self.tile_sizes == other.tile_sizes
 
-class PreTilingPass(SchedulePass):
+class PreTilingPass(DepthFirstPass):
     def __init__(self, 
             args,
             fix_schedule: Optional[PreTilingSchedule]=None, 

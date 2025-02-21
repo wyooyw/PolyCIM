@@ -2,7 +2,7 @@ import json
 import islpy as isl
 from typing import Optional
 from polycim.passes.base import Schedule
-from polycim.passes.base import SchedulePass
+from polycim.passes.base import DepthFirstPass
 from polycim.passes.base import SchedulePassResult
 from sympy import Matrix
 from polycim.passes.loop_padding import loop_padding_to_box_all, shift_to_zero
@@ -281,7 +281,7 @@ class AffineSchedule(Schedule):
         for item in data:
             self.bases.append(Base(item["corrdinate"], item["reuse_array_id"], item["is_trival"]))
 
-class AffinePass(SchedulePass):
+class AffinePass(DepthFirstPass):
     def __init__(self, 
             args,
             fix_schedule: Optional[AffineSchedule]=None, 

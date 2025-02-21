@@ -2,7 +2,7 @@ import json
 import islpy as isl
 from typing import Optional
 from polycim.passes.base import Schedule
-from polycim.passes.base import SchedulePass
+from polycim.passes.base import DepthFirstPass
 from polycim.passes.base import SchedulePassResult
 import polycim.utils.utils as utils
 from polycim.config import CIMConfig
@@ -14,11 +14,15 @@ from polycim.passes.multi_level_tiling import (
 from polycim.utils.math import factorize
 from polycim.depth_first.timeout import timeout
 from polycim.depth_first.count_minimal_macro import count_minimal_needed_macro
-from polycim.passes.base import EvaluatePass
+from polycim.passes.base import BreadthFirstPass
 from functools import reduce
 from polycim.utils.draw import (
     extract_frame_info
 )
+import os
+from collections import OrderedDict
+from dataclasses import asdict
+
 
 def dump_schedules(origin_op, new_op, **kwargs):
     cim_cfg = kwargs["cim_cfg"]
@@ -105,7 +109,7 @@ draw(op, cim_cfg)
     # exit()
     return dump_code
             
-class DumpOpPass(EvaluatePass):
+class DumpOpPass(BreadthFirstPass):
     def __init__(self, 
             args,
             cim_config: CIMConfig,
@@ -122,12 +126,14 @@ class DumpOpPass(EvaluatePass):
 
     def apply(self, operator):
         self.op_list.append(operator)
-        self.dump_op()
+        self.dump_op(operator)
 
-    def dump_op(self, origin_op, min_compute_op, min_compute_ops_info, cim_cfg, flops):
+    def dump_op(self, op):
+        origin_op = op.attr["origin_op"]
+        flops = int(str(origin_op.domain.count_val()))
         
         save_dir = self.args.output_path
-        min_compute_times = min_compute_op.attr["UtilizationEvaluatePass::exe_time"]
+        min_compute_times = op.attr["UtilizationEvaluatePass"]["compute_ops"]
         os.makedirs(save_dir, exist_ok=True)
         op_idx = len(self.op_list)
         
@@ -151,14 +157,14 @@ class DumpOpPass(EvaluatePass):
             break
 
         # save result
-        result_json = show_result(min_compute_times, min_compute_ops, self.cim_config, flops, is_print=False)
-        result_json["min_compute_op_need_macros"] = op.attr["UtilizationEvaluatePass::need_macros"]
+        result_json = self.show_result(min_compute_times, flops, is_print=False)
+        result_json["min_compute_op_need_macros"] = op.attr["UtilizationEvaluatePass"]["need_macros"]
         with open(os.path.join(save_dir_solution, f"result.json"), "w") as f:
             json.dump(result_json, f, indent=4)
 
         print(f"op save to {save_dir}")
 
-    def show_result(self, min_compute_times, min_compute_ops, flops, is_print=True):
+    def show_result(self, min_compute_times, flops, is_print=True):
         flops_per_cim_compute = flops / min_compute_times
         peak_flops_per_cim_compute = self.cim_config.n_comp * self.cim_config.n_group_vcol
         use_rate_percent = flops_per_cim_compute / peak_flops_per_cim_compute * 100
@@ -175,4 +181,8 @@ class DumpOpPass(EvaluatePass):
             print(json.dumps(result, indent=4))
         return result
 
-        
+    def apply_all(self):
+        pass
+
+    def get_result(self):
+        return self.op_list

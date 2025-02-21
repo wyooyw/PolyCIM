@@ -2,7 +2,7 @@ import json
 import islpy as isl
 from typing import Optional
 from polycim.passes.base import Schedule
-from polycim.passes.base import SchedulePass
+from polycim.passes.base import DepthFirstPass
 from polycim.passes.base import SchedulePassResult
 import polycim.utils.utils as utils
 from polycim.passes.multi_level_tiling import (
@@ -57,7 +57,7 @@ class HardwareMappingSchedule(Schedule):
         self.s2h_mapping = data["s2h_mapping"]
         self.tiling_factors = data["tiling_factors"]
 
-class HardwareMappingPass(SchedulePass):
+class HardwareMappingPass(DepthFirstPass):
     def __init__(self, 
             args,
             cim_config: CIMConfig,

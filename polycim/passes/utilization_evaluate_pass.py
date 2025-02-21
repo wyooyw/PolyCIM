@@ -2,7 +2,7 @@ import json
 import islpy as isl
 from typing import Optional
 from polycim.passes.base import Schedule
-from polycim.passes.base import SchedulePass
+from polycim.passes.base import DepthFirstPass
 from polycim.passes.base import SchedulePassResult
 import polycim.utils.utils as utils
 from polycim.config import CIMConfig
@@ -14,14 +14,14 @@ from polycim.passes.multi_level_tiling import (
 from polycim.utils.math import factorize
 from polycim.depth_first.timeout import timeout
 from polycim.depth_first.count_minimal_macro import count_minimal_needed_macro
-from polycim.passes.base import EvaluatePass
+from polycim.passes.base import BreadthFirstPass
 from functools import reduce
 
 @timeout(seconds=4)
 def count_val(domain):
     return int(str(domain.count_val()))
 
-class UtilizationEvaluatePass(EvaluatePass):
+class UtilizationEvaluatePass(BreadthFirstPass):
     def __init__(self, 
             args,
             cim_config: CIMConfig,
@@ -35,7 +35,11 @@ class UtilizationEvaluatePass(EvaluatePass):
         self.result_op = dict()
 
     def get_result(self):
-        return self.result_op
+        result = list()
+        for key, op_list in self.result_op.items():
+            for op in op_list:
+                result.append(op)
+        return result
 
     def apply(self, operator):
         domain = operator.domain
@@ -75,9 +79,11 @@ class UtilizationEvaluatePass(EvaluatePass):
             need_macro = count_minimal_needed_macro(operator, self.cim_config)
             if self.cim_config.n_macro >= need_macro or (not self.args.disable_weight_rewrite):
                 
-                operator.set_attr("UtilizationEvaluatePass::need_macros", need_macro)
-                operator.set_attr("UtilizationEvaluatePass::exe_time", exe_time)
-                operator.set_attr("UtilizationEvaluatePass::compute_ops", exe_time)
+                operator.set_attr("UtilizationEvaluatePass", {
+                    "need_macros": need_macro,
+                    "compute_ops": exe_time,
+                })
+
 
                 min_compute_ops = self.result_op.get(schedule_key, list())
 
@@ -91,3 +97,6 @@ class UtilizationEvaluatePass(EvaluatePass):
                     self.result_op[schedule_key].append(operator)
 
                 print(f"min_compute_times={exe_time}, need_macro={need_macro}")
+
+    def apply_all(self):
+        pass

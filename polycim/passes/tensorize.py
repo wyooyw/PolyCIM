@@ -5,6 +5,11 @@ import polycim.utils.utils as utils
 from polycim.op.base_operator import (AccessRelation, BasicOperator, DataMovement,
                            DataMovementOperator, TensorAccessRelation, PartialSumDataMovement)
 from polycim.cli.arguments import get_args
+from polycim.passes.base import Schedule
+from polycim.passes.base import DepthFirstPass
+from polycim.passes.base import SchedulePassResult
+from typing import Optional
+from polycim.config import CIMConfig
 
 def pwaffs_to_map(affs):
     pw_aff_list = utils.make_pw_affs_to_aff_list(affs)
@@ -155,3 +160,30 @@ def tensorize_pass(op_list):
         new_op = vectorize_data_movement_for_op(new_op)
         new_op_list.append(new_op)
     return new_op_list
+
+class TensorizeSchedule(Schedule):
+    def __init__(self):
+        super().__init__()
+        
+class TensorizePass(DepthFirstPass):
+    def __init__(self, 
+            args,
+            cim_config: CIMConfig,
+            fix_schedule: Optional[TensorizeSchedule]=None, 
+            schedule_as_key: bool=False,
+        ):
+        super().__init__(
+            fix_schedule=fix_schedule, 
+            schedule_as_key=schedule_as_key
+        )
+        assert self.fix_schedule is None
+        assert self.schedule_as_key is False
+        
+        self.args = args
+        self.cim_config = cim_config
+
+    def apply(self, operator):
+        new_op = tensorize_pass([operator])[0]
+
+        result = SchedulePassResult(new_op, TensorizeSchedule())
+        return [result]
