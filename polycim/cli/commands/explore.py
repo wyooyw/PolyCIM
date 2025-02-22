@@ -48,15 +48,8 @@ def run_explore(args):
 
     # curr_time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     # curr_time_str = curr_time_str + f"_{cim_cfg.n_comp}x{cim_cfg.n_group_vcol*8}"
-    save_dir = os.path.join(args.output_path)
     run_op_list(
         args,
-        op_list, 
-        save_dir, 
-        pad_count=pad_count, 
-        delay_apply=delay_apply, 
-        num_macros=num_macros, 
-        # enable_weight_rewrite=enable_weight_rewrite,
-        # force_axis_align=args.force_axis_align,
+        op_list,
         cim_config=cim_cfg
     )

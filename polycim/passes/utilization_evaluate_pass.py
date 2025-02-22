@@ -19,6 +19,7 @@ class UtilizationEvaluatePass(BreadthFirstPass):
             args,
             cim_config: CIMConfig,
             pad: bool=True,
+            keep_single_best: bool=False,
         ):
         super().__init__()
         self.args = args
@@ -26,10 +27,14 @@ class UtilizationEvaluatePass(BreadthFirstPass):
         self.pad = pad
         self.result_value = dict()
         self.result_op = dict()
-
+        self.keep_single_best = keep_single_best
+        
     def get_result(self):
         result = list()
-        for key, op_list in self.result_op.items():
+        for key in self.result_op.keys():
+            op_list = self.result_op[key]
+            if self.keep_single_best:
+                op_list = op_list[:1]
             for op in op_list:
                 result.append(op)
         return result

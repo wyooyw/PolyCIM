@@ -873,8 +873,10 @@ class AffinePass(DepthFirstPass):
             new_op.history_schedules.append({"matrix":matrix})
             
             
-            
-            new_op.set_attr("affine::bases", selected_bases)
+            new_op.set_attr("AffinePass", {
+                "bases":selected_bases,
+                "schedule":str(schedule)
+            })
             
             affine_schedule = AffineSchedule(selected_bases)
             result = SchedulePassResult(new_op, affine_schedule)

@@ -543,7 +543,7 @@ class HardwareMappingPass(DepthFirstPass):
         assert self.fix_schedule is None or isinstance(self.fix_schedule, PreTilingSchedule)
 
     def apply(self, operator):
-        mapping = get_mapping_from_bases(operator.attr["affine::bases"])
+        mapping = get_mapping_from_bases(operator.attr["AffinePass"]["bases"])
         operator.history_schedules.append({"s2h_mapping":mapping})
         coalescing_schedule = get_coalescing_schedule_from_mapping(mapping, operator)
         reverse_coalescing_schedule = get_reverse_coalescing_schedule_from_mapping(mapping, operator)

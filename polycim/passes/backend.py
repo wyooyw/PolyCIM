@@ -149,12 +149,14 @@ class BackendCompilePass(BreadthFirstPass):
             args,
             cim_config: CIMConfig,
             n_workers: int=1,
+            compile_data_layout: bool=True,
         ):
         super().__init__()
         
         self.args = args
         self.cim_config = cim_config
         self.n_workers = n_workers
+        self.compile_data_layout = compile_data_layout
 
         self.op_list = []
 
@@ -165,7 +167,8 @@ class BackendCompilePass(BreadthFirstPass):
             save_dir=os.path.join(self.args.output_path, op.attr["name"], str(idx)),
             config_file=self.args.config_path
         )
-        self.data_layout_compile(op, idx)
+        if self.compile_data_layout:
+            self.data_layout_compile(op, idx)
 
     def apply_all(self):
         if self.n_workers == 1:
