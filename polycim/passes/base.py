@@ -86,6 +86,10 @@ class PassManager:
         self.check_pass_list()
         self.time_per_pass = dict()
 
+    def get_num_ops(self):
+        assert isinstance(self.pass_list[-1], EndBreadthFirstPass)
+        return len(self.pass_list[-1].get_result())
+
     def check_pass_list(self):
         self.pass_list.append(EndBreadthFirstPass())
         # for pass_ in self.pass_list[:-1]:
