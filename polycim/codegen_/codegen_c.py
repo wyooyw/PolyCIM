@@ -210,12 +210,15 @@ class CCodeGenerator(Codegen):
 
     def codegen_cond_to_upperbound_expr(self, cond, depth):
         assert cond.get_type() == isl._isl.ast_expr_type.op, f"{cond.get_type()=}"
-        assert (
-            cond.get_op_type() == isl._isl.ast_expr_op_type.le
-        ), f"{cond.get_op_type()=}"
         assert cond.get_op_n_arg() == 2, f"{cond.get_op_n_arg()=}"
-        ub_codes, ub_var = self.codegen_expression(cond.get_op_arg(1), depth)
-        add_codes, add_var = self._codegen_expr_add([ub_var, 1], depth)
+        if cond.get_op_type() == isl._isl.ast_expr_op_type.le:
+            ub_codes, ub_var = self.codegen_expression(cond.get_op_arg(1), depth)
+            add_codes, add_var = self._codegen_expr_add([ub_var, 1], depth)
+        elif cond.get_op_type() == isl._isl.ast_expr_op_type.lt:
+            ub_codes, ub_var = self.codegen_expression(cond.get_op_arg(1), depth)
+            add_codes, add_var = self._codegen_expr_add([ub_var, 0], depth)
+        else:
+            assert False, f"{cond.get_op_type()=}"
 
         return ub_codes + add_codes, add_var
 
