@@ -3,11 +3,12 @@ import os
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
+from multiprocessing import Pool
 
 from polycim.codegen_.codegen_data_layout_convert import \
     gcc_compile_data_layout_convert_code
 from polycim.config import CIMConfig
-from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
+from polycim.passes.base import BreadthFirstPass, Schedule
 
 
 def dump_op_basic_info(op, path):
@@ -143,39 +144,59 @@ def backend_compile(op, save_dir, config_file):
 
 
 
-class BackendCompilePass(DepthFirstPass):
+class BackendCompilePass(BreadthFirstPass):
     def __init__(self, 
             args,
             cim_config: CIMConfig,
-            fix_schedule: Optional[Schedule]=None, 
-            schedule_as_key: bool=False,
+            n_workers: int=1,
         ):
-        super().__init__(
-            fix_schedule=fix_schedule, 
-            schedule_as_key=schedule_as_key
-        )
-        assert self.fix_schedule is None
-        assert self.schedule_as_key is False
+        super().__init__()
         
         self.args = args
         self.cim_config = cim_config
-        self.cnt = 0
+        self.n_workers = n_workers
 
-    def apply(self, operator):
-        
+        self.op_list = []
+
+    def _process_single_op(self, args):
+        idx, op = args
         backend_compile(
-            operator, 
-            save_dir=os.path.join(self.args.output_path, operator.attr["name"], str(self.cnt)),
+            op,
+            save_dir=os.path.join(self.args.output_path, op.attr["name"], str(idx)),
             config_file=self.args.config_path
         )
-        self.data_layout_compile(operator)
-        self.cnt += 1
-        return [SchedulePassResult(operator, Schedule())]
+        self.data_layout_compile(op, idx)
 
-    def data_layout_compile(self, operator):
+    def apply_all(self):
+        if self.n_workers == 1:
+            # Serial execution
+            for idx, op in enumerate(self.op_list):
+                self._process_single_op((idx, op))
+        else:
+            n_workers = min(self.n_workers, len(self.op_list))
+            # Parallel execution
+            with Pool(processes=self.n_workers) as pool:
+                pool.map(self._process_single_op, enumerate(self.op_list))
+
+    def apply(self, operator):
+        self.op_list.append(operator)
+
+    def get_result(self):
+        return self.op_list
+        
+        # backend_compile(
+        #     operator, 
+        #     save_dir=os.path.join(self.args.output_path, operator.attr["name"], str(self.cnt)),
+        #     config_file=self.args.config_path
+        # )
+        # self.data_layout_compile(operator)
+        # self.cnt += 1
+        # return [SchedulePassResult(operator, Schedule())]
+
+    def data_layout_compile(self, operator, op_idx):
         # save data layout convert code
         data_layout_convert_code = operator.attr["data_layout_convert_code"]
-        save_op_dir = os.path.join(self.args.output_path, operator.attr["name"], str(self.cnt))
+        save_op_dir = os.path.join(self.args.output_path, operator.attr["name"], str(op_idx))
         os.makedirs(save_op_dir, exist_ok=True)
         # import pdb; pdb.set_trace()
         for key, value in data_layout_convert_code.items():
