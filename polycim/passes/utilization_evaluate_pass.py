@@ -13,6 +13,7 @@ from polycim.passes.base import BreadthFirstPass
 def count_val(domain):
     return int(str(domain.count_val()))
 
+
 class UtilizationEvaluatePass(BreadthFirstPass):
     def __init__(self, 
             args,
@@ -74,6 +75,7 @@ class UtilizationEvaluatePass(BreadthFirstPass):
                 operator.set_attr("UtilizationEvaluatePass", {
                     "need_macros": need_macro,
                     "compute_ops": exe_time,
+                    "utilization": self.get_utilization(operator, exe_time),
                 })
 
 
@@ -92,3 +94,14 @@ class UtilizationEvaluatePass(BreadthFirstPass):
 
     def apply_all(self):
         pass
+
+
+    def get_utilization(self, op, compute_ops):
+        origin_op = op.attr["origin_op"]
+        flops = int(str(origin_op.domain.count_val()))
+
+        flops_per_cim_compute = flops / compute_ops
+        peak_flops_per_cim_compute = self.cim_config.n_comp * self.cim_config.n_group_vcol
+        use_rate_percent = flops_per_cim_compute / peak_flops_per_cim_compute * 100
+        
+        return use_rate_percent
