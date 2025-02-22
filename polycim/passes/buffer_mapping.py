@@ -1624,8 +1624,8 @@ def optimal_multi_level_buffer_insersion_search(op):
         if best_op is not None and time.time() - begin_time > use_time:
             break
     # import pdb; pdb.set_trace()
-    if best_op is None:
-        raise ValueError("Can't find valid buffer strategy")
+    # if best_op is None:
+    #     raise ValueError("Can't find valid buffer strategy")
 
     return best_op
 
@@ -1653,6 +1653,8 @@ class BufferMappingPass(DepthFirstPass):
     def apply(self, operator):
         
         new_op = optimal_multi_level_buffer_insersion_search(operator)
+        if new_op is None:
+            return []
 
         schedule = BufferMappingSchedule()
         result = SchedulePassResult(new_op, schedule)
