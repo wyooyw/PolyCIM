@@ -19,6 +19,7 @@ def parse_explore_args(subparsers):
     parser = subparsers.add_parser('explore')
     parser.add_argument("--op-id", "-i", required=True, type=str, help="operator id")
     parser.add_argument("--config-path", "-c", required=True, type=str, help="config path")
+    parser.add_argument("--pimsim-cfg-path", "-p", required=True, type=str, help="pimsim config path")
     parser.add_argument("--output-path", "-o", required=True, type=str, help="output path")
     parser.add_argument("--data-movement-full-vectorize", action="store_true", help="data movement full vectorize")
     parser.add_argument("--disable-pretile", action="store_true", help="disable pretile")

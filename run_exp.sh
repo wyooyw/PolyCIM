@@ -6,17 +6,18 @@ source log_config.sh
 
 op_name=C2
 
-# polycim explore \
-# --op-id $op_name \
-# --config-path $PWD/polycim/exp/iccad25/compiler_configs/c32b64.json \
-# --output-path .save \
-# --data-movement-full-vectorize
+polycim explore \
+--op-id $op_name \
+--config-path $PWD/polycim/exp/iccad25/compiler_configs/c32b64.json \
+--pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
+--output-path .save \
+--data-movement-full-vectorize
 # --disable-second-stage
 # --disable-pretile \
 # --disable-affine
 # --disable-pretile \
 
-pytest -n 4 test/explore/test_result.py
+# pytest -n 4 test/explore/test_result.py
 
 
 # cim-compiler convert \

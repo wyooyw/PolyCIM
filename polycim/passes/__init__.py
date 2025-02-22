@@ -9,6 +9,7 @@ from .mapping_multi_macro_pass import MappingMultiMacroPass
 from .multi_level_tiling_pass import PreTilingPass
 from .tensorize import TensorizePass
 from .utilization_evaluate_pass import UtilizationEvaluatePass
+from .profile_pass import ProfilePass
 
 __all__ = [
     "PreTilingPass",
@@ -22,4 +23,5 @@ __all__ = [
     "BackendCompilePass",
     "FilterSingleOpPass",
     "BufferMappingPass",
+    "ProfilePass",
 ]

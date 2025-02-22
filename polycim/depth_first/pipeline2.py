@@ -10,6 +10,7 @@ from polycim.passes import (
     BackendCompilePass,
     FilterSingleOpPass,
     BufferMappingPass,
+    ProfilePass,
 )
 from polycim.passes.base import PassManager
 
@@ -26,6 +27,7 @@ def run_op_list(args, op_list, save_dir, pad_count, delay_apply, num_macros, cim
         TensorizePass(args, cim_config),
         CodegenPass(args, cim_config),
         BackendCompilePass(args, cim_config),
+        ProfilePass(args),
     ])
 
     for name, config in op_list.items():
