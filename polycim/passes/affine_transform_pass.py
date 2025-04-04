@@ -1,21 +1,23 @@
-import cProfile
-import pstats
-import time
+import itertools
+import json
+import math
+from collections import OrderedDict
 from dataclasses import dataclass
-from functools import partial
+from functools import partial, reduce
 from queue import Queue
-from typing import List
-
+from typing import List, Optional
+import time
 import islpy as isl
 import numpy as np
 import sympy
-from sympy import Matrix, lcm, nsimplify
+from sympy import Matrix
 
 import polycim.utils.mat_utils as inv
-import polycim.utils.utils as utils
-from tqdm import tqdm
-from polycim.op.base_operator import BasicOperator
-import random
+from polycim.op.base_vector import Base
+from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
+from polycim.passes.loop_padding import loop_padding_to_box_all
+
+
 def add_constraints_exclude_null_space(base, exclude_null_space_of):
     if exclude_null_space_of is None:
         return base
@@ -507,30 +509,6 @@ def parse_operator(domain, access_relations):
     )
 
 
-def find_schedules_for_operator(domain, access_relations, 
-    return_detail=False):
-    n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays = (
-        parse_operator(
-            domain=domain,
-            access_relations=access_relations,
-        )
-    )
-    # print(f"{n_dim=}")
-    # print(f"{n_array=}")
-    # print(f"{dim_sizes=}")
-    # print(f"{hyperplanes_for_arrays=}")
-    # exit()
-    # if return_detail is True, return (schedules, base_matrixs)
-    schedules = find_schedules_for_multi_array_reuse(
-        n_dim=n_dim,
-        n_array=n_array,
-        dim_sizes=dim_sizes,
-        max_reuse_factor_for_arrays=max_reuse_factor_for_arrays,
-        hyperplanes_for_arrays=hyperplanes_for_arrays,
-        return_detail=return_detail,
-    )
-    return schedules
-
 def shift_to_positive(op):
     domain = op.domain
     min_val = [domain.dim_min_val(i).get_num_si() for i in range(domain.dim(isl.dim_type.set))]
@@ -545,186 +523,409 @@ def shift_to_positive(op):
 
     return new_op
 
-def auto_skewing_pass(op_list, return_detail=False):
-    ori_op_list = []
-    schedule_list = []
-    base_matrix_list = []
-    new_op_list = []
-    for op in tqdm(op_list):
-        schedules = find_schedules_for_operator(
-            domain=op.domain,
-            access_relations=[op.access_I, op.access_O],
-            return_detail=return_detail
-        )
-        if return_detail:
-            schedules, base_matrixs = schedules
-
-        for idx,schedule in enumerate(schedules):
-            new_op = op.apply_schedule(schedule)
-            new_op_list.append(new_op)
-            if return_detail:
-                new_op.history_schedules.append(base_matrixs[idx])
-                ori_op_list.append(op)
-                schedule_list.append(schedule)
-                base_matrix_list.append(base_matrixs[idx])
-
-    for idx in range(len(new_op_list)):
-        new_op = new_op_list[idx]
-        new_op = shift_to_positive(new_op)
-        new_op_list[idx] = new_op
+def is_base_trival(point, dim_types):
+    assert len(point)==len(dim_types), f"{point=} {dim_types=}"
+    use_dim_types = []
+    for p,dim_type in zip(point, dim_types):
+        if p!=0:
+            use_dim_types.append(dim_type)
     
-    if return_detail:
-        return new_op_list, ori_op_list, schedule_list, base_matrix_list
-    else:
-        return new_op_list
+    if len(use_dim_types)==1:
+        return True
+    if len(use_dim_types)==2 and (
+        "oh_i" in use_dim_types or "ow_i" in use_dim_types or "oh" in use_dim_types or "ow" in use_dim_types
+    ) and (
+        "kh" in use_dim_types or "kw" in use_dim_types
+    ):
+        return True
+    return False
 
-def main():
-
-    # conv2d
-    operator = BasicOperator(
-        domain = isl.BasicSet(
-            f"{{ [oh,ow,kh,kw]: 0<=oh<4 and 0<=ow<4 and 0<=kh<3 and 0<=kw<3 }}"
-        ),
-        access_I = isl.BasicMap("{ [oh,ow,kh,kw] -> I[oh + kh, ow + kw] }"),
-        access_O = isl.BasicMap("{ [oh,ow,kh,kw] -> O[oh, ow] }"),
-        access_W = isl.BasicMap("{ [oh,ow,kh,kw] -> W[kh, kw] }"),
-    )
-    tiling_schedule = isl.BasicMap("{ [i0, i1, i2, i3] -> [o0, o1, o2, o3, o4, o5, o6, o7] : (i0 + o4) mod 2 = 0 and (i1 + o5) mod 2 = 0 and (-i2 + o6) mod 3 = 0 and (-i3 + o7) mod 3 = 0 and 0 <= i0 <= 3 and 0 <= i1 <= 3 and 0 <= i2 <= 2 and 0 <= i3 <= 2 and -1 + i0 <= 2o0 <= i0 and -1 + i1 <= 2o1 <= i1 and -2 + i2 <= 3o2 <= i2 and -2 + i3 <= 3o3 <= i3 and 0 <= o4 <= 1 and 0 <= o5 <= 1 and 0 <= o6 <= 2 and 0 <= o7 <= 2 }")
-    operator = operator.apply_schedule(tiling_schedule)
-    new_ops = auto_skewing_pass([operator], max_reuse_factor_for_arrays=(16,4), return_detail=False)
-    for new_op in new_ops:
-        domain_min_per_iter = [new_op.domain.dim_min_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
-        domain_max_per_iter = [new_op.domain.dim_max_val(i).get_num_si() for i in range(new_op.domain.dim(isl.dim_type.set))]
-        # print(f"{domain_min_per_iter=}")
-        # print(f"{domain_max_per_iter=}")
-        # print("-----------------------")
-    # exit()
-    domain = isl.BasicSet(
-        "{ S[oh,ow,kh,kw]: 0<=oh<64 and 0<=ow<64 and 0<=kh<3 and 0<=kw<3 }"
-    )
-    access_I = isl.BasicMap("{ S[oh,ow,kh,kw] -> I[oh + kh, ow + kw] }")
-    access_O = isl.BasicMap("{ S[oh,ow,kh,kw] -> O[oh, ow] }")
-    # tile_transform = isl.BasicMap("{ S[oh,ow,kh,kw] -> S[floor(oh/4), oh%4, floor(ow/4), ow%4 , kh,kw] }")
-    # domain = tile_transform.intersect_domain(domain).range()
-    # access_I = tile_transform.reverse().apply_range(
-    #     access_I
-    # )
-    # access_O = tile_transform.reverse().apply_range(
-    #     access_O
-    # )
-    # access_I = utils.simplify_basic_map(access_I)
-    # access_O = utils.simplify_basic_map(access_O)
+def cover(corr1, corr2):
+    nonzero1 = [int(i!=0) for i in corr1]
+    nonzero2 = [int(i!=0) for i in corr2]
+    return all(i1 >= i2 for i1,i2 in zip(nonzero1, nonzero2)) and any(i1 > i2 for i1,i2 in zip(nonzero1, nonzero2))
 
 
-    # domain = isl.BasicSet("{ [i0, i1, i2] : 0 <= i0 <= 1 and 0 <= i1 <= 3 and 0 <= i2 <= 2 }")
-    # access_I = isl.BasicMap("{ [i0, i1, i2] -> I[o0] : o0 = 4i0 + i1 + i2 and i1 >= 0 and -4i0 <= i1 <= 7 - 4i0 and i1 <= 3 and 0 <= i2 <= 2 }")
-    # access_O = isl.BasicMap("{ [i0, i1, i2] -> O[o0] : o0 = 4i0 + i1 and i1 >= 0 and -4i0 <= i1 <= 7 - 4i0 and i1 <= 3 and 0 <= i2 <= 2 }")
+def record_points(point, record):
+    multi_val = point.get_multi_val()
+    if multi_val.is_zero():
+        return
+    val = [int(str(multi_val.get_val(i))) for i in range(len(multi_val))]
+    record.append(val)
+    
+def get_nontrival_points(set_):
+    points = []
+    record_points_fn = partial(record_points, record=points)
+    set_.foreach_point(record_points_fn)
+    return points
 
+def get_rank_key(base_combination):
+    num_non_zero = 0
+    for base in base_combination:
+        if base.reuse_array_id in [0,1]:
+            nonzero = [int(i!=0) for i in base.corrdinate]
+            num_non_zero += sum(nonzero)
+    return num_non_zero
+
+
+
+def select_full_rank_bases(bases):
+    n_dim = len(bases[0].corrdinate)
+    matrix = np.array([base.corrdinate for base in bases])
+
+    # full_rank_bases_list = []
+    cnt = 0
+    def select_single_base(selected_indices, matrix_bases, begin_base_idx):
+        selected_matrix = matrix_bases[selected_indices]
+
+        if len(selected_indices) == n_dim:
+            if cnt % 10000 == 0:
+                print(f"{cnt=}")
+            # assert np.linalg.det(selected_matrix) != 0
+            # full_rank_bases_list.append(selected_indices)
+            cnt += 1
+            return
+        
+        
+        for i in range(begin_base_idx, len(matrix_bases)):
+            # print(f"{selected_matrix.shape=}, {matrix_bases[i].shape=}")
+            concated_matrix = np.concatenate((selected_matrix, matrix_bases[i:i+1, :]), axis=0)
+            max_rank = min(concated_matrix.shape[0], concated_matrix.shape[1])
+            if np.linalg.matrix_rank(concated_matrix) == max_rank:
+                select_single_base([*selected_indices, i], matrix_bases, i+1)
+    import pdb; pdb.set_trace()
     begin_time = time.time()
-    schedules, matrixs = find_schedules_for_operator(
-        domain=domain,
-        access_relations=[access_I],
-        max_reuse_factor_for_arrays=(9,),
-        return_detail=True
-    )
+    select_single_base([], matrix, 0)
     end_time = time.time()
-    print(f"{len(schedules)=}")
-    print(f"Duration: {end_time-begin_time} s")
-    print(f"{call_find_base_times=}")
-    # for idx , (schedule, matrix) in enumerate(zip(schedules, matrixs)):
-    #     print(f"{idx}")
-    #     print(f"- {schedule=}")
-    #     print(f"- {matrix=}")
+    print(f"time: {end_time - begin_time}")
+    import pdb; pdb.set_trace()
+    return full_rank_bases_list
+    
+
+def select_bases(self, bases, operator):
+    n_dim = operator.domain.dim(isl.dim_type.set)
+    selected_bases = []
+
+    # select_full_rank_bases(bases)
+    
+    # Find all combinations of n_dim bases
+    base_combinations = itertools.combinations(bases, n_dim)
+
+    for i,combination in enumerate(base_combinations):
         
-    return
+        if satisfies_constraints(self, combination, operator):
+            if self.prune==False and len(selected_bases) % 10 == 0:
+                print(f"{len(selected_bases)=}")
+            rank_key = get_rank_key(combination)
+            selected_bases.append((rank_key, combination))
+    selected_bases = sorted(selected_bases, key=lambda x: x[0])
+    selected_bases = [x[1] for x in selected_bases]
+    return selected_bases
 
+def satisfies_constraints(self, combination, operator):
+    # Extract the coordinates from each item in the combination
+    matrix = np.array([item.corrdinate for item in combination])
+
+    # check reuse constraint
+    # reuse_ids = {item.reuse_array_id for item in combination}
+    # if not (0 in reuse_ids and 1 in reuse_ids):
+    #     return False
+    reuse_ids = {0:0, 1:0}
+    reuse_by_skewed_base_ids = {0:0, 1:0}
+    for item in combination:
+        nonzero_count = sum([int(i!=0) for i in item.corrdinate])
+        is_skewed_base = nonzero_count >= 2
+        if item.reuse_array_id in (0,1):
+            reuse_ids[item.reuse_array_id] += 1
+            if is_skewed_base:
+                reuse_by_skewed_base_ids[item.reuse_array_id] += 1
+    if reuse_ids[0] < 1 or reuse_ids[1] < 1:
+        return False
+    if reuse_by_skewed_base_ids[0] > 2 or reuse_by_skewed_base_ids[1] > 2:
+        return False
+
+    # Check if the matrix is square and invertible
+    if matrix.shape[0] != matrix.shape[1]:
+        return False
+    
+    # Calculate the determinant to check if the matrix is invertible
+    if np.linalg.det(matrix) == 0:
+        return False
+    # return True
+
+    if True and self.prune:
+        # filter by tiles
+        reuse_bases = [base for base in combination if base.reuse_array_id in (0,1)]
+        participate_skewing_dims = set()
+        for base in reuse_bases:
+            nonzero_dims = [i for i,corr in enumerate(base.corrdinate) if corr!=0]
+            if len(nonzero_dims) > 1:
+                participate_skewing_dims.update(nonzero_dims)
+        tile_sizes = operator.attr["pre_tile_sizes"]
+
+        cur_dim = 0
+        tile_check_is_valid = True
+        for i,tile_size in enumerate(tile_sizes):
+            if len(tile_size) > 1:
+                is_valid = False
+                for j in range(len(tile_size)):
+                    _dim = cur_dim + j
+                    if _dim in participate_skewing_dims:
+                        is_valid = True
+                        break
+                
+                if not is_valid:
+                    tile_check_is_valid = False
+                    break
+            
+            cur_dim += len(tile_size)
+
+        if not tile_check_is_valid:
+            return False
+
+    return True
+
+
+
+def filter_cover_points(points):
+    new_points = []
+    for point in points:
+        can_cover = False
+        for other_point in points:
+            if point!=other_point and cover(point, other_point):
+                can_cover = True
+                break
+        if not can_cover:
+            new_points.append(point)
+    return new_points
+
+def filter_times_points(points):
     """
-    BasicSet("{ [i0, i1, i2] : 0 <= i0 <= 1 and 0 <= i1 <= 3 and 0 <= i2 <= 2 }")
-    ori_op.access_I = BasicMap("{ [i0, i1, i2] -> I[o0] : o0 = 4i0 + i1 + i2 and i1 >= 0 and -4i0 <= i1 <= 7 - 4i0 and i1 <= 3 and 0 <= i2 <= 2 }")
-    ori_op.access_O = BasicMap("{ [i0, i1, i2] -> O[o0] : o0 = 4i0 + i1 and i1 >= 0 and -4i0 <= i1 <= 7 - 4i0 and i1 <= 3 and 0 <= i2 <= 2 }")
+    For any two points A and B, if there exists a positive integer k such that A = B*k, then A is not valid.
     """
+    filtered_points = []
+    
+    for i, point_a in enumerate(points):
+        nonzero_elements = [i for i in point_a if i!=0]
+        # gcd of nonzero_elements
+        gcd = reduce(lambda x,y: math.gcd(x,y), nonzero_elements)
+        if gcd == 1:
+            filtered_points.append(point_a)
+    return filtered_points
 
-    # result = find_bases_for_multi_array_reuse(
-    #     n_dim=3,
-    #     n_array=2,
-    #     max_reuse_factor_for_arrays=(3,3),
-    #     dim_sizes=(2, 4, 3),
-    #     hyperplanes_for_arrays=(
-    #         ((4,1,1),),
-    #         ((4,1,0),),
-    #     ),
-    # )
-    # print(f"{len(result)=}")
-    # for idx,ma_search_status in enumerate(result):
-    #     print(f"\nSearch result {idx}")
-    #     assert len(ma_search_status.search_status_per_array) <= 2, f"{len(ma_search_status.search_status_per_array)=}"
-    #     for array_id, search_result in enumerate(ma_search_status.search_status_per_array):
-    #         # assert array_id < 2,
-    #         print(f"- {array_id = }")
-    #         print(f"  - {search_result.bases = }")
-    #         print(f"  - {search_result.max_reuse = }")
+def filter_tile_direction_points(points, tile_sizes):
 
-    # exit()
+    tile_pair = []
+    i_iter = 0
+    for tile_size in tile_sizes:
+        if len(tile_size) == 2:
+            tile_pair.append((i_iter, i_iter + 1))
+        elif len(tile_size) == 3:
+            tile_pair.append((i_iter, i_iter + 1))
+            tile_pair.append((i_iter, i_iter + 2))
+            tile_pair.append((i_iter + 1, i_iter + 2))
+        i_iter += len(tile_size)
+    
+    new_points = []
+    for point in points:
+        nonzero = [int(i!=0) for i in point]
+        is_valid = True
+        for tile_out_iter,tile_in_iter in tile_pair:
+            if nonzero[tile_out_iter] == 1 and nonzero[tile_in_iter] == 1:
+                is_valid = False
+                break
+        if is_valid:
+            new_points.append(point)
+    return new_points
 
-    # new_bases, new_reuse = find_base_with_max_reuse(
-    #     n_dim=6,
-    #     max_reuse_factor=4,
-    #     dim_sizes=(32, 2, 32, 2, 3, 3),
-    #     hyperplanes=((2,1,0,0,1,0),(0,0,2,1,0,1)),
-    # )
-    # print(f"{new_bases.count_val() = }")
-    # print(new_bases.foreach_point(print))
-    # print(f"{new_reuse = }")
-    # exit()
+def filter_many_direction_points(points):
+    new_points = []
+    for point in points:
+        nonzero = [int(i!=0) for i in point]
+        if sum(nonzero) <= 2:
+            new_points.append(point)
+    return new_points
 
-    # for idx,search_status in enumerate(result):
-    #     print(f"---------- {idx} ----------")
-    #     print(f"{search_status.bases=}")
-    #     print(f"{search_status.max_reuse=}")
+def extend_scalar_dim_for_operator(operator):
+    n_dim = operator.domain.dim(isl.dim_type.set)
+    origin_dims = [f"i{i}" for i in range(n_dim)]
+    new_dims = ["0", *origin_dims]
+    origin_dims_str = ",".join(origin_dims)
+    new_dims_str = ",".join(new_dims)
+    extend_dim_scheduel = isl.BasicMap(f"{{ [{origin_dims_str}] -> [{new_dims_str}] }}")
+    new_op = operator.apply_schedule(extend_dim_scheduel, name="extend_dim")
+    return new_op
 
-    # print("--------------------")
-    # print(len(result))
-    # exit()
+def extend_scalar_dim_for_bases(bases, reuse_array_id):
+    assert reuse_array_id in (0,1)
+    n_dim = len(bases[0].corrdinate)
+    new_bases = [Base([1, *([0] * n_dim)], reuse_array_id, True)]
+    for base in bases:
+        new_corrdinate = tuple([0] + list(base.corrdinate))
+        new_bases.append(Base(new_corrdinate, base.reuse_array_id, base.is_trival))
+    return new_bases
 
-def main():
-    bases = find_base(
-        n_dim=3,
-        dim_sizes=(8, 2, 5),
-        min_reuse_factor=1,
-        hyperplanes=((2,1,0),),
-        exclude_null_space_of=None,
-        lex_lt_set=None
-    )
-    print(bases)
-    bases.foreach_point(print)
-    exit()
+def create_scalar_axis_for_reuse(bases, operator):
+    reuse_cnt = {
+        0:len([base for base in bases if base.reuse_array_id == 0 and not base.is_skewed]), 
+        1:len([base for base in bases if base.reuse_array_id == 1 and not base.is_skewed])
+    }
 
-    bases = foreach_nontrival_point(bases)
-    # bases = Matrix(bases)
-    # print(f"{bases=}")
-    # bases = inv.find_independent_rows(bases)
-    # print(f"{bases=}")
-    # exit()
-    current_bases = Matrix([[]])
-    base = Matrix([[-1, 0, 1, 0]])
-    current_bases = current_bases.col_join(base)
-    # print(current_bases)
+    if reuse_cnt[0] == 0:
+        operator = extend_scalar_dim_for_operator(operator)
+        bases = extend_scalar_dim_for_bases(bases, 0)
+        operator.set_attr("pre_tile_sizes", ((1,), *operator.attr["pre_tile_sizes"]), overwrite=True)
+        operator.set_attr("dim_types", ["_"] + operator.attr["dim_types"], overwrite=True)
 
-    subspace = orthogonal_sub_space(current_bases)
-    # print(f"{subspace=}")
+    if reuse_cnt[1] == 0:
+        operator = extend_scalar_dim_for_operator(operator)
+        bases = extend_scalar_dim_for_bases(bases, 1)
+        operator.set_attr("pre_tile_sizes", ((1,), *operator.attr["pre_tile_sizes"]), overwrite=True)
+        operator.set_attr("dim_types", ["_"] + operator.attr["dim_types"], overwrite=True)
 
-    base2 = find_base(
-        n_dim=4,
-        min_reuse_factor=4,
-        dim_sizes=[64, 64, 4, 4],
-        hyperplanes=[[0, 1, 0, 1], [1, 0, 1, 0]],
-        exclude_null_space_of=subspace,
+    return bases, operator
+
+class AffineSchedule(Schedule):
+    def __init__(self, bases):
+        super().__init__()
+        self.bases = bases
+    
+    def dumps(self):
+        result = []
+        for base in self.bases:
+            result.append({
+                "corrdinate":base.corrdinate,
+                "reuse_array_id":base.reuse_array_id,
+                "is_trival":base.is_trival
+            })
+        return json.dumps(result)
+
+    def parse(self, data):
+        assert isinstance(data, list)
+        self.bases = []
+        for item in data:
+            self.bases.append(Base(item["corrdinate"], item["reuse_array_id"], item["is_trival"]))
+
+class AffinePass(DepthFirstPass):
+    def __init__(self, 
+            args,
+            fix_schedule: Optional[AffineSchedule]=None, 
+            schedule_as_key: bool=False,
+            pad: bool=True,
+            prune: bool=True,
+        ):
+        super().__init__(
+            fix_schedule=fix_schedule, 
+            schedule_as_key=schedule_as_key
+        )
+        self.args = args
+        self.pad = pad
+        self.prune = prune
+        assert self.fix_schedule is None or isinstance(self.fix_schedule, AffineSchedule)
+
+    def base_construction(self, operator):
+        n_dim, n_array, dim_sizes, max_reuse_factor_for_arrays, hyperplanes_for_arrays = (
+            parse_operator(
+                domain=operator.domain,
+                access_relations=[operator.access_I, operator.access_O],
+            )
+        )
+        bases = OrderedDict()
+        for array_id in [0,1]:
+            hyperplanes = hyperplanes_for_arrays[array_id]
+            reuse_bases = find_base(
+                n_dim=n_dim, 
+                dim_sizes=dim_sizes, 
+                min_reuse_factor=1, 
+                hyperplanes=hyperplanes, 
+                exclude_null_space_of=None, 
+                lex_lt_set=None
+            )
+            # import pdb; pdb.set_trace()
+            points = get_nontrival_points(reuse_bases)
+            points = filter_times_points(points)
+            if self.prune:
+                points = filter_tile_direction_points(points, operator.attr["pre_tile_sizes"])
+                points = filter_cover_points(points)
+                points = filter_many_direction_points(points)
+            # TODO: filter points
+            for point in points:
+                is_trival = is_base_trival(point, operator.attr["dim_types"])
+                base = Base(point, array_id, is_trival)
+                bases[base] = None
+
+        for i in range(n_dim):
+            point = [0 for d in range(n_dim)]
+            point[i] = 1
+            base = Base(tuple(point), -1, True)
+            bases[base] = None
+
+        bases = list(bases.keys())
+
+        return bases
+
+    def disable_skewing(self, bases, operator):
+        if self.args.disable_affine:
+            new_bases = []
+            for base in bases:
+                num_nonzero = sum([int(i!=0) for i in base.corrdinate])
+                if num_nonzero == 1:
+                    new_bases.append(base)
+
+            return new_bases
+        return bases
+
+    def apply(self, operator):
         
-    )
-    # print(f"{foreach_nontrival_point(base2)=}")
-    print("-------------------")
-    # base2.foreach_point(print)
+        if self.fix_schedule is None:
+            # 1. base construction
+            bases = self.base_construction(operator)  
 
+            bases = self.disable_skewing(bases, operator)
 
-if __name__ == "__main__":
-    main()
+            bases, operator = create_scalar_axis_for_reuse(bases, operator)
+
+            # 2. base selection
+            # select n_dim base from bases that satisfy:
+            #  constraint1: for each array, at least one base is selected to reuse it.
+            #  constraint2: the selected bases are linear independent
+            # find all selection combinations
+            selected_bases_list = select_bases(self, bases, operator)
+            
+        else:
+            selected_bases_list = [self.fix_schedule.bases]
+
+        # 3. affine transform
+        result_list = []
+        for selected_bases in selected_bases_list:
+            rev_selected_bases = tuple(list(selected_bases)[::-1])
+            corrdinates = [base.corrdinate for base in rev_selected_bases]
+            matrix = Matrix(corrdinates)
+
+            schedule = base_to_coor_transform_schedule(matrix)
+
+            new_op = operator.apply_schedule(schedule, name="affine")
+            # print(new_op.attr.get("affine::bases", "None"))
+            # import pdb; pdb.set_trace()
+            new_op = shift_to_positive(new_op)
+            if self.pad:
+                new_op = loop_padding_to_box_all(new_op)
+
+            base_str = ""
+            for base in selected_bases:
+                base_str += str(base) + "\n"
+            new_op.history_schedules.append({"bases":base_str})
+            new_op.history_schedules.append({"matrix":matrix})
+            
+            
+            new_op.set_attr("AffinePass", {
+                "bases":selected_bases,
+                "schedule":str(schedule)
+            })
+            
+            affine_schedule = AffineSchedule(selected_bases)
+            result = SchedulePassResult(new_op, affine_schedule)
+            result_list.append(result)
+
+        
+        return result_list

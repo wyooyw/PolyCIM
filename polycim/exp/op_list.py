@@ -84,7 +84,7 @@ def get_op_list():
     }
     op_list["C9"] = {
         "op": benchmark.get_op_dwconv2d(ic=1, oh=7, ow=7, kh=7, kw=7, stride=1, dilation=1, virtual_axis=False),
-        # "symmetry_info": symmetry_info_for_dwconv2d,
+        "symmetry_info": symmetry_info_for_dwconv2d,
         "dim_types": dim_types_for_dwconv2d,
         "verify_fn": depth_wise_conv2d,
     }

@@ -1,6 +1,6 @@
-from polycim.passes.multi_level_tiling import enumerate_tiling_factors
+from polycim.passes.multi_level_tiling_pass import enumerate_tiling_factors
 import polycim.op.benchmark as benchmark
-from polycim.passes.multi_level_tiling import (
+from polycim.passes.multi_level_tiling_pass import (
     multi_level_splitting_var_level, 
     combine_tilesize_by_symmetry_info
 )
@@ -9,7 +9,7 @@ import islpy as isl
 import polycim.utils.utils as utils
 import itertools
 from tqdm import tqdm
-from polycim.passes.affine_transform import (
+from polycim.passes.affine_transform_pass import (
     parse_operator,
     find_base,
     base_to_coor_transform_schedule,
@@ -20,7 +20,7 @@ from collections import OrderedDict
 import numpy as np
 import time
 from sympy import Matrix
-from polycim.passes.hardware_merge_tiling import (
+from polycim.passes.hardware_mapping_pass import (
     get_coalescing_schedule_from_mapping,
     get_reverse_coalescing_schedule_from_mapping,
     _get_hardware_tiling_schedule
@@ -39,7 +39,7 @@ from polycim.depth_first.timeout import timeout
 from functools import reduce
 import math
 from polycim.passes.loop_padding import loop_padding_to_box_all, shift_to_zero
-from polycim.depth_first.mapping_multiple_macro import mapping_multiple_macro
+from polycim.passes.mapping_multi_macro_pass import mapping_multiple_macro
 from polycim.codegen_.codegen_cimdsl import codegen_pass
 from polycim.passes.tensorize import tensorize_pass
 from polycim.passes.backend import backend_compile_and_profile_pass
@@ -132,14 +132,8 @@ def pre_tiling(args, config):
         combination_list = list(itertools.product(*dim_factors))
     else:
         combination_list = combine_tilesize_by_symmetry_info(dim_factors, symmetry_info)
-    # for combination in combination_list:
-    #     print(f"{combination=}")
-    # exit()
-    new_combination_list = []
-    # combination_list = [
-    #     ((1,), (4, 14), (4, 14), (17, 3), (17, 3))
-    # ]
-    # combination_list = combination_list[10:14]
+    
+    
     if args.disable_pretile:
         combination_list = [
             combination for combination in combination_list if all(
@@ -147,35 +141,16 @@ def pre_tiling(args, config):
             )
         ]
 
+    new_op_list = []
     for idx,combination in enumerate(combination_list):
         new_operator = multi_level_splitting_var_level(operator, combination)
         new_dim_types = change_dim_types_for_pre_tiling(combination, dim_types)
-        new_combination_list.append((new_operator, combination, new_dim_types))
-        # yield (new_operator, combination, new_dim_types)、
-    return new_combination_list
-    # return new_combination_list
-    # for combination in combination_list:
-    #     new_operator = multi_level_splitting_var_level(operator, combination)
-    #     yield new_operator
+        new_operator.set_attr("dim_types", new_dim_types)
+        new_operator.set_attr("pre_tile_sizes", combination)
+        new_op_list.append(new_operator)
 
-class Base:
-    def __init__(self, corrdinate, reuse_array_id, is_trival):
-        self.corrdinate = tuple(corrdinate)
-        self.reuse_array_id = reuse_array_id
-        self.is_trival = is_trival
-        self.n_non_zero = sum([int(i!=0) for i in corrdinate])
-        self.is_skewed = self.n_non_zero >= 2
+    return new_op_list
 
-    def __str__(self):
-        return f"Base(corrdinate={self.corrdinate}, reuse_array_id={self.reuse_array_id}, is_trival={self.is_trival})"
-
-    def __eq__(self, other):
-        if isinstance(other, Base):
-            return self.corrdinate == other.corrdinate
-        return False
-
-    def __hash__(self):
-        return hash(self.corrdinate)
 
 def record_points(point, record):
     multi_val = point.get_multi_val()
@@ -227,9 +202,9 @@ def filter_times_points(points):
             filtered_points.append(point_a)
     return filtered_points
 
-def filter_tile_direction_points(points, **kwargs):
-    assert "tile_sizes" in kwargs
-    tile_sizes = kwargs["tile_sizes"]
+def filter_tile_direction_points(points, tile_sizes):
+    # assert "tile_sizes" in kwargs
+    # tile_sizes = kwargs["tile_sizes"]
     tile_pair = []
     i_iter = 0
     for tile_size in tile_sizes:
@@ -300,12 +275,12 @@ def base_construction(operator, **kwargs):
         # import pdb; pdb.set_trace()
         points = get_nontrival_points(reuse_bases)
         points = filter_times_points(points)
-        points = filter_tile_direction_points(points, **kwargs)
+        points = filter_tile_direction_points(points, operator.attr["pre_tile_sizes"])
         points = filter_cover_points(points)
         points = filter_many_direction_points(points)
         # TODO: filter points
         for point in points:
-            is_trival = is_base_trival(point, kwargs["dim_types"])
+            is_trival = is_base_trival(point, operator.attr["dim_types"])
             base = Base(point, array_id, is_trival)
             bases[base] = None
 
@@ -328,7 +303,7 @@ def get_rank_key(base_combination):
             num_non_zero += sum(nonzero)
     return num_non_zero
 
-def select_bases(bases, operator, **kwargs):
+def select_bases(bases, operator):
     n_dim = operator.domain.dim(isl.dim_type.set)
     selected_bases = []
     
@@ -339,7 +314,7 @@ def select_bases(bases, operator, **kwargs):
     start_time = time.time()
 
     for i,combination in enumerate(base_combinations):
-        if satisfies_constraints(combination, operator, **kwargs):
+        if satisfies_constraints(combination, operator):
             rank_key = get_rank_key(combination)
             selected_bases.append((rank_key, combination))
     selected_bases = sorted(selected_bases, key=lambda x: x[0])
@@ -354,7 +329,7 @@ def select_bases(bases, operator, **kwargs):
     # print(f"{len(selected_bases)} selected bases from {len(bases)} bases")
     return selected_bases
 
-def satisfies_constraints(combination, operator, **kwargs):
+def satisfies_constraints(combination, operator):
     # Extract the coordinates from each item in the combination
     matrix = np.array([item.corrdinate for item in combination])
 
@@ -391,7 +366,7 @@ def satisfies_constraints(combination, operator, **kwargs):
         nonzero_dims = [i for i,corr in enumerate(base.corrdinate) if corr!=0]
         if len(nonzero_dims) > 1:
             participate_skewing_dims.update(nonzero_dims)
-    tile_sizes = kwargs["tile_sizes"]
+    tile_sizes = operator.attr["pre_tile_sizes"]
 
     cur_dim = 0
     tile_check_is_valid = True
@@ -445,7 +420,7 @@ def extend_scalar_dim_for_bases(bases, reuse_array_id):
         new_bases.append(Base(new_corrdinate, base.reuse_array_id, base.is_trival))
     return new_bases
 
-def create_scalar_axis_for_reuse(bases, operator, kwargs):
+def create_scalar_axis_for_reuse(bases, operator):
     reuse_cnt = {
         0:len([base for base in bases if base.reuse_array_id == 0 and not base.is_skewed]), 
         1:len([base for base in bases if base.reuse_array_id == 1 and not base.is_skewed])
@@ -454,25 +429,25 @@ def create_scalar_axis_for_reuse(bases, operator, kwargs):
     if reuse_cnt[0] == 0:
         operator = extend_scalar_dim_for_operator(operator)
         bases = extend_scalar_dim_for_bases(bases, 0)
-        kwargs["tile_sizes"] = ((1,), *kwargs["tile_sizes"])
-        kwargs["dim_types"] = ["_"] + kwargs["dim_types"]
+        operator.set_attr("pre_tile_sizes", ((1,), *operator.attr["pre_tile_sizes"]), overwrite=True)
+        operator.set_attr("dim_types", ["_"] + operator.attr["dim_types"], overwrite=True)
 
     if reuse_cnt[1] == 0:
         operator = extend_scalar_dim_for_operator(operator)
         bases = extend_scalar_dim_for_bases(bases, 1)
-        kwargs["tile_sizes"] = ((1,), *kwargs["tile_sizes"])
-        kwargs["dim_types"] = ["_"] + kwargs["dim_types"]
+        operator.set_attr("pre_tile_sizes", ((1,), *operator.attr["pre_tile_sizes"]), overwrite=True)
+        operator.set_attr("dim_types", ["_"] + operator.attr["dim_types"], overwrite=True)
 
     return bases, operator
 
 @timing_decorator
 def affine_transform(operator, **kwargs):
     # 1. base construction
-    bases = base_construction(operator, **kwargs)  
+    bases = base_construction(operator)  
 
     bases = filter_bases(bases, operator, **kwargs)
 
-    bases, operator = create_scalar_axis_for_reuse(bases, operator, kwargs)
+    bases, operator = create_scalar_axis_for_reuse(bases, operator)
     # import pdb; pdb.set_trace()
 
     # 2. base selection
@@ -480,7 +455,7 @@ def affine_transform(operator, **kwargs):
     #  constraint1: for each array, at least one base is selected to reuse it.
     #  constraint2: the selected bases are linear independent
     # find all selection combinations
-    selected_bases_list = select_bases(bases, operator, **kwargs)
+    selected_bases_list = select_bases(bases, operator)
     # print(f"{kwargs['tile_sizes']=}")
     # print(f"{len(selected_bases_list)=}\n")
     # return []
@@ -494,6 +469,8 @@ def affine_transform(operator, **kwargs):
         schedule = base_to_coor_transform_schedule(matrix)
 
         new_op = operator.apply_schedule(schedule, name="affine")
+        # print(new_op.attr.get("affine::bases", "None"))
+        # import pdb; pdb.set_trace()
         new_op = shift_to_positive(new_op)
         if kwargs["pad"]:
             new_op = loop_padding_to_box_all(new_op)
@@ -503,8 +480,13 @@ def affine_transform(operator, **kwargs):
             base_str += str(base) + "\n"
         new_op.history_schedules.append({"bases":base_str})
         new_op.history_schedules.append({"matrix":matrix})
+        
+        
+        
+        new_op.set_attr("affine::bases", selected_bases)
+        
 
-        new_op_list.append((new_op, selected_bases))
+        new_op_list.append(new_op)
 
     
     return new_op_list
@@ -530,8 +512,8 @@ def get_mapping_from_bases(bases):
     return mapping
 
 @timing_decorator
-def coalesce_and_tiling(operator, bases, cim_cfg, return_schedule=False):
-    mapping = get_mapping_from_bases(bases)
+def coalesce_and_tiling(operator, cim_cfg, return_schedule=False):
+    mapping = get_mapping_from_bases(operator.attr["affine::bases"])
     operator.history_schedules.append({"s2h_mapping":mapping})
     # print(f"{mapping=}")
     coalescing_schedule = get_coalescing_schedule_from_mapping(mapping, operator)
@@ -625,15 +607,15 @@ class SearchSpace:
         min_compute_ops = list()
         min_compute_ops_info = []
         stats = {"count_val": list()}
-        for op1,tile_sizes,dim_types1 in get_tqdm(self.pre_tiling(
+        for op1 in get_tqdm(self.pre_tiling(
             config
         ), desc="pre_tiling"):
             # print("a")
             begin_time = time.time()
             # for op2,bases in get_tqdm(self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1), desc="affine_transform"):
-            for op2,bases in self.affine_transform(op1, tile_sizes=tile_sizes, pad=self.pad_count, dim_types=dim_types1, force_axis_align=self.force_axis_align):
+            for op2 in self.affine_transform(op1, pad=self.pad_count, force_axis_align=self.force_axis_align):
                 
-                for op3 in self.coalesce_and_tiling(op2, bases, return_schedule=self.delay_apply):
+                for op3 in self.coalesce_and_tiling(op2, return_schedule=self.delay_apply):
 
                     if self.delay_apply:
                         coalescing_schedule, tiling_schedule = op3
@@ -727,8 +709,8 @@ class SearchSpace:
     def affine_transform(self, op, **kwargs):
         return affine_transform(op, **kwargs)
 
-    def coalesce_and_tiling(self, op, bases, return_schedule=False):
-        return coalesce_and_tiling(op, bases, self.cim_cfg, return_schedule)
+    def coalesce_and_tiling(self, op, return_schedule=False):
+        return coalesce_and_tiling(op, self.cim_cfg, return_schedule)
 
 def show_result(min_compute_times, min_compute_ops, cim_cfg, flops, is_print=True):
     flops_per_cim_compute = flops / min_compute_times

@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from islplot.plotter import plot_set_points, plot_set_shapes, plot_map_as_groups
 from polycim.op.base_operator import BasicOperator
-from polycim.passes.affine_transform import auto_skewing_pass
+from polycim.passes.affine_transform_pass import auto_skewing_pass
 
 def count(basic_set):
     cnt = 0
