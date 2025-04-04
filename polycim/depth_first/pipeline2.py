@@ -11,9 +11,11 @@ from polycim.passes import (
     FilterSingleOpPass,
     BufferMappingPass,
     ProfilePass,
+    VerifyPass,
 )
 from polycim.passes.base import PassManager
 from dataclasses import dataclass
+import os
 
 def parse_op_list(op_list):
     name_and_cfg = list(op_list.items())
@@ -163,6 +165,7 @@ def simple_run(args, cim_config, op, max_keep=32):
         TensorizePass(args, cim_config),
         CodegenPass(args, cim_config),
         BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
+        VerifyPass(args),
         ProfilePass(args),
     ])
     result = pass_manager.apply(op)
@@ -172,10 +175,12 @@ def simple_run(args, cim_config, op, max_keep=32):
         Column(name="pre_tile_sizes", attr_keys=["pre_tile_sizes"]),
         Column(name="affine schedule", attr_keys=["AffinePass", "schedule"]),
         Column(name="utilization", attr_keys=["UtilizationEvaluatePass", "utilization"]),
+        Column(name="compute_ops", attr_keys=["UtilizationEvaluatePass", "compute_ops"]),
         Column(name="latency", attr_keys=["ProfilePass", "latency"]),
-    ], f"simple_run_result.xlsx", format="xlsx")
+        Column(name="check_result", attr_keys=["VerifyPass", "check_result"]),
+        Column(name="cim_compute_ops", attr_keys=["VerifyPass", "inst_stats", "CIMComputeInst"]),
+    ], os.path.join(args.output_path, "result.csv"), format="csv")
     
-    import pdb; pdb.set_trace()
     pass_manager.show_time_per_pass()
     print(f"num_ops: {pass_manager.get_num_ops()}")
     
