@@ -25,15 +25,15 @@ def get_op_dwconv2d(
     return operator
 
 def get_op_conv2d(
-    oc, ic, oh, ow, kh, kw, stride=1, virtual_axis=True
+    b, oc, ic, oh, ow, kh, kw, stride=1, virtual_axis=True
     ):
     operator = BasicOperator(
         domain = isl.BasicSet(
-            f"{{ [oc,ic,oh,ow,kh,kw]: 0<=oc<{oc} and 0<=ic<{ic} and 0<=oh<{oh} and 0<=ow<{ow} and 0<=kh<{kh} and 0<=kw<{kw} }}"
+            f"{{ [b,oc,ic,oh,ow,kh,kw]: 0<=b<{b} and 0<=oc<{oc} and 0<=ic<{ic} and 0<=oh<{oh} and 0<=ow<{ow} and 0<=kh<{kh} and 0<=kw<{kw} }}"
         ),
-        access_I = isl.BasicMap(f"{{ [oc,ic,oh,ow,kh,kw] -> I[ic, oh * {stride} + kh, ow * {stride} + kw] }}"),
-        access_O = isl.BasicMap("{ [oc,ic,oh,ow,kh,kw] -> O[oc, oh, ow] }"),
-        access_W = isl.BasicMap("{ [oc,ic,oh,ow,kh,kw] -> W[oc, ic, kh, kw] }"),
+        access_I = isl.BasicMap(f"{{ [b,oc,ic,oh,ow,kh,kw] -> I[b, ic, oh * {stride} + kh, ow * {stride} + kw] }}"),
+        access_O = isl.BasicMap("{ [b,oc,ic,oh,ow,kh,kw] -> O[b, oc, oh, ow] }"),
+        access_W = isl.BasicMap("{ [b,oc,ic,oh,ow,kh,kw] -> W[oc, ic, kh, kw] }"),
     )
     return operator
 
