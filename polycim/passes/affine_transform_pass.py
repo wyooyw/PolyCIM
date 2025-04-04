@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import partial, reduce
 from queue import Queue
 from typing import List, Optional
-
+import time
 import islpy as isl
 import numpy as np
 import sympy
@@ -567,22 +567,62 @@ def get_rank_key(base_combination):
             num_non_zero += sum(nonzero)
     return num_non_zero
 
-def select_bases(bases, operator):
+
+
+def select_full_rank_bases(bases):
+    n_dim = len(bases[0].corrdinate)
+    matrix = np.array([base.corrdinate for base in bases])
+
+    # full_rank_bases_list = []
+    cnt = 0
+    def select_single_base(selected_indices, matrix_bases, begin_base_idx):
+        selected_matrix = matrix_bases[selected_indices]
+
+        if len(selected_indices) == n_dim:
+            if cnt % 10000 == 0:
+                print(f"{cnt=}")
+            # assert np.linalg.det(selected_matrix) != 0
+            # full_rank_bases_list.append(selected_indices)
+            cnt += 1
+            return
+        
+        
+        for i in range(begin_base_idx, len(matrix_bases)):
+            # print(f"{selected_matrix.shape=}, {matrix_bases[i].shape=}")
+            concated_matrix = np.concatenate((selected_matrix, matrix_bases[i:i+1, :]), axis=0)
+            max_rank = min(concated_matrix.shape[0], concated_matrix.shape[1])
+            if np.linalg.matrix_rank(concated_matrix) == max_rank:
+                select_single_base([*selected_indices, i], matrix_bases, i+1)
+    import pdb; pdb.set_trace()
+    begin_time = time.time()
+    select_single_base([], matrix, 0)
+    end_time = time.time()
+    print(f"time: {end_time - begin_time}")
+    import pdb; pdb.set_trace()
+    return full_rank_bases_list
+    
+
+def select_bases(self, bases, operator):
     n_dim = operator.domain.dim(isl.dim_type.set)
     selected_bases = []
+
+    # select_full_rank_bases(bases)
     
     # Find all combinations of n_dim bases
     base_combinations = itertools.combinations(bases, n_dim)
-    
+
     for i,combination in enumerate(base_combinations):
-        if satisfies_constraints(combination, operator):
+        
+        if satisfies_constraints(self, combination, operator):
+            if self.prune==False and len(selected_bases) % 10 == 0:
+                print(f"{len(selected_bases)=}")
             rank_key = get_rank_key(combination)
             selected_bases.append((rank_key, combination))
     selected_bases = sorted(selected_bases, key=lambda x: x[0])
     selected_bases = [x[1] for x in selected_bases]
     return selected_bases
 
-def satisfies_constraints(combination, operator):
+def satisfies_constraints(self, combination, operator):
     # Extract the coordinates from each item in the combination
     matrix = np.array([item.corrdinate for item in combination])
 
@@ -612,34 +652,36 @@ def satisfies_constraints(combination, operator):
     if np.linalg.det(matrix) == 0:
         return False
     # return True
-    # filter by tiles
-    reuse_bases = [base for base in combination if base.reuse_array_id in (0,1)]
-    participate_skewing_dims = set()
-    for base in reuse_bases:
-        nonzero_dims = [i for i,corr in enumerate(base.corrdinate) if corr!=0]
-        if len(nonzero_dims) > 1:
-            participate_skewing_dims.update(nonzero_dims)
-    tile_sizes = operator.attr["pre_tile_sizes"]
 
-    cur_dim = 0
-    tile_check_is_valid = True
-    for i,tile_size in enumerate(tile_sizes):
-        if len(tile_size) > 1:
-            is_valid = False
-            for j in range(len(tile_size)):
-                _dim = cur_dim + j
-                if _dim in participate_skewing_dims:
-                    is_valid = True
+    if True and self.prune:
+        # filter by tiles
+        reuse_bases = [base for base in combination if base.reuse_array_id in (0,1)]
+        participate_skewing_dims = set()
+        for base in reuse_bases:
+            nonzero_dims = [i for i,corr in enumerate(base.corrdinate) if corr!=0]
+            if len(nonzero_dims) > 1:
+                participate_skewing_dims.update(nonzero_dims)
+        tile_sizes = operator.attr["pre_tile_sizes"]
+
+        cur_dim = 0
+        tile_check_is_valid = True
+        for i,tile_size in enumerate(tile_sizes):
+            if len(tile_size) > 1:
+                is_valid = False
+                for j in range(len(tile_size)):
+                    _dim = cur_dim + j
+                    if _dim in participate_skewing_dims:
+                        is_valid = True
+                        break
+                
+                if not is_valid:
+                    tile_check_is_valid = False
                     break
             
-            if not is_valid:
-                tile_check_is_valid = False
-                break
-        
-        cur_dim += len(tile_size)
+            cur_dim += len(tile_size)
 
-    if not tile_check_is_valid:
-        return False
+        if not tile_check_is_valid:
+            return False
 
     return True
 
@@ -770,6 +812,7 @@ class AffinePass(DepthFirstPass):
             fix_schedule: Optional[AffineSchedule]=None, 
             schedule_as_key: bool=False,
             pad: bool=True,
+            prune: bool=True,
         ):
         super().__init__(
             fix_schedule=fix_schedule, 
@@ -777,6 +820,7 @@ class AffinePass(DepthFirstPass):
         )
         self.args = args
         self.pad = pad
+        self.prune = prune
         assert self.fix_schedule is None or isinstance(self.fix_schedule, AffineSchedule)
 
     def base_construction(self, operator):
@@ -800,9 +844,10 @@ class AffinePass(DepthFirstPass):
             # import pdb; pdb.set_trace()
             points = get_nontrival_points(reuse_bases)
             points = filter_times_points(points)
-            points = filter_tile_direction_points(points, operator.attr["pre_tile_sizes"])
-            points = filter_cover_points(points)
-            points = filter_many_direction_points(points)
+            if self.prune:
+                points = filter_tile_direction_points(points, operator.attr["pre_tile_sizes"])
+                points = filter_cover_points(points)
+                points = filter_many_direction_points(points)
             # TODO: filter points
             for point in points:
                 is_trival = is_base_trival(point, operator.attr["dim_types"])
@@ -819,7 +864,7 @@ class AffinePass(DepthFirstPass):
 
         return bases
 
-    def filter_bases(self, bases, operator):
+    def disable_skewing(self, bases, operator):
         if self.args.disable_affine:
             new_bases = []
             for base in bases:
@@ -836,7 +881,7 @@ class AffinePass(DepthFirstPass):
             # 1. base construction
             bases = self.base_construction(operator)  
 
-            bases = self.filter_bases(bases, operator)
+            bases = self.disable_skewing(bases, operator)
 
             bases, operator = create_scalar_axis_for_reuse(bases, operator)
 
@@ -845,7 +890,7 @@ class AffinePass(DepthFirstPass):
             #  constraint1: for each array, at least one base is selected to reuse it.
             #  constraint2: the selected bases are linear independent
             # find all selection combinations
-            selected_bases_list = select_bases(bases, operator)
+            selected_bases_list = select_bases(self, bases, operator)
             
         else:
             selected_bases_list = [self.fix_schedule.bases]

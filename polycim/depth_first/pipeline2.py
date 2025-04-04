@@ -106,13 +106,13 @@ def pretiling_influence_utilization(args, cim_config, op):
     pass_manager.show_time_per_pass()
     print(f"num_ops: {pass_manager.get_num_ops()}")
 
-def utilization_influence_latency(args, cim_config, op):
+def utilization_influence_latency(args, cim_config, op, max_keep=32):
     pass_manager = PassManager([
         PreTilingPass(args, schedule_as_key=True),
-        AffinePass(args, schedule_as_key=False),
+        AffinePass(args, schedule_as_key=True),
         HardwareMappingPass(args, cim_config),
         UtilizationEvaluatePass(args, cim_config),
-        FilterSingleOpPass(n_keep=32),
+        FilterSingleOpPass(n_keep=max_keep),
         # DumpOpPass(args, cim_config),
         MappingMultiMacroPass(args, cim_config),
         BufferMappingPass(args, cim_config),
@@ -128,11 +128,60 @@ def utilization_influence_latency(args, cim_config, op):
         Column(name="affine schedule", attr_keys=["AffinePass", "schedule"]),
         Column(name="utilization", attr_keys=["UtilizationEvaluatePass", "utilization"]),
         Column(name="latency", attr_keys=["ProfilePass", "latency"]),
-    ], "utilization_influence_latency.xlsx", format="xlsx")
+    ], f"utilization_influence_latency_{max_keep}.xlsx", format="xlsx")
+    pass_manager.show_time_per_pass()
+    print(f"num_ops: {pass_manager.get_num_ops()}")
+
+def pruning_search_space(args, cim_config, op):
+    pass_manager_pruning = PassManager([
+        PreTilingPass(args),
+        AffinePass(args),
+    ])
+    result = pass_manager_pruning.apply(op)
+    n_op_pruning = len(result)
+    print(f"n_op_pruning: {n_op_pruning}")
+    import pdb; pdb.set_trace()
+
+    pass_manager_full = PassManager([
+        PreTilingPass(args, prune=False),
+        AffinePass(args, prune=False),
+    ])
+    result = pass_manager_full.apply(op)
+    n_op_full = len(result)
+    print(f"n_op_full: {n_op_full}")
+
+def simple_run(args, cim_config, op, max_keep=32):
+    pass_manager = PassManager([
+        PreTilingPass(args, schedule_as_key=False),
+        AffinePass(args, schedule_as_key=False),
+        HardwareMappingPass(args, cim_config),
+        UtilizationEvaluatePass(args, cim_config),
+        FilterSingleOpPass(n_keep=1),
+        DumpOpPass(args, cim_config),
+        MappingMultiMacroPass(args, cim_config),
+        BufferMappingPass(args, cim_config),
+        TensorizePass(args, cim_config),
+        CodegenPass(args, cim_config),
+        BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
+        ProfilePass(args),
+    ])
+    result = pass_manager.apply(op)
+    
+    save_table(result, [
+        Column(name="name", attr_keys=["name"]),
+        Column(name="pre_tile_sizes", attr_keys=["pre_tile_sizes"]),
+        Column(name="affine schedule", attr_keys=["AffinePass", "schedule"]),
+        Column(name="utilization", attr_keys=["UtilizationEvaluatePass", "utilization"]),
+        Column(name="latency", attr_keys=["ProfilePass", "latency"]),
+    ], f"simple_run_result.xlsx", format="xlsx")
+    
+    import pdb; pdb.set_trace()
     pass_manager.show_time_per_pass()
     print(f"num_ops: {pass_manager.get_num_ops()}")
     
 def run_op_list(args, op_list, cim_config):
     op = parse_op_list(op_list)
     # pretiling_influence_utilization(args, cim_config, op)
-    utilization_influence_latency(args, cim_config, op)
+    # utilization_influence_latency(args, cim_config, op, 512)
+    # pruning_search_space(args, cim_config, op)
+    simple_run(args, cim_config, op)

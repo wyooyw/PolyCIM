@@ -472,6 +472,7 @@ class PreTilingPass(DepthFirstPass):
             args,
             fix_schedule: Optional[PreTilingSchedule]=None, 
             schedule_as_key: bool=False,
+            prune: bool=True,
         ):
         super().__init__(
             fix_schedule=fix_schedule, 
@@ -479,6 +480,7 @@ class PreTilingPass(DepthFirstPass):
         )
         self.args = args
         assert self.fix_schedule is None or isinstance(self.fix_schedule, PreTilingSchedule)
+        self.prune = prune
 
     def apply(self, operator):
         symmetry_info = operator.attr.get("symmetry_info", None)
@@ -508,7 +510,7 @@ class PreTilingPass(DepthFirstPass):
             dim_factors.append(tuple(factors))
         dim_factors = tuple(dim_factors)
 
-        if symmetry_info is None:
+        if symmetry_info is None or self.prune==False:
             combination_list = list(itertools.product(*dim_factors))
         else:
             combination_list = combine_tilesize_by_symmetry_info(dim_factors, symmetry_info)
