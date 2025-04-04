@@ -1,19 +1,22 @@
 export CONFIG_PATH=$PWD/config/config.json
+export POLYCIM_HOME=$PWD
 # export MAX_PROCESS_USE=1
 export PYTHONPATH=$PWD
 # export LOG_LEVEL="DEBUG"
 source log_config.sh
 
-op_name=C2
-cur_time=$(date +%Y-%m-%d_%H-%M-%S)
-save_dir=".save/${cur_time}"
+# pytest test/schedule/test_coalescing.py
+pytest -n 4 test
+# op_name=C2
+# cur_time=$(date +%Y-%m-%d_%H-%M-%S)
+# save_dir=".save/${cur_time}"
 
-polycim explore \
---op-id $op_name \
---config-path $PWD/polycim/exp/iccad25/compiler_configs/c32b64.json \
---pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
---output-path $save_dir \
---data-movement-full-vectorize
+# polycim explore \
+# --op-id $op_name \
+# --config-path $PWD/polycim/exp/iccad25/compiler_configs/c32b64.json \
+# --pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
+# --output-path $save_dir \
+# --data-movement-full-vectorize
 # --disable-second-stage
 # --disable-pretile \
 # --disable-affine

@@ -10,6 +10,7 @@ from .multi_level_tiling_pass import PreTilingPass
 from .tensorize import TensorizePass
 from .utilization_evaluate_pass import UtilizationEvaluatePass
 from .profile_pass import ProfilePass
+from .verify_pass import VerifyPass
 
 __all__ = [
     "PreTilingPass",
@@ -24,4 +25,5 @@ __all__ = [
     "FilterSingleOpPass",
     "BufferMappingPass",
     "ProfilePass",
+    "VerifyPass",
 ]
