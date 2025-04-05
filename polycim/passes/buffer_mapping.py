@@ -1472,7 +1472,7 @@ def buffer_strategy_combination(op, n_macro_iters):
 
             # Memory level combination
             new_n_dim = op_reordered.domain.dim(isl.dim_type.set)
-            I_buffer_level_list = buffer_level_combination(op_reordered, "I", 2, level_min=0, level_max=new_n_dim - n_macro_iters)
+            I_buffer_level_list = buffer_level_combination(op_reordered, "I", 2, level_min=0, level_max=new_n_dim - n_macro_iters + 1)
             W_buffer_level_list = buffer_level_combination(op_reordered, "W", 1, level_min=0, level_max=new_n_dim - n_macro_iters)
             O_buffer_level_list = buffer_level_combination(op_reordered, "O", 2, level_min=0, level_max=new_n_dim - n_macro_iters)
 
@@ -1483,7 +1483,8 @@ def buffer_strategy_combination(op, n_macro_iters):
                 logger.debug(f"\t{i_buffer_level=}")
                 if output_buffer_level[-1] != new_n_dim - n_macro_iters:
                     continue
-                if input_buffer_level[-1] != new_n_dim - n_macro_iters:
+                if input_buffer_level[-1] not in (new_n_dim - n_macro_iters + 1, new_n_dim - n_macro_iters):
+                    print(f"shape={utils.get_box_hull_shape(op_reordered.domain)}, {input_buffer_level=}, {new_n_dim=}, {n_macro_iters=}")
                     continue
 
                 # output partial sum

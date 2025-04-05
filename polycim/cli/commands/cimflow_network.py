@@ -416,8 +416,8 @@ def get_dwcode_conv2d(args, attr):
 
         result = ProfileResult(stats=None, save_path=temp_dir)
         cache_dwconv2d_result[cache_key] = result
-    # import pdb; pdb.set_trace()
-    final_code = get_final_code(os.path.join(result.save_path, "depthwise_conv.cim"))
+
+    final_code = get_final_code(os.path.join(result.save_path, "final_code.json"))
     assert final_code is not None
     # import pdb; pdb.set_trace()
     return final_code
