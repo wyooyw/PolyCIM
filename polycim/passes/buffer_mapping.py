@@ -1482,15 +1482,17 @@ def buffer_strategy_combination(op, n_macro_iters):
                 share_output_iters_time = list(filter(lambda x: x not in scalar_iters, share_output_iters_time))
                 share_output_iters_group = list(filter(lambda x: x not in scalar_iters, share_output_iters_group))
                 
+                iter_row = new_n_dim - n_macro_iters
                 iter_comp = new_n_dim - n_macro_iters + 1
                 iter_col = new_n_dim - 1
                 share_output_iters_group = list(filter(
-                    lambda x: x != iter_comp and x != iter_col, 
+                    lambda x: x != iter_comp and x != iter_col and x != iter_row, 
                     share_output_iters_group
                 ))
 
                 new_shape = utils.get_box_hull_shape(op_reordered.domain)
-
+                if len(share_output_iters_group) > 0:
+                    import pdb; pdb.set_trace()
                 assert len(share_output_iters_group) == 0, f"Currently, not support partial sum between groups. It will be supported later."
                 assert len(share_output_iters_time) <= 2, f"{share_output_iters_time=}"
 

@@ -645,6 +645,9 @@ class HardwareMapping5DPass(DepthFirstPass):
         new_op = loop_padding_dim(new_op, n_dim-4, self.cim_config.n_comp)
         # TODO: padding group dimension
         print(f"After padding shape: {utils.get_box_hull_shape(new_op.domain)}")
+        new_op.set_attr("n_macro_iters", 5)
+        new_op.set_attr("n_use_group", use_group)
+        new_op.set_attr("n_use_comp", self.cim_config.n_comp)
 
         schedule = HardwareMapping5DSchedule(mapping, tile_schedule, reorder_schedule)
         result = SchedulePassResult(new_op, schedule)
