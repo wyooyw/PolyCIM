@@ -7,7 +7,7 @@ import tempfile
 import json
 
 from polycim.config import get_config
-from polycim.depth_first.pipeline2 import run_op_list, parse_op_list, run_polycim, run_cimflow
+from polycim.depth_first.pipeline2 import parse_op_list, run_polycim, run_cimflow
 
 from polycim.utils.logger import get_logger
 from polycim.cli.common import show_args, to_abs_path
@@ -50,11 +50,6 @@ def run_explore(args):
 
     # curr_time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     # curr_time_str = curr_time_str + f"_{cim_cfg.n_comp}x{cim_cfg.n_group_vcol*8}"
-    run_op_list(
-        args,
-        op_list,
-        cim_config=cim_cfg
-    )
 
     op = parse_op_list(op_list)
     # import pdb; pdb.set_trace()
