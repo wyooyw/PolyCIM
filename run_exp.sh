@@ -6,8 +6,15 @@ export PYTHONPATH=$PWD
 source log_config.sh
 
 # pytest test/schedule/test_coalescing.py
-pytest -n 4 test/explore/test_cimflow_result.py
-pytest -n 4 test/explore/test_polycim_result.py
+# pytest -n 4 test/explore/test_cimflow_result.py
+# pytest -n 4  test/explore/test_polycim_result.py
+
+cur_time=$(date +%Y-%m-%d_%H-%M-%S)
+save_dir=".save/${cur_time}"
+polycim cimflow_network \
+-i graphs/instructions_mobilenet_0.5x_load_time_T4_B8.json \
+-o $save_dir \
+-c $PWD/config/dac25/config_gs_4.json
 
 # op_name=conv2d_b2o16i8h8w8k3
 # cur_time=$(date +%Y-%m-%d_%H-%M-%S)
