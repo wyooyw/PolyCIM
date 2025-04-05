@@ -52,7 +52,7 @@ class CodeGenerator:
                 code="SpecialRegSet(SPECIAL_REG_WEIGHT_BIT_WIDTH, 8);", depth=depth
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 8);", depth=depth
+                code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 32);", depth=depth
             ),
             CodeStmt(
                 code=f"SpecialRegSet(SPECIAL_REG_GROUP_SIZE, {cim_cfg.n_macro_per_group});",
@@ -70,15 +70,15 @@ class CodeGenerator:
                 code=f"SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, {use_comp});", depth=depth
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 8);",
+                code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 32);",
                 depth=depth,
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 8);",
+                code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 32);",
                 depth=depth,
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 8);",
+                code="SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 32);",
                 depth=depth,
             ),
         ]
@@ -95,8 +95,9 @@ class CodeGenerator:
             buf_info = global_buffer_info[t]
             shape_str = ",".join([str(s) for s in buf_info.shape])
             memory_name_big = "__"+buf_info.memory_name.upper()+"__"
+            dtype = "int32" if t=="O" else "int8"
             code = CodeStmt(
-                code=f"{buf_info.name} = Buffer(<{shape_str}>, int8, {memory_name_big});",
+                code=f"{buf_info.name} = Buffer(<{shape_str}>, {dtype}, {memory_name_big});",
                 depth=depth,
             )
             code_list.append(code)
@@ -108,8 +109,9 @@ class CodeGenerator:
                 continue
             shape_str = ",".join([str(s) for s in info.shape])
             memory_name_big = "__"+info.memory_name.upper()+"__"
+            dtype = "int32" if name[0]=="O" else "int8"
             code = CodeStmt(
-                code=f"{name} = Buffer(<{shape_str}>, int8, {memory_name_big});",
+                code=f"{name} = Buffer(<{shape_str}>, {dtype}, {memory_name_big});",
                 depth=depth,
             )
             code_list.append(code)
@@ -119,7 +121,7 @@ class CodeGenerator:
     def codegen_const_buffer_define(self, depth):
         zero_scalar_buffer_name = "zero_scalar_buffer"
         code = CodeStmt(
-            code=f"{zero_scalar_buffer_name} = Buffer(<1>, int8, __INPUT_MEMORY__);",
+            code=f"{zero_scalar_buffer_name} = Buffer(<1>, int32, __INPUT_MEMORY__);",
             depth=depth,
         )
         self.buffer_manager.add_buffer(zero_scalar_buffer_name, [1], "input_memory")

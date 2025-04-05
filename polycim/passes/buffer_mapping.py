@@ -1287,6 +1287,10 @@ def memory_access_satisfy_constraint(op):
             memory_name, 0
         ) + reduce(lambda x, y: x * y, buffer_info.shape)
 
+    for memory_name in buffer_type_to_use_size.keys():
+        if memory_name[0] == "O":
+            buffer_type_to_use_size[memory_name] *= 4 # int32
+
     buffer_type_to_size = get_memory_sizes()
 
     satisfy = True

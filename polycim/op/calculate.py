@@ -13,7 +13,7 @@ def conv2d(input, weight, dilation=1, stride=1):
     oh = (ih - effective_kh) // stride + 1
     ow = (iw - effective_kw) // stride + 1
     
-    output = np.zeros((b, oc, oh, ow), dtype=input.dtype)
+    output = np.zeros((b, oc, oh, ow), dtype=np.int32)
     for _b in range(b):
         for _oc in range(oc):
             for _oh in range(oh):
@@ -22,7 +22,9 @@ def conv2d(input, weight, dilation=1, stride=1):
                                         _oh * stride: _oh * stride + kh * dilation: dilation,
                                         _ow * stride: _ow * stride + kw * dilation: dilation]
                     weight_window = weight[_oc, :, :, :]
-                    output[_b, _oc, _oh, _ow] = np.sum(input_window * weight_window)
+                    output[_b, _oc, _oh, _ow] = np.sum(
+                        input_window.astype(np.int32) * weight_window.astype(np.int32)
+                    )
     
     return output
 
@@ -38,13 +40,13 @@ def depth_wise_conv2d(input, weight, dilation=1, stride=1):
     oh = (ih - effective_kh) // stride + 1
     ow = (iw - effective_kw) // stride + 1
     oc = ic
-    output = np.zeros((oc, oh, ow), dtype=input.dtype)
+    output = np.zeros((oc, oh, ow), dtype=np.int32)
     # for _oc in range(oc):
     for _oh in range(oh):
         for _ow in range(ow):
             input_window = input[:, _oh: _oh + kh * dilation: dilation, _ow : _ow + kw * dilation : dilation]
             weight_window = weight[:, :, :]
-            output[:, _oh, _ow] += np.sum(input_window * weight_window, axis=(1,2))
+            output[:, _oh, _ow] += np.sum(input_window.astype(np.int32) * weight_window.astype(np.int32), axis=(1,2))
     return output
 
 def depth_wise_conv3d(input, weight, dilation=1, stride=1):
@@ -63,7 +65,7 @@ def depth_wise_conv3d(input, weight, dilation=1, stride=1):
     ow = (iw - effective_kw) // stride + 1
     oc = ic
     
-    output = np.zeros((oc, od, oh, ow), dtype=input.dtype)
+    output = np.zeros((oc, od, oh, ow), dtype=np.int32)
     
     for _od in range(od):
         for _oh in range(oh):
@@ -73,7 +75,7 @@ def depth_wise_conv3d(input, weight, dilation=1, stride=1):
                                   _oh: _oh + kh * dilation: dilation, 
                                   _ow: _ow + kw * dilation: dilation]
                 weight_window = weight[:, :, :, :]
-                output[:, _od, _oh, _ow] += np.sum(input_window * weight_window, axis=(1,2,3))
+                output[:, _od, _oh, _ow] += np.sum(input_window.astype(np.int32) * weight_window.astype(np.int32), axis=(1,2,3))
     return output
 
 if __name__ == "__main__":

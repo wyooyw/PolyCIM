@@ -45,13 +45,13 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
     cim_mask_data = bytearray(cim_mask_np)
     
     input_shape = origin_operand_shape["I"]
-    # input_np = np.random.randint(-2, 3, size=input_shape, dtype=np.int8)
-    input_np = np.random.randint(-1, 2, size=input_shape, dtype=np.int8)
+    input_np = np.random.randint(-2, 3, size=input_shape, dtype=np.int8)
+    # input_np = np.random.randint(-1, 2, size=input_shape, dtype=np.int8)
     # input_np = np.ones(input_shape, dtype=np.int8)
 
     weight_shape = origin_operand_shape["W"]
-    # weight_np = np.random.randint(-2, 3, size=weight_shape, dtype=np.int8)
-    weight_np = np.random.randint(-1, 2, size=weight_shape, dtype=np.int8)
+    weight_np = np.random.randint(-2, 3, size=weight_shape, dtype=np.int8)
+    # weight_np = np.random.randint(-1, 2, size=weight_shape, dtype=np.int8)
     # weight_np = np.ones(weight_shape, dtype=np.int8)
 
     # convert data
@@ -104,8 +104,9 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
     output_offset = len(total_data)
     # output_size = 28 * 28 * 4
     output_size = reduce(lambda x, y: x * y, buffer_info["O_aligned"]["shape"])
+    output_size = output_size * 4 # int32
     output_data = output_global_image[output_offset:output_offset+output_size]
-    output_np = np.frombuffer(output_data, dtype=np.int8)
+    output_np = np.frombuffer(output_data, dtype=np.int32)
     print(f"{output_np=}")
     # np.savetxt(os.path.join(sim_output_dir, "output.txt"), output_np.reshape(-1), fmt="%d")
     
@@ -116,7 +117,7 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
     
     # read O_converted
     output_shape = origin_operand_shape["O"]
-    O_converted_np = np.loadtxt(O_converted_data_path, dtype=np.int8).reshape(output_shape)
+    O_converted_np = np.loadtxt(O_converted_data_path, dtype=np.int32).reshape(output_shape)
     print(f"output shape={O_converted_np.shape}, dtype={O_converted_np.dtype}, max={O_converted_np.max()}, min={O_converted_np.min()}")
     # import pdb; pdb.set_trace()
     verify_fn = get_verify_fn(op_name)
