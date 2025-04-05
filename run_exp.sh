@@ -6,17 +6,19 @@ export PYTHONPATH=$PWD
 source log_config.sh
 
 # pytest test/schedule/test_coalescing.py
-pytest -n 4 test
-# op_name=C2
-# cur_time=$(date +%Y-%m-%d_%H-%M-%S)
-# save_dir=".save/${cur_time}"
+# pytest -n 4 test
+op_name=conv2d
+cur_time=$(date +%Y-%m-%d_%H-%M-%S)
+save_dir=".save/${cur_time}"
 
-# polycim explore \
-# --op-id $op_name \
-# --config-path $PWD/polycim/exp/iccad25/compiler_configs/c32b64.json \
-# --pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
-# --output-path $save_dir \
-# --data-movement-full-vectorize
+polycim explore \
+--op-id $op_name \
+--config-path $PWD/config/dac25/c32b64.json \
+--pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
+--output-path $save_dir \
+--data-movement-full-vectorize \
+--disable-affine
+
 # --disable-second-stage
 # --disable-pretile \
 # --disable-affine

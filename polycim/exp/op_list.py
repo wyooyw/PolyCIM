@@ -9,7 +9,7 @@ def get_op_list():
 
     op_list = OrderedDict()
     op_list["conv2d"] = {
-        "op": benchmark.get_op_conv2d(b=1, oc=2, ic=3, oh=32, ow=32, kh=3, kw=3, stride=1,virtual_axis=False),
+        "op": benchmark.get_op_conv2d(b=1, oc=16, ic=3, oh=32, ow=32, kh=3, kw=3, stride=1,virtual_axis=False),
         "symmetry_info": ((3,5),(4,6)),
         "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
         "verify_fn": conv2d,

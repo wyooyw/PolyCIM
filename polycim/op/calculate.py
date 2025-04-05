@@ -1,9 +1,9 @@
 import numpy as np
 
 def conv2d(input, weight, dilation=1, stride=1):
-    assert len(input.shape) == 3, f"{input.shape=}"
+    assert len(input.shape) == 4, f"{input.shape=}"
     assert len(weight.shape) == 4, f"{weight.shape=}"
-    ic, ih, iw = input.shape  # nb: batch size, ic: input channels
+    b, ic, ih, iw = input.shape  # nb: batch size, ic: input channels
     oc, kc, kh, kw = weight.shape  # oc: output channels, kc: kernel channels
     assert ic == kc  # 输入通道数需要匹配卷积核的通道数
     
@@ -13,16 +13,16 @@ def conv2d(input, weight, dilation=1, stride=1):
     oh = (ih - effective_kh) // stride + 1
     ow = (iw - effective_kw) // stride + 1
     
-    output = np.zeros((oc, oh, ow), dtype=input.dtype)
-    
-    for _oc in range(oc):
-        for _oh in range(oh):
-            for _ow in range(ow):
-                input_window = input[:, 
-                                    _oh * stride: _oh * stride + kh * dilation: dilation,
-                                    _ow * stride: _ow * stride + kw * dilation: dilation]
-                weight_window = weight[_oc, :, :, :]
-                output[_oc, _oh, _ow] = np.sum(input_window * weight_window)
+    output = np.zeros((b, oc, oh, ow), dtype=input.dtype)
+    for _b in range(b):
+        for _oc in range(oc):
+            for _oh in range(oh):
+                for _ow in range(ow):
+                    input_window = input[_b, :, 
+                                        _oh * stride: _oh * stride + kh * dilation: dilation,
+                                        _ow * stride: _ow * stride + kw * dilation: dilation]
+                    weight_window = weight[_oc, :, :, :]
+                    output[_b, _oc, _oh, _ow] = np.sum(input_window * weight_window)
     
     return output
 

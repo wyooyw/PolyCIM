@@ -12,6 +12,7 @@ from polycim.passes import (
     BufferMappingPass,
     ProfilePass,
     VerifyPass,
+    HardwareMapping5DPass,
 )
 from polycim.passes.base import PassManager
 from dataclasses import dataclass
@@ -183,10 +184,43 @@ def simple_run(args, cim_config, op, max_keep=32):
     
     pass_manager.show_time_per_pass()
     print(f"num_ops: {pass_manager.get_num_ops()}")
+
+def cimflow(args, cim_config, op, max_keep=32):
+    pass_manager = PassManager([
+        # PreTilingPass(args, schedule_as_key=False),
+        # AffinePass(args, schedule_as_key=False),
+        HardwareMapping5DPass(args, cim_config),
+        # UtilizationEvaluatePass(args, cim_config),
+        # FilterSingleOpPass(n_keep=1),
+        # DumpOpPass(args, cim_config),
+        # MappingMultiMacroPass(args, cim_config),
+        BufferMappingPass(args, cim_config),
+        TensorizePass(args, cim_config),
+        CodegenPass(args, cim_config),
+        BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
+        # VerifyPass(args),
+        # ProfilePass(args),
+    ])
+    result = pass_manager.apply(op)
     
+    save_table(result, [
+        Column(name="name", attr_keys=["name"]),
+        Column(name="pre_tile_sizes", attr_keys=["pre_tile_sizes"]),
+        Column(name="affine schedule", attr_keys=["AffinePass", "schedule"]),
+        Column(name="utilization", attr_keys=["UtilizationEvaluatePass", "utilization"]),
+        Column(name="compute_ops", attr_keys=["UtilizationEvaluatePass", "compute_ops"]),
+        Column(name="latency", attr_keys=["ProfilePass", "latency"]),
+        Column(name="check_result", attr_keys=["VerifyPass", "check_result"]),
+        Column(name="cim_compute_ops", attr_keys=["VerifyPass", "inst_stats", "CIMComputeInst"]),
+    ], os.path.join(args.output_path, "result.csv"), format="csv")
+    
+    pass_manager.show_time_per_pass()
+    print(f"num_ops: {pass_manager.get_num_ops()}")
+
 def run_op_list(args, op_list, cim_config):
     op = parse_op_list(op_list)
     # pretiling_influence_utilization(args, cim_config, op)
     # utilization_influence_latency(args, cim_config, op, 512)
     # pruning_search_space(args, cim_config, op)
-    simple_run(args, cim_config, op)
+    # simple_run(args, cim_config, op)
+    cimflow(args, cim_config, op)
