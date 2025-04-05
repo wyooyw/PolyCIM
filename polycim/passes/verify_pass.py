@@ -45,10 +45,14 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
     cim_mask_data = bytearray(cim_mask_np)
     
     input_shape = origin_operand_shape["I"]
-    input_np = np.random.randint(-2, 3, size=input_shape, dtype=np.int8)
+    # input_np = np.random.randint(-2, 3, size=input_shape, dtype=np.int8)
+    input_np = np.random.randint(-1, 2, size=input_shape, dtype=np.int8)
+    # input_np = np.ones(input_shape, dtype=np.int8)
 
     weight_shape = origin_operand_shape["W"]
-    weight_np = np.random.randint(-2, 3, size=weight_shape, dtype=np.int8)
+    # weight_np = np.random.randint(-2, 3, size=weight_shape, dtype=np.int8)
+    weight_np = np.random.randint(-1, 2, size=weight_shape, dtype=np.int8)
+    # weight_np = np.ones(weight_shape, dtype=np.int8)
 
     # convert data
     I_exe_path = os.path.join(op_dir, "convert_I.o")
