@@ -15,6 +15,7 @@ from polycim.config import CIMConfig
 from polycim.depth_first.timeout import timeout
 from polycim.op.base_operator import BasicOperator
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
+from polycim.passes.loop_padding import loop_padding_dim
 
 
 def get_cim_operator(n_rows, n_cols):
@@ -639,7 +640,11 @@ class HardwareMapping5DPass(DepthFirstPass):
         )
         print(f"After reorder shape: {utils.get_box_hull_shape(new_op.domain)}")
 
-        # import pdb; pdb.set_trace()
+        n_dim = new_op.domain.dim(isl.dim_type.set)
+        new_op = loop_padding_dim(new_op, n_dim-1, self.cim_config.n_group_vcol)
+        new_op = loop_padding_dim(new_op, n_dim-4, self.cim_config.n_comp)
+        # TODO: padding group dimension
+        print(f"After padding shape: {utils.get_box_hull_shape(new_op.domain)}")
 
         schedule = HardwareMapping5DSchedule(mapping, tile_schedule, reorder_schedule)
         result = SchedulePassResult(new_op, schedule)
