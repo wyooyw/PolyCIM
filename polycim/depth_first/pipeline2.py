@@ -198,7 +198,7 @@ def cimflow(args, cim_config, op, max_keep=32):
         TensorizePass(args, cim_config),
         CodegenPass(args, cim_config),
         BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
-        # VerifyPass(args),
+        VerifyPass(args),
         # ProfilePass(args),
     ])
     result = pass_manager.apply(op)
