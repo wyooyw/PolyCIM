@@ -304,3 +304,11 @@ class DataMovementOperator:
             data_movement=new_data_movement,
             attr={key: value for key, value in self.attr.items()},
         )
+
+    def set_attr(self, key, value, overwrite=False):
+        if key in self.attr and not overwrite:
+            raise Exception(f"Key {key} already exists")
+        self.attr[key] = value
+
+    def get_attr(self, key):
+        return self.attr[key]

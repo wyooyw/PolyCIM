@@ -7,7 +7,7 @@ from functools import reduce
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 from polycim.op import benchmark
-from config import get_config, get_memory_base, get_memory_size
+from polycim.config import get_config, get_memory_base, get_memory_size, set_raw_config_by_path
 from polycim.depth_first.pipeline2 import run_cimflow
 import argparse
 from types import SimpleNamespace
@@ -177,18 +177,6 @@ def get_code_trans_by_memory_type(src_memory_type, dst_memory_type, data_size):
     src_addr = get_memory_base(src_memory_type)
     dst_addr = get_memory_base(dst_memory_type)
     return get_code_trans(src_addr, dst_addr, data_size)
-
-
-def run_network_pipeline(op_list, skew, macro_row, macro_col):
-    network_final_code = []
-    for op in op_list:
-        result = run_pipeline(op, skew=skew, macro_row=macro_row, macro_col=macro_col)
-        assert len(result) == 1
-        result = result[0]
-        final_code = get_final_code(result)
-        assert final_code is not None
-        network_final_code.extend(final_code)
-    return network_final_code
 
 
 def get_code_read_global(attr):
@@ -621,8 +609,10 @@ def parse_cimflow_network_args(subparsers):
     parser = subparsers.add_parser('cimflow_network')
     parser.add_argument("--read-json", "-i", type=str, help="read path")
     parser.add_argument("--save-dir", "-o", type=str, help="save path")
+    parser.add_argument("--config-path", "-c", type=str, help="config path")
 
 def run_cimflow_network(args):
+    set_raw_config_by_path(args.config_path)
     each_core_save_dir = os.path.join(args.save_dir, "each_core")
     with tempfile.TemporaryDirectory() as cache_dir:
         total_save_files = parse_noc_tasks(
@@ -643,5 +633,5 @@ def run_cimflow_network(args):
     print(f"{each_core_save_dir = }")
     print(f"{all_core_code_path = }")
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

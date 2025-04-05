@@ -154,7 +154,7 @@ def pruning_search_space(args, cim_config, op):
     print(f"n_op_full: {n_op_full}")
 
 def run_polycim(args, cim_config, op, max_keep=32):
-    pass_manager = PassManager([
+    pass_list = [
         PreTilingPass(args, schedule_as_key=False),
         AffinePass(args, schedule_as_key=False),
         HardwareMappingPass(args, cim_config),
@@ -166,9 +166,12 @@ def run_polycim(args, cim_config, op, max_keep=32):
         TensorizePass(args, cim_config),
         CodegenPass(args, cim_config),
         BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
-        VerifyPass(args),
-        ProfilePass(args),
-    ])
+    ]
+    if args.verify:
+        pass_list.append(VerifyPass(args))
+    pass_list.append(ProfilePass(args))
+    
+    pass_manager = PassManager(pass_list)
     result = pass_manager.apply(op)
     
     save_table(result, [
@@ -186,21 +189,17 @@ def run_polycim(args, cim_config, op, max_keep=32):
     print(f"num_ops: {pass_manager.get_num_ops()}")
 
 def run_cimflow(args, cim_config, op, max_keep=32):
-    pass_manager = PassManager([
-        # PreTilingPass(args, schedule_as_key=False),
-        # AffinePass(args, schedule_as_key=False),
+    pass_list = [
         HardwareMapping5DPass(args, cim_config),
-        # UtilizationEvaluatePass(args, cim_config),
-        # FilterSingleOpPass(n_keep=1),
-        # DumpOpPass(args, cim_config),
-        # MappingMultiMacroPass(args, cim_config),
         BufferMappingPass(args, cim_config),
         TensorizePass(args, cim_config),
         CodegenPass(args, cim_config),
         BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
-        VerifyPass(args),
-        # ProfilePass(args),
-    ])
+    ]
+    if args.verify:
+        pass_list.append(VerifyPass(args))
+    
+    pass_manager = PassManager(pass_list)
     result = pass_manager.apply(op)
     
     save_table(result, [

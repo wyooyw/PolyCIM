@@ -93,7 +93,8 @@ def test_result(cim_cfg_path, op_id, cim_count, axis_align):
             "--pimsim-cfg-path", pimsim_cfg_path, 
             "--output-path", temp_dir, 
             "--data-movement-full-vectorize",
-            "--polycim"
+            "--polycim",
+            "--verify"
         ]
         if axis_align:
             cmd.append("--disable-affine")

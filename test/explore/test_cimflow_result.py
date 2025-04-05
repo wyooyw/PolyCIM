@@ -40,7 +40,8 @@ def test_result(cim_cfg_path, op_id, cim_count):
             # "--pimsim-cfg-path", pimsim_cfg_path, 
             "--output-path", temp_dir, 
             "--data-movement-full-vectorize",
-            "--cimflow"
+            "--cimflow",
+            "--verify"
         ]
         subprocess.run(cmd, check=True)
 
@@ -55,4 +56,4 @@ def test_result(cim_cfg_path, op_id, cim_count):
         assert check_result
 
 if __name__ == "__main__":
-    test_result("c32b64.json", "C2", -1, True)
+    test_result("g2r2c16b64.json", "conv2d_b1o16i8h8w8k3", 512)

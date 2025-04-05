@@ -28,6 +28,7 @@ def parse_explore_args(subparsers):
     parser.add_argument("--disable-second-stage", action="store_true", help="disable second stage")
     parser.add_argument("--cimflow", action="store_true", help="run cimflow")
     parser.add_argument("--polycim", action="store_true", help="run polycim")
+    parser.add_argument("--verify", action="store_true", help="verify")
 
 def run_explore(args):
     args.output_path = to_abs_path(args.output_path)
