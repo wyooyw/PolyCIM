@@ -1,4 +1,5 @@
 {% include 'def_special_regs.cim' %}
+{% include 'simd.cim' %}
 
 // input
 #define INPUT_ROW {{ INPUT_ROW }}
@@ -13,7 +14,7 @@
 #define STRIDE {{ STRIDE }}
 #define BATCH {{ BATCH }}
 
-def main(null<int8>){
+def main(){
     // input, weight, mask and index will be prepared in memory image
     local_input = Buffer(<BATCH, INPUT_ROW, INPUT_COL, INPUT_CHANNEL>, int8, __INPUT_MEMORY__);
     local_weight = Buffer(<KERNEL_SIZE, KERNEL_SIZE, INPUT_CHANNEL>, int8, __WEIGHT_MEMORY__);
@@ -24,12 +25,12 @@ def main(null<int8>){
     SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 8);
     SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 32);
 
-    for b in range(0, BATCH) carry (null){
-        for oh in range(0, OUTPUT_ROW, STRIDE) carry (null){
-            for ow in range(0, OUTPUT_COL, STRIDE) carry (null){
+    for b in range(0, BATCH) carry (){
+        for oh in range(0, OUTPUT_ROW, STRIDE) carry (){
+            for ow in range(0, OUTPUT_COL, STRIDE) carry (){
                 
-                for kh in range(0, KERNEL_SIZE) carry (null){
-                    for kw in range(0, KERNEL_SIZE) carry (null){
+                for kh in range(0, KERNEL_SIZE) carry (){
+                    for kw in range(0, KERNEL_SIZE) carry (){
                         use_input = Slice(local_input, 
                             [b, oh + kh, ow + kw, 0],
                             [1, 1, 1, INPUT_CHANNEL],
@@ -50,8 +51,8 @@ def main(null<int8>){
                             [1, 1, 1, INPUT_CHANNEL],
                             [1, 1, 1, 1]
                         );
-                        VVMul(use_input, use_weight, use_output_parial_sum);
-                        VVAdd(use_output, use_output_parial_sum, use_output);
+                        SIMD(VVMUL, use_input, use_weight, use_output_parial_sum);
+                        SIMD(VVADD, use_output, use_output_parial_sum, use_output);
                     };
                 };
 

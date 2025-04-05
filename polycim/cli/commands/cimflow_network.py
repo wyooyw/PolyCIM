@@ -11,10 +11,10 @@ from polycim.config import get_config, get_memory_base, get_memory_size, set_raw
 from polycim.depth_first.pipeline2 import run_cimflow
 import argparse
 from types import SimpleNamespace
+import subprocess
 
-
-def get_final_code(op):
-    final_code = os.path.join(op.attr["BackendCompilePass"]["code_file"])
+def get_final_code(final_code):
+    # final_code = os.path.join(op.attr["BackendCompilePass"]["code_file"])
     if os.path.exists(final_code):
         with open(final_code, "r") as f:
             final_code = json.load(f)
@@ -306,19 +306,24 @@ def get_code_conv2d(args, attr, cache_dir):
             "output_path": temp_dir,
             "data_movement_full_vectorize": True,
             "cimflow": True,
+            "verify": args.verify,
         }
         operator_compile_args = SimpleNamespace(**operator_compile_args)
+        # import pdb; pdb.set_trace()
+        operator.set_attr("name", "conv")
         result = run_cimflow(
             args=operator_compile_args,
             cim_config=get_config(),
-            op={"conv": operator}
+            op=operator
         )
         assert len(result) == 1, f"Fail when generating conv2d code. {attr=}"
-        assert result["VerifyPass"]["check_result"], f"Fail when generating conv2d code. {attr=}"
-        cache_conv2d_result[cache_key] = result[0]
+        result = result[0]
+        if args.verify:
+            assert result.attr["VerifyPass"]["check_result"], f"Fail when generating conv2d code. {attr=}"
+        cache_conv2d_result[cache_key] = result
 
     # read code from result
-    final_code = get_final_code(result)
+    final_code = get_final_code(os.path.join(result.attr["BackendCompilePass"]["code_file"]))
     assert final_code is not None, f"Fail when generating conv2d code. {attr=}"
 
     return final_code
@@ -350,11 +355,11 @@ class ProfileResult:
 cache_dwconv2d_result = dict()
 
 
-def get_dwcode_conv2d(attr):
+def get_dwcode_conv2d(args, attr):
     global cache_dwconv2d_result
-    CIMFLOW_HOME = os.environ.get("CIMFLOW_HOME")
+    POLYCIM_HOME = os.environ.get("POLYCIM_HOME")
     template_path = (
-        os.path.join(CIMFLOW_HOME, "polycim/template/depthwise_conv.cim")
+        os.path.join(POLYCIM_HOME, "polycim/template/depthwise_conv.cim")
     )
     temp_dir = tempfile.mkdtemp()
     code_path = os.path.join(temp_dir, "depthwise_conv.cim")
@@ -398,15 +403,21 @@ def get_dwcode_conv2d(attr):
 
         fill_template(template_path, code_path, context)
 
-        backend_compile_cmd = (
-            f"input_file={code_path} output_path={temp_dir} bash run.sh "
-        )
-        os.system(backend_compile_cmd)
+        # backend_compile_cmd = (
+        #     f"input_file={code_path} output_path={temp_dir} bash run.sh "
+        # )
+        # os.system(backend_compile_cmd)
+        subprocess.run([
+            "cim-compiler", "compile",
+            "--input-file", code_path,
+            "--output-dir", temp_dir,
+            "--config-file", args.config_path
+        ], check=True)
 
         result = ProfileResult(stats=None, save_path=temp_dir)
         cache_dwconv2d_result[cache_key] = result
-
-    final_code = get_final_code(result)
+    # import pdb; pdb.set_trace()
+    final_code = get_final_code(os.path.join(result.save_path, "depthwise_conv.cim"))
     assert final_code is not None
     # import pdb; pdb.set_trace()
     return final_code
@@ -460,7 +471,7 @@ def get_unique_id_from_unique_name(unique_name):
         return unique_name_to_unqiue_id[unique_name]
 
 
-def parse_instructions(core_name, stage_id, instructions, cache_dir):
+def parse_instructions(args, core_name, stage_id, instructions, cache_dir):
     code_list = []
     max_data_size = 0
     max_shape = None
@@ -473,9 +484,9 @@ def parse_instructions(core_name, stage_id, instructions, cache_dir):
         elif instruction["op"] == "write":
             code = get_code_write_global(instruction["attr"])
         elif instruction["op"] == "conv":
-            code = get_code_conv2d(instruction["attr"], cache_dir)
+            code = get_code_conv2d(args, instruction["attr"], cache_dir)
         elif instruction["op"] == "depthwise_conv":
-            code = get_dwcode_conv2d(instruction["attr"])
+            code = get_dwcode_conv2d(args, instruction["attr"])
         elif instruction["op"] in ("send", "send_ring"):
             data_size = reduce(lambda x, y: x * y, instruction["attr"]["shape"])
             assert data_size <= get_memory_size("output_memory"), f"{data_size=}"
@@ -524,7 +535,7 @@ def get_special_reg_set_code():
     return [code_simd_add1, code_simd_add2, code_simd_out]
 
 
-def parse_noc_tasks(json_path, code_save_path, cache_dir):
+def parse_noc_tasks(args, json_path, code_save_path, cache_dir):
     """
     {
     "core_0_0": {
@@ -561,7 +572,7 @@ def parse_noc_tasks(json_path, code_save_path, cache_dir):
         code_list.extend(get_special_reg_set_code())
 
         for stage_id, stage in stages["stages"].items():
-            code = parse_instructions(core_name, stage_id, stage["instructions"], cache_dir)
+            code = parse_instructions(args, core_name, stage_id, stage["instructions"], cache_dir)
             code_list.extend(code)
 
         # padding, forbidden branch code be last codes
@@ -610,12 +621,14 @@ def parse_cimflow_network_args(subparsers):
     parser.add_argument("--read-json", "-i", type=str, help="read path")
     parser.add_argument("--save-dir", "-o", type=str, help="save path")
     parser.add_argument("--config-path", "-c", type=str, help="config path")
+    parser.add_argument("--verify", action="store_true", help="verify")
 
 def run_cimflow_network(args):
     set_raw_config_by_path(args.config_path)
     each_core_save_dir = os.path.join(args.save_dir, "each_core")
     with tempfile.TemporaryDirectory() as cache_dir:
         total_save_files = parse_noc_tasks(
+            args,
             args.read_json, 
             each_core_save_dir,
             cache_dir

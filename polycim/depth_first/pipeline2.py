@@ -170,7 +170,7 @@ def run_polycim(args, cim_config, op, max_keep=32):
     if args.verify:
         pass_list.append(VerifyPass(args))
     pass_list.append(ProfilePass(args))
-    
+
     pass_manager = PassManager(pass_list)
     result = pass_manager.apply(op)
     
@@ -194,7 +194,7 @@ def run_cimflow(args, cim_config, op, max_keep=32):
         BufferMappingPass(args, cim_config),
         TensorizePass(args, cim_config),
         CodegenPass(args, cim_config),
-        BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
+        BackendCompilePass(args, cim_config, n_workers=1, compile_data_layout=args.verify),
     ]
     if args.verify:
         pass_list.append(VerifyPass(args))

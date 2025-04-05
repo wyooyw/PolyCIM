@@ -41,10 +41,17 @@ class BasicOperator(Operator):
         access_I,
         access_O,
         access_W,
-        history_domains=list(),
-        history_schedules=list(),
-        attr=dict(),
+        history_domains=None,
+        history_schedules=None,
+        attr=None,
     ):
+        if history_domains is None:
+            history_domains = list()
+        if history_schedules is None:
+            history_schedules = list()
+        if attr is None:
+            attr = dict()
+
         assert type(domain) == isl.BasicSet
         assert type(access_I) == isl.BasicMap
         assert type(access_O) == isl.BasicMap
@@ -224,11 +231,18 @@ class DataMovementOperator:
         access_I,
         access_O,
         access_W,
-        history_domains=list(),
-        history_schedules=list(),
+        history_domains=None,
+        history_schedules=None,
         data_movement=None,
-        attr=dict(),
+        attr=None,
     ):
+        if history_domains is None:
+            history_domains = list()
+        if history_schedules is None:
+            history_schedules = list()
+        if attr is None:
+            attr = dict()
+            
         assert type(domain) in (isl.BasicSet, isl.Set)
         assert type(access_I) in (
             isl.BasicMap,
