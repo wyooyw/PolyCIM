@@ -538,7 +538,7 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     sizes = utils.get_box_hull_shape(new_domain)
     print(f"{sizes=}")
     n_h0 = sizes[-3]
-    n_igroup = math.ceil(math.ceil(n_h0 / cim_cfg.n_comp) / cim_cfg.n_row)
+    n_igroup = min(math.ceil(math.ceil(n_h0 / cim_cfg.n_comp) / cim_cfg.n_row), cim_cfg.n_group)
     n_ogroup = cim_cfg.n_group // n_igroup
 
     use_group = n_ogroup * n_igroup
@@ -551,14 +551,16 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     # h0: share output
     # h1: share input
     # h2: share weight
+    n_reduce = cim_cfg.n_comp * cim_cfg.n_row * n_igroup
     tile_domain_iters = keep_iters + ["h0", "h1", "h2"]
     tile_range_iters = keep_iters + [
-        f"floor(floor(h0/{cim_cfg.n_comp}) / {cim_cfg.n_row})", # igroup
+        f"floor(floor(h0/{cim_cfg.n_comp}) / {cim_cfg.n_row}) % {n_igroup}", # igroup
         f"floor(h0/{cim_cfg.n_comp}) % {cim_cfg.n_row}", # row
         f"h0 % {cim_cfg.n_comp}", # comp
         f"h1 % {cim_cfg.n_group_vcol}", # col
         f"floor(h2 / {n_ogroup})", # time1
         f"floor(h1 / {cim_cfg.n_group_vcol})", # time2
+        f"floor(h0 / {n_reduce})", # time3
         f"h2 % {n_ogroup}", # ogroup
     ]
     tile_domain_iters_def = ", ".join(tile_domain_iters)
@@ -583,15 +585,17 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
         "col",
         "time1",
         "time2",
+        "time3",
         "ogroup",
     ]
     reorder_range_iters = keep_iters + [
         "time1",
         "time2",
+        "time3",
         "row",
         "comp",
-        "ogroup",
         "igroup",
+        "ogroup",
         "col",
     ]
     reorder_domain_iters_def = ", ".join(reorder_domain_iters)
