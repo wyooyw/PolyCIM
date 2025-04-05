@@ -7,7 +7,7 @@ import tempfile
 import json
 
 from polycim.config import get_config
-from polycim.depth_first.pipeline2 import run_op_list
+from polycim.depth_first.pipeline2 import run_op_list, parse_op_list, run_polycim, run_cimflow
 
 from polycim.utils.logger import get_logger
 from polycim.cli.common import show_args, to_abs_path
@@ -19,13 +19,15 @@ def parse_explore_args(subparsers):
     parser = subparsers.add_parser('explore')
     parser.add_argument("--op-id", "-i", required=True, type=str, help="operator id")
     parser.add_argument("--config-path", "-c", required=True, type=str, help="config path")
-    parser.add_argument("--pimsim-cfg-path", "-p", required=True, type=str, help="pimsim config path")
+    parser.add_argument("--pimsim-cfg-path", "-p", type=str, default=None, help="pimsim config path")
     parser.add_argument("--output-path", "-o", required=True, type=str, help="output path")
     parser.add_argument("--data-movement-full-vectorize", action="store_true", help="data movement full vectorize")
     parser.add_argument("--disable-pretile", action="store_true", help="disable pretile")
     parser.add_argument("--disable-affine", action="store_true", help="disable affine")
     parser.add_argument("--disable-weight-rewrite", action="store_true", help="disable weight rewrite")
     parser.add_argument("--disable-second-stage", action="store_true", help="disable second stage")
+    parser.add_argument("--cimflow", action="store_true", help="run cimflow")
+    parser.add_argument("--polycim", action="store_true", help="run polycim")
 
 def run_explore(args):
     args.output_path = to_abs_path(args.output_path)
@@ -53,3 +55,12 @@ def run_explore(args):
         op_list,
         cim_config=cim_cfg
     )
+
+    op = parse_op_list(op_list)
+    # import pdb; pdb.set_trace()
+    if args.polycim:
+        run_polycim(args, cim_cfg, op)
+    elif args.cimflow:
+        run_cimflow(args, cim_cfg, op)
+    else:
+        assert False
