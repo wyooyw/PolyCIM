@@ -755,8 +755,10 @@ def data_movement_operator_to_dsl(op):
     type_list = []
     for name, data_movement_list in op.data_movement.items():
         # import pdb; pdb.set_trace()
+        if name == "O":
+            data_movement_list = data_movement_list[::-1]
         for idx, data_movement in enumerate(data_movement_list):
-            if name == "O" and idx == len(data_movement_list) - 1:
+            if name == "O" and idx == 0:#len(data_movement_list) - 1:
                 stmt_name = "CIMOutput." + alloc_unique_stmt()
                 assign_domain = data_movement.domain.set_tuple_name(stmt_name)
                 assign_schedule = utils.identity_map_from_set(assign_domain)
