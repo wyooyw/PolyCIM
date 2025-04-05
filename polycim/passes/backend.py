@@ -141,6 +141,9 @@ def backend_compile(op, save_dir, config_file):
     # run simulator to profile
     code_file = os.path.join(os.path.abspath(save_dir), "final_code.json")
     output_dir = os.path.join(os.path.abspath(save_dir), "output")
+    op.set_attr("BackendCompilePass", "output_dir", output_dir)
+    op.set_attr("BackendCompilePass", "code_file", code_file)
+    return op
 
 
 

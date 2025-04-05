@@ -217,3 +217,4 @@ def run_cimflow(args, cim_config, op, max_keep=32):
     
     pass_manager.show_time_per_pass()
     print(f"num_ops: {pass_manager.get_num_ops()}")
+    return result
