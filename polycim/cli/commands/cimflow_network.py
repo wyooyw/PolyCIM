@@ -27,21 +27,13 @@ def get_final_code(final_code):
 def get_code_set_regs(reg_and_value_list):
     code_list = []
     for reg, value in reg_and_value_list:
-        code_li = {"class": 0b10, "type": 0b11, "opcode": 0, "rd": reg, "imm": value}
+        # code_li = {"class": 0b10, "type": 0b11, "opcode": 0, "rd": reg, "imm": value}
+        code_li = {"opcode": 0b101100, "rd": reg, "imm": value}
         code_list.append(code_li)
     return code_list
 
 
 def get_code_single_send(src_addr, dst_core, data_size, unqiue_id):
-    """
-    通用寄存器立即数赋值指令：general-li
-    指令字段划分：
-    - [31, 30]，2bit：class，指令类别码，值为10
-    - [29, 28]，2bit：type，指令类型码，值为11
-    - [27, 26]，2bit：opcode，指令操作码，值为00
-    - [25, 21]，5bit：rd，通用寄存器编号，即要赋值的通用寄存器
-    - [20, 0]，21bit：imm，立即数，表示将要赋给寄存器的值
-    """
     reg_src_addr = 0
     reg_dst_core = 1
     reg_data_size = 2
@@ -56,43 +48,19 @@ def get_code_single_send(src_addr, dst_core, data_size, unqiue_id):
         ]
     )
 
-    """
-    指令字段划分：
-    - [31, 29]，3bit：class，指令类别码，值为110
-    - [28, 27]，2bit：type，指令类型码，值为10
-    - [26, 26]，1bit：sync，是否进行同步通信
-    - 0：表示本次通信为同步通信，即会阻塞直至对方接收到数据
-    - 1：表示本次通信为异步通信，即不会阻塞，异步通信可通过wait指令进行同步
-    - [25, 21]，5bit：rs，通用寄存器1，表示传输源地址
-    - [20, 16]，5bit：rd1，通用寄存器2，表示传输的目的core的编号
-    - [15, 11]，5bit：rd2，通用寄存器3，表示传输的目的core的目的地址
-    - [10, 6]，5bit：reg-id，通信id码，唯一标识本次传输，用于通信双方进行确认
-    - [5, 0]，6bit：reserve，保留字段
-    """
     code_send = {
-        "class": 0b110,
-        "type": 0b10,
-        "sync": 0,
+        "opcode": 0b110100,
         "rs": reg_src_addr,
-        "rd1": reg_dst_core,
-        "rd2": 0,
-        "reg_id": reg_unique_id,
-        "reg_len": reg_data_size,
+        "rt": reg_dst_core,
+        "rd": reg_src_addr,
+        "re": reg_data_size,
+        "rf": reg_unique_id
     }
     code_list = [*code_set_regs, code_send]
     return code_list
 
 
 def get_code_single_receive(dst_addr, src_core, data_size, unqiue_id):
-    """
-    通用寄存器立即数赋值指令：general-li
-    指令字段划分：
-    - [31, 30]，2bit：class，指令类别码，值为10
-    - [29, 28]，2bit：type，指令类型码，值为11
-    - [27, 26]，2bit：opcode，指令操作码，值为00
-    - [25, 21]，5bit：rd，通用寄存器编号，即要赋值的通用寄存器
-    - [20, 0]，21bit：imm，立即数，表示将要赋给寄存器的值
-    """
     reg_dst_addr = 0
     reg_src_core = 1
     reg_data_size = 2
@@ -107,50 +75,29 @@ def get_code_single_receive(dst_addr, src_core, data_size, unqiue_id):
         ]
     )
 
-    """
-    核间数据接收指令：receive
-    指令字段划分：
-    - [31, 29]，3bit：class，指令类别码，值为110
-    - [28, 27]，2bit：type，指令类型码，值为11
-    - [26, 26]，1bit：sync，是否进行同步通信
-    - 0：表示本次通信为同步通信，即会阻塞直至接收到对方发送的数据
-    - 1：表示本次通信为异步通信，即不会阻塞，异步通信可通过wait指令进行同步
-    - [25, 21]，5bit：rs1，通用寄存器1，表示传输的源core的编号
-    - [20, 16]，5bit：rs2，通用寄存器2，表示传输的源core的源地址
-    - [15, 11]，5bit：rd，通用寄存器3，表示传输的目的地址
-    - [10, 6]，5bit：reg-id，通信id码，唯一标识本次传输，用于通信双方进行确认
-    - [5, 0]，6bit：reserve，保留字段
-    """
+    # code_recv = {
+    #     "class": 0b110,
+    #     "type": 0b11,
+    #     "sync": 0,
+    #     "rs1": reg_src_core,
+    #     "rs2": 0,
+    #     "rd": reg_dst_addr,
+    #     "reg_id": reg_unique_id,
+    #     "reg_len": reg_data_size,
+    # }
     code_recv = {
-        "class": 0b110,
-        "type": 0b11,
-        "sync": 0,
-        "rs1": reg_src_core,
-        "rs2": 0,
+        "opcode": 0b110110,
+        "rs": reg_src_core,
+        "rt": reg_dst_addr,
         "rd": reg_dst_addr,
-        "reg_id": reg_unique_id,
-        "reg_len": reg_data_size,
+        "re": reg_data_size,
+        "rf": reg_unique_id
     }
     code_list = [*code_set_regs, code_recv]
     return code_list
 
 
 def get_code_trans(src_addr, dst_addr, data_size):
-    """
-    核内数据传输指令：trans（copy）
-    指令字段划分：
-    - [31, 29]，3bit：class，指令类别码，值为110
-    - [28, 28]，1bit：type，指令类型码，值为0
-    - [27, 26]，1bit：offset mask，偏移值掩码，0表示该地址不使用偏移值，1表示使用偏移值
-    - [27]，1bit：source offset mask，源地址偏移值掩码
-    - [26]，1bit：destination offset mask，目的地址偏移值掩码
-    - [25, 21]，5bit：rs1，通用寄存器1，表示传输源地址的基址
-    - [20, 16]，5bit：rs2，通用寄存器2，表示传输数据的字节大小
-    - [15, 11]，5bit：rd，通用寄存器3，表示传输目的地址的基址
-    - [10, 0]，11bit：offset，立即数，表示寻址的偏移值
-    - 源地址计算公式：$rs + offset * [27]
-    - 目的地址计算公式：$rd + offset * [26]
-    """
     reg_src_addr = 0
     reg_dst_addr = 1
     reg_data_size = 2
@@ -161,14 +108,21 @@ def get_code_trans(src_addr, dst_addr, data_size):
             (reg_data_size, data_size),
         ]
     )
+    # code_trans = {
+    #     "class": 0b110,
+    #     "type": 0,
+    #     "offset_mask": 0b00,
+    #     "rs1": reg_src_addr,
+    #     "rs2": reg_data_size,
+    #     "rd": reg_dst_addr,
+    #     "offset": 0,
+    # }
     code_trans = {
-        "class": 0b110,
-        "type": 0,
-        "offset_mask": 0b00,
-        "rs1": reg_src_addr,
-        "rs2": reg_data_size,
+        "opcode": 0b110000,
+        "rs": reg_src_addr,
+        "rt": reg_data_size,
         "rd": reg_dst_addr,
-        "offset": 0,
+        "imm": 0
     }
     return [*code_set_regs, code_trans]
 
@@ -200,36 +154,6 @@ def get_code_write_global(attr):
 
 
 def get_code_add(attr):
-    """
-    SIMD计算：SIMD-compute
-    指令字段划分：
-    - [31, 30]，2bit：class，指令类别码，值为01
-    - [29, 28]，2bit：input num，input向量的个数，范围是1到4
-    - 00：1个输入向量
-    - 01：2个输入向量
-    - 10：3个输入向量
-    - 11：4个输入向量
-    - 备注：input 1和input 2的地址由寄存器rs1和rs2给出，input 3和input 4的地址由专用寄存器给出
-    - [27, 20]，8bit：opcode，操作类别码，表示具体计算的类型
-    - 0x00：add，向量加法
-    - 0x01：add-scalar，向量和标量加法
-    - 0x02：multiply，向量逐元素乘法
-    - 0x03：quantify，量化
-    - 0x04：quantify-resadd，resadd量化
-    - 0x05：quantify-multiply，乘法量化
-    - [19, 15]，5bit：rs1，通用寄存器1，表示input 1的起始地址
-    - [14, 10]，5bit：rs2，通用寄存器2，表示input 2的起始地址
-    - [9, 5]，5bit：rs3，通用寄存器3，表示input向量长度
-    - [4, 0]，5bit：rd，通用寄存器4，表示output写入的起始地址
-    使用的专用寄存器：
-    - 16：input 1 bit width：输入向量1每个元素的bit长度
-    - 17：input 2 bit width：输入向量2每个元素的bit长度
-    - 18：input 3 bit width：输入向量3每个元素的bit长度
-    - 19：input 4 bit width：输入向量4每个元素的bit长度
-    - 20：output bit width：输出向量每个元素的bit长度
-    - 21：input 3 address：input 3的起始地址
-    - 22：input 4 address：input 4的起始地址
-    """
     data_size = reduce(lambda x, y: x + y, attr["shape"])
     reg_input_1_addr = 1
     reg_input_2_addr = 2
@@ -243,14 +167,23 @@ def get_code_add(attr):
             (reg_output_addr, get_memory_base("output_memory")),
         ]
     )
+    # code_add = {
+    #     "class": 0b01,
+    #     "input_num": 0b01,
+    #     "opcode": 0b00,
+    #     "rs1": reg_input_1_addr,
+    #     "rs2": reg_input_2_addr,
+    #     "rs3": reg_data_size,
+    #     "rd": reg_output_addr,
+    # }
+    input_num = 2
     code_add = {
-        "class": 0b01,
-        "input_num": 0b01,
-        "opcode": 0b00,
-        "rs1": reg_input_1_addr,
-        "rs2": reg_input_2_addr,
-        "rs3": reg_data_size,
+        "opcode": 0b010000 + ((input_num - 1) << 2),
+        "rs": reg_input_1_addr,
+        "rt": reg_input_2_addr,
         "rd": reg_output_addr,
+        "re": reg_data_size,
+        "funct": 0b00
     }
     return [*code_set_regs, code_add]
 
@@ -521,17 +454,21 @@ def parse_instructions(args, core_name, stage_id, instructions, cache_dir):
 
 def get_special_reg_set_code():
     """
-    专用寄存器立即数赋值指令：special-li
-    指令字段划分：
-    - [31, 30]，2bit：class，指令类别码，值为10
-    - [29, 28]，2bit：type，指令类型码，值为11
-    - [27, 26]，2bit：opcode，指令操作码，值为01
-    - [25, 21]，5bit：rd，专用寄存器编号，即要赋值的通用寄存器
-    - [20, 0]，21bit：imm，立即数，表示将要赋给寄存器的值
+    {
+        "opcode": 0b101101,
+        "rd": inst.reg,
+        "imm": inst.value
+    }
+    #define SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH 16
+    #define SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH 17
+    #define SPECIAL_REG_SIMD_INPUT_3_BIT_WIDTH 18
+    #define SPECIAL_REG_SIMD_INPUT_4_BIT_WIDTH 19
+    #define SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH 20
     """
-    code_simd_add1 = {"class": 0b10, "type": 0b11, "opcode": 0b01, "rd": 16, "imm": 8}
-    code_simd_add2 = {"class": 0b10, "type": 0b11, "opcode": 0b01, "rd": 17, "imm": 8}
-    code_simd_out = {"class": 0b10, "type": 0b11, "opcode": 0b01, "rd": 20, "imm": 8}
+    
+    code_simd_add1 = {"opcode": 0b101101, "rd": 16, "imm": 8}
+    code_simd_add2 = {"opcode": 0b101101, "rd": 17, "imm": 8}
+    code_simd_out = {"opcode": 0b101101, "rd": 20, "imm": 8}
     return [code_simd_add1, code_simd_add2, code_simd_out]
 
 
