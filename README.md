@@ -16,5 +16,5 @@ export CIMCOMPILER_HOME=/path/to/CIMCompiler
 #### Run
 
 ```shell
-bash run_exp.sh
+bash run.sh
 ```
