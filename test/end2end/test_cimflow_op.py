@@ -34,7 +34,7 @@ def test_result(cim_cfg_path, op_id, cim_count):
     with tempfile.TemporaryDirectory() as temp_dir:
         cmd = [
             "polycim",
-            "explore",
+            "op",
             "--op-id",
             op_id,
             "--config-path",

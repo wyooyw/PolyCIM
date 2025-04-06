@@ -937,7 +937,7 @@ class AffinePass(DepthFirstPass):
         return bases
 
     def disable_skewing(self, bases, operator):
-        if self.args.disable_affine:
+        if self.args.polycim_disable_affine:
             new_bases = []
             for base in bases:
                 num_nonzero = sum([int(i != 0) for i in base.corrdinate])

@@ -26,7 +26,7 @@ def get_scalar_iters(domain):
 
 def mapping_multiple_macro(args, op, cim_cfg, **kwargs):
     # assert "enable_weight_rewrite" in kwargs
-    if args.disable_weight_rewrite:
+    if args.polycim_disable_weight_rewrite:
         return mapping_multiple_macro_disable_weight_rewrite(op, cim_cfg, **kwargs)
     else:
         return mapping_multiple_macro_enable_weight_rewrite(op, cim_cfg, **kwargs)

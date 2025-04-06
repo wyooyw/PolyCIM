@@ -2,11 +2,11 @@ from polycim.cli.commands.cimflow_network import (
     parse_cimflow_network_args,
     run_cimflow_network,
 )
-from polycim.cli.commands.explore import parse_explore_args, run_explore
+from polycim.cli.commands.operator import parse_operator_args, run_operator
 
 __all__ = [
-    "parse_explore_args",
-    "run_explore",
+    "parse_operator_args",
+    "run_operator",
     "parse_cimflow_network_args",
     "run_cimflow_network",
 ]

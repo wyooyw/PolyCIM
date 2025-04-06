@@ -578,7 +578,7 @@ class PreTilingPass(DepthFirstPass):
                 dim_factors, symmetry_info
             )
 
-        if self.args.disable_pretile:
+        if self.args.polycim_disable_pretile:
             combination_list = [
                 combination
                 for combination in combination_list
