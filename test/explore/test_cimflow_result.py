@@ -22,10 +22,13 @@ def ceil(a, b):
     ("g2r2c16b64.json", "conv2d_b1o8i8h8w8k3", 256),
     ("g2r2c16b64.json", "conv2d_b1o16i8h8w8k3", 512),
     ("g2r2c16b64.json", "conv2d_b2o16i8h8w8k3", 1024),
+    ("g2r2c16b64.json", "conv2d_b1o326i256h8w8k3s2", 512),
+
     ("g4r4c32b64.json", "conv2d_b1o8i1h8w8k3", 16),
     ("g4r4c32b64.json", "conv2d_b1o8i8h8w8k3", 48),
     ("g4r4c32b64.json", "conv2d_b1o16i8h8w8k3", 96),
     ("g4r4c32b64.json", "conv2d_b2o16i8h8w8k3", 192),
+    ("g4r4c32b64.json", "conv2d_b1o326i256h8w8k3s2", 128),
 ])
 def test_result(cim_cfg_path, op_id, cim_count):
     
