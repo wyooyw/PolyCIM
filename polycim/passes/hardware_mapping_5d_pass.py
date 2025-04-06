@@ -8,7 +8,6 @@ from typing import Optional
 
 import islpy as isl
 import numpy as np
-from tqdm import tqdm
 
 import polycim.utils.utils as utils
 from polycim.config import CIMConfig
@@ -16,7 +15,9 @@ from polycim.depth_first.timeout import timeout
 from polycim.op.base_operator import BasicOperator
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
 from polycim.passes.loop_padding import loop_padding_dim
+from polycim.utils.logger import get_logger, level_tqdm
 
+logger = get_logger(__name__)
 
 def get_cim_operator(n_rows, n_cols):
     cim_operator = BasicOperator(
@@ -315,7 +316,7 @@ def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
     min_compute_times_limit = math.ceil(total_flops / ( macro_row * macro_col))
     
     if len(op_list) == 0:
-        print(f"[filter_op_by_execution_time_pass]: \n    0 inputs. skip.")
+        logger.info(f"[filter_op_by_execution_time_pass]: \n    0 inputs. skip.")
         return op_list
 
     exe_time_list = []
@@ -323,7 +324,7 @@ def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
     # filter op with n_div < 5
     op_list = [op for op in op_list if op.domain.dim(isl.dim_type.div) < 5]
     min_exe_time = 999999999
-    for idx,op in enumerate(tqdm(op_list, desc="filter op by outer execute time")):
+    for idx,op in enumerate(level_tqdm(op_list, desc="filter op by outer execute time")):
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
         # exe_time = int(str(outer_domain.count_val()))
@@ -333,7 +334,7 @@ def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
         exe_time_list.append(exe_time)
         if exe_time < min_exe_time:
             min_exe_time = exe_time
-            print("Current min compute time: ", min_exe_time)
+            logger.info("Current min compute time: ", min_exe_time)
         if exe_time <= min_compute_times_limit:
             break
 
@@ -352,7 +353,7 @@ def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
 
     end_time = time.time()
 
-    print(f"""
+    logger.info(f"""
 [filter_op_by_execution_time_pass]:
     {len(op_list)} ops input.
         Execution time: 
@@ -444,7 +445,7 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     min_compute_times = int(str(op_list[0].domain.count_val()))
     min_compute_times_limit = math.ceil(min_compute_times /(macro_row * macro_col) )
     early_stop = False
-    for op_idx,op in enumerate(tqdm(op_list)):
+    for op_idx,op in enumerate(level_tqdm(op_list)):
         
         assert op.access_I.is_single_valued(), f"{op.access_I} should be single valued!"
         assert op.access_W.is_single_valued(), f"{op.access_W} should be single valued!"
@@ -484,8 +485,8 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
         if early_stop:
             break
 
-    print(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")
-    print(f"    Schedule time: {time_schedule:.2f}s\n    Apply time: {time_apply:.2f}s\n ")
+    logger.info(f"[hardware_merge_tiling_pass]: \n    {len(op_list)} ops input.\n    {schedule_fail_op_cnt} op schedule fail.\n    {len(new_op_list)} ops output.")
+    logger.info(f"    Schedule time: {time_schedule:.2f}s\n    Apply time: {time_apply:.2f}s\n ")
     return new_op_list
 
 
@@ -536,7 +537,7 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     new_op = op.apply_schedule(software_schedule, skip_simplify=True)
     new_domain = new_op.domain
     sizes = utils.get_box_hull_shape(new_domain)
-    print(f"{sizes=}")
+    logger.info(f"{sizes=}")
     n_h0 = sizes[-3]
     n_igroup = min(math.ceil(math.ceil(n_h0 / cim_cfg.n_comp) / cim_cfg.n_row), cim_cfg.n_group)
     n_ogroup = cim_cfg.n_group // n_igroup
@@ -566,7 +567,7 @@ def get_macro_5d_hardware_tiling_schedule(op, software_schedule, cim_cfg):
     tile_domain_iters_def = ", ".join(tile_domain_iters)
     tile_range_iters_def = ", ".join(tile_range_iters)
     tile_def = f"{{ [{tile_domain_iters_def}] -> [{tile_range_iters_def}] }}"
-    print(f"{tile_def=}")
+    logger.debug(f"{tile_def=}")
     tile_schedule = isl.BasicMap(tile_def)
 
     # merge inner-group and outer-group
@@ -627,28 +628,28 @@ class HardwareMapping5DPass(DepthFirstPass):
         coalescing_schedule = get_coalescing_schedule_from_mapping(mapping, operator)
 
         tile_schedule, reorder_schedule, use_group = get_macro_5d_hardware_tiling_schedule(operator, coalescing_schedule, self.cim_config)
-        print(f"Origin shape: {utils.get_box_hull_shape(operator.domain)}")
+        logger.debug(f"Origin shape: {utils.get_box_hull_shape(operator.domain)}")
         new_op = operator.apply_schedule(coalescing_schedule, 
             skip_simplify=True, 
             name="coalescing"
         )
-        print(f"After coalescing shape: {utils.get_box_hull_shape(new_op.domain)}")
+        logger.debug(f"After coalescing shape: {utils.get_box_hull_shape(new_op.domain)}")
         new_op = new_op.apply_schedule(tile_schedule, 
             skip_simplify=True, 
             name="tiling"
         )
-        print(f"After tiling shape: {utils.get_box_hull_shape(new_op.domain)}")
+        logger.debug(f"After tiling shape: {utils.get_box_hull_shape(new_op.domain)}")
         new_op = new_op.apply_schedule(reorder_schedule, 
             skip_simplify=True, 
             name="reorder"
         )
-        print(f"After reorder shape: {utils.get_box_hull_shape(new_op.domain)}")
+        logger.debug(f"After reorder shape: {utils.get_box_hull_shape(new_op.domain)}")
 
         n_dim = new_op.domain.dim(isl.dim_type.set)
         new_op = loop_padding_dim(new_op, n_dim-1, self.cim_config.n_group_vcol)
         new_op = loop_padding_dim(new_op, n_dim-4, self.cim_config.n_comp)
         # TODO: padding group dimension
-        print(f"After padding shape: {utils.get_box_hull_shape(new_op.domain)}")
+        logger.debug(f"After padding shape: {utils.get_box_hull_shape(new_op.domain)}")
         new_op.set_attr("n_macro_iters", 5)
         new_op.set_attr("n_use_group", use_group)
         new_op.set_attr("n_use_comp", self.cim_config.n_comp)

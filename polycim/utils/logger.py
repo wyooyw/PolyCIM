@@ -1,5 +1,7 @@
 import logging
 import os
+from tqdm import tqdm
+
 def get_log_level_from_env():
     log_level = os.getenv('LOG_LEVEL', 'INFO')
     return {
@@ -37,3 +39,9 @@ def get_logger(name, output_file=None):
         logger.addHandler(file_handler)
 
     return logger
+
+def level_tqdm(ls, *args, **kwargs):
+    if os.getenv('LOG_LEVEL', 'INFO') in ("INFO", "DEBUG"):
+        return tqdm(ls, *args, **kwargs)
+    else:
+        return ls

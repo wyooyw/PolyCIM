@@ -322,7 +322,7 @@ def filter_op_by_execution_time_pass(op_list, macro_row, macro_col):
     # filter op with n_div < 5
     op_list = [op for op in op_list if op.domain.dim(isl.dim_type.div) < 5]
     min_exe_time = 999999999
-    for idx,op in enumerate(tqdm(op_list, desc="filter op by outer execute time")):
+    for idx,op in enumerate(op_list, desc="filter op by outer execute time"):
         n_dim = op.domain.dim(isl.dim_type.set)
         outer_domain = op.domain.project_out(isl.dim_type.set, n_dim - 2, 2)
         # exe_time = int(str(outer_domain.count_val()))
@@ -443,7 +443,7 @@ def hardware_merge_tiling_pass(op_list, macro_row, macro_col):
     min_compute_times = int(str(op_list[0].domain.count_val()))
     min_compute_times_limit = math.ceil(min_compute_times /(macro_row * macro_col) )
     early_stop = False
-    for op_idx,op in enumerate(tqdm(op_list)):
+    for op_idx,op in enumerate(op_list):
         
         assert op.access_I.is_single_valued(), f"{op.access_I} should be single valued!"
         assert op.access_W.is_single_valued(), f"{op.access_W} should be single valued!"

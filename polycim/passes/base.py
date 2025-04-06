@@ -1,7 +1,9 @@
 import copy
 import time
 from polycim.op.base_operator import Operator
+from polycim.utils.logger import get_logger
 
+logger = get_logger(__name__)
 
 class Pass:
     def __init__(self):
@@ -132,10 +134,11 @@ class PassManager:
         
         # add total time and percentage
         total_time = sum(self.time_per_pass.values())
-        print(f"Total time: {total_time:.2f}s")
-        print("Time per pass: ")
+        s = f"Total time: {total_time:.2f}s"
+        s += "Time per pass: "
         for pass_name, time_ in sorted_time_per_pass:
-            print(f"\t{pass_name}: {time_:.2f}s ({time_/total_time*100:.2f}%)")
+            s += f"\t{pass_name}: {time_:.2f}s ({time_/total_time*100:.2f}%)"
+        logger.info(s)
 
     def _apply_until_breadth(self, op, step=0):
         pass_ = self.pass_list[step]

@@ -9,6 +9,7 @@ import polycim.utils.utils as utils
 from polycim.op.base_operator import BasicOperator
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
 from polycim.utils.math import factorize
+from polycim.utils.logger import level_tqdm
 
 
 def multiply(factors):
@@ -282,7 +283,7 @@ def enumerate_tiling_factors(operator, tiling_factor):
     combination_list = list(itertools.product(*dim_factors))
     combination_list = filter_factors_of_all_axis(combination_list)
     # import pdb; pdb.set_trace()
-    for combination in tqdm(combination_list):
+    for combination in level_tqdm(combination_list):
         new_operator = multi_level_tiling(operator, tiling_factor, combination)
         yield new_operator
 

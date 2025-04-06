@@ -8,6 +8,9 @@ from cim_compiler.utils.df_layout import tensor_bits_to_int8
 from polycim.codegen_.codegen_data_layout_convert import run_data_layout_convert_executable
 from functools import reduce
 from polycim.exp.op_list import get_op_list
+from polycim.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def save_and_convert(exe_path, data_path, converted_data_path, data_np):
     with open(data_path, "w") as f:
@@ -107,7 +110,7 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
     output_size = output_size * 4 # int32
     output_data = output_global_image[output_offset:output_offset+output_size]
     output_np = np.frombuffer(output_data, dtype=np.int32)
-    print(f"{output_np=}")
+    logger.info(f"{output_np=}")
     # np.savetxt(os.path.join(sim_output_dir, "output.txt"), output_np.reshape(-1), fmt="%d")
     
     O_exe_path = os.path.join(op_dir, "convert_O.o")
@@ -118,12 +121,12 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
     # read O_converted
     output_shape = origin_operand_shape["O"]
     O_converted_np = np.loadtxt(O_converted_data_path, dtype=np.int32).reshape(output_shape)
-    print(f"output shape={O_converted_np.shape}, dtype={O_converted_np.dtype}, max={O_converted_np.max()}, min={O_converted_np.min()}")
+    logger.info(f"output shape={O_converted_np.shape}, dtype={O_converted_np.dtype}, max={O_converted_np.max()}, min={O_converted_np.min()}")
     # import pdb; pdb.set_trace()
     verify_fn = get_verify_fn(op_name)
     golden = verify_fn(input_np, weight_np)
-    print(f"golden shape={golden.shape}, dtype={golden.dtype}, max={golden.max()}, min={golden.min()}")
-    print(f"{temp_dir = } (will be removed after test)")
+    logger.info(f"golden shape={golden.shape}, dtype={golden.dtype}, max={golden.max()}, min={golden.min()}")
+    logger.info(f"{temp_dir = } (will be removed after test)")
     # import pdb; pdb.set_trace()
     # assert np.all(O_converted_np==golden), f"{O_converted_np=}, {golden=}"
     check_result = np.all(O_converted_np==golden)

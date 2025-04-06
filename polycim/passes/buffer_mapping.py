@@ -24,12 +24,13 @@ from polycim.passes.reorder import reorder_outer
 from polycim.utils.dominate import (get_dominate_iters_of_map,
                                     get_dominate_iters_of_pw_multi_aff_per_out,
                                     get_non_dominate_iters_of_pw_multi_aff)
-from polycim.utils.logger import get_logger
+from polycim.utils.logger import get_logger, level_tqdm
 from polycim.utils.utils import (get_box_hull_shape,
                                  rename_all_dims_for_basic_map,
                                  rename_all_dims_for_basic_set,
                                  rename_out_dims_for_basic_map)
 import random
+
 
 logger = get_logger(__name__)
 
@@ -679,7 +680,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
         assign_schedule_to_level[assign_schedule] = level
 
     sorted_levels = sorted(list(level_to_assign_schedule.keys()))
-    print(f"{sorted_levels=}")
+    # print(f"{sorted_levels=}")
 
     # insert dims
     for level in levels:
@@ -1497,12 +1498,12 @@ def buffer_strategy_combination(op, n_macro_iters):
         max_splitting_level=2, 
         not_splitting=fix_axis
     )
-    print(f"{len(tiled_op_list)=}")
+    logger.debug(f"{len(tiled_op_list)=}")
     search_space = []
-    for i_tiled, op_tiled in enumerate(tqdm(tiled_op_list, desc="Tiling")):
+    for i_tiled, op_tiled in enumerate(level_tqdm(tiled_op_list, desc="Tiling")):
         # Reorder
         reordered_op_list = reorder_outer(op_tiled, inner_level=n_macro_iters)
-        for i_reorder,op_reordered in enumerate(tqdm(reordered_op_list, desc="Reorder")):
+        for i_reorder,op_reordered in enumerate(level_tqdm(reordered_op_list, desc="Reorder")):
 
             # Memory level combination
             new_n_dim = op_reordered.domain.dim(isl.dim_type.set)

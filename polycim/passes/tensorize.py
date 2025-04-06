@@ -156,7 +156,7 @@ def vectorize_data_movement_for_op(args, op):
 
 def tensorize_pass(args, op_list):
     new_op_list = []
-    for op in tqdm(op_list):
+    for op in op_list:
 
         new_op = tensorize_cim_compute(op)
         new_op = vectorize_data_movement_for_op(args, new_op)

@@ -17,6 +17,9 @@ from polycim.passes import (
 from polycim.passes.base import PassManager
 from dataclasses import dataclass
 import os
+from polycim.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def parse_op_list(op_list):
     name_and_cfg = list(op_list.items())
@@ -81,7 +84,7 @@ def save_table(op_list, columns, output_path, format="csv"):
     else:
         raise ValueError(f"Unsupported format: {format}")
 
-    print(f"table saved to {output_path}")
+    logger.info(f"table saved to {output_path}")
 
 def pretiling_influence_utilization(args, cim_config, op):
     pass_manager = PassManager([
@@ -107,7 +110,7 @@ def pretiling_influence_utilization(args, cim_config, op):
         Column(name="utilization", attr_keys=["UtilizationEvaluatePass", "utilization"]),
     ], "pretiling_influence_utilization.xlsx", format="xlsx")
     pass_manager.show_time_per_pass()
-    print(f"num_ops: {pass_manager.get_num_ops()}")
+    logger.info(f"num_ops: {pass_manager.get_num_ops()}")
 
 def utilization_influence_latency(args, cim_config, op, max_keep=32):
     pass_manager = PassManager([
@@ -133,7 +136,7 @@ def utilization_influence_latency(args, cim_config, op, max_keep=32):
         Column(name="latency", attr_keys=["ProfilePass", "latency"]),
     ], f"utilization_influence_latency_{max_keep}.xlsx", format="xlsx")
     pass_manager.show_time_per_pass()
-    print(f"num_ops: {pass_manager.get_num_ops()}")
+    logger.info(f"num_ops: {pass_manager.get_num_ops()}")
 
 def pruning_search_space(args, cim_config, op):
     pass_manager_pruning = PassManager([
@@ -186,7 +189,7 @@ def run_polycim(args, cim_config, op, max_keep=32):
     ], os.path.join(args.output_path, "result.csv"), format="csv")
     
     pass_manager.show_time_per_pass()
-    print(f"num_ops: {pass_manager.get_num_ops()}")
+    logger.info(f"num_ops: {pass_manager.get_num_ops()}")
 
 def run_cimflow(args, cim_config, op, max_keep=32):
     pass_list = [
@@ -215,5 +218,5 @@ def run_cimflow(args, cim_config, op, max_keep=32):
     ], os.path.join(args.output_path, "result.csv"), format="csv")
     
     pass_manager.show_time_per_pass()
-    print(f"num_ops: {pass_manager.get_num_ops()}")
+    logger.info(f"num_ops: {pass_manager.get_num_ops()}")
     return result

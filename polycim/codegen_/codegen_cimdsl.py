@@ -17,7 +17,9 @@ from polycim.codegen_.codegen import (
     CodeStmt, alloc_unique_var, alloc_unique_stmt
 )
 from polycim.op.buffer_manager import BufferManager
+from polycim.utils.logger import get_logger, level_tqdm
 
+logger = get_logger(__name__)
 
 class CodeGenerator:
     def __init__(self, op, name_to_op):
@@ -659,7 +661,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
         assign_schedule_to_level[assign_schedule] = level
 
     sorted_levels = sorted(list(level_to_assign_schedule.keys()))
-    print(f"{sorted_levels=}")
+    # print(f"{sorted_levels=}")
     # import pdb; pdb.set_trace()
 
     # insert dims
@@ -702,7 +704,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
                 )
                 assign_schedules_at_level[i] = [assign_schedule, type_]
                 scalar_dim_idx += 1
-                print(f"{type_=}")
+                # print(f"{type_=}")
 
         pass
     # import pdb; pdb.set_trace()
@@ -817,14 +819,14 @@ def data_movement_operator_to_dsl(op):
     ast = utils.gen_ast(union_domain, union_schedule, None)
     code_generator = CodeGenerator(op, name_to_op)
     code = code_generator.codegen_str(ast, 4)
-    print(code)
+    logger.info(code)
     buffer_manager = code_generator.buffer_manager
     return code, buffer_manager
 
 
 def codegen_pass(op_list):
     new_op_list = []
-    for idx, op in tqdm(enumerate(op_list)):
+    for idx, op in level_tqdm(enumerate(op_list)):
         if type(op) == DataMovementOperator:
             dsl, buffer_manager = data_movement_operator_to_dsl(op)
             op.dsl = dsl
