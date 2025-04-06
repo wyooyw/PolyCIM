@@ -143,7 +143,7 @@ def test_result(cim_cfg_path, op_id, cim_count, axis_align):
     with tempfile.TemporaryDirectory() as temp_dir:
         cmd = [
             "polycim",
-            "explore",
+            "op",
             "--op-id",
             op_id,
             "--config-path",
@@ -157,7 +157,7 @@ def test_result(cim_cfg_path, op_id, cim_count, axis_align):
             "--verify",
         ]
         if axis_align:
-            cmd.append("--disable-affine")
+            cmd.append("--polycim-disable-affine")
         subprocess.run(cmd, check=True)
 
         # get result from result.csv

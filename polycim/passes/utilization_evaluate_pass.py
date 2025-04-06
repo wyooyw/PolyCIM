@@ -77,7 +77,7 @@ class UtilizationEvaluatePass(BreadthFirstPass):
 
             need_macro = count_minimal_needed_macro(operator, self.cim_config)
             if self.cim_config.n_macro >= need_macro or (
-                not self.args.disable_weight_rewrite
+                not self.args.polycim_disable_weight_rewrite
             ):
 
                 operator.set_attr(

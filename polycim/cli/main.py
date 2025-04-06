@@ -25,7 +25,7 @@ def get_project_root():
 def parse_args():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest="command", required=True)
-    parse_explore_args(subparsers)
+    parse_operator_args(subparsers)
     parse_cimflow_network_args(subparsers)
     args = parser.parse_args()
     return args
@@ -35,8 +35,8 @@ def main():
     args = parse_args()
     set_args(args)
 
-    if args.command == "explore":
-        run_explore(args)
+    if args.command == "op":
+        run_operator(args)
     elif args.command == "cimflow_network":
         run_cimflow_network(args)
     else:

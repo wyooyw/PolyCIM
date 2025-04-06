@@ -6,8 +6,8 @@ from polycim.utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-def parse_explore_args(subparsers):
-    parser = subparsers.add_parser("explore")
+def parse_operator_args(subparsers):
+    parser = subparsers.add_parser("op")
     parser.add_argument("--op-id", "-i", required=True, type=str, help="operator id")
     parser.add_argument(
         "--config-path", "-c", required=True, type=str, help="config path"
@@ -24,26 +24,26 @@ def parse_explore_args(subparsers):
         help="data movement full vectorize",
     )
     parser.add_argument(
-        "--disable-pretile", action="store_true", help="disable pretile"
+        "--polycim-disable-pretile", action="store_true", help="disable pretile"
     )
-    parser.add_argument("--disable-affine", action="store_true", help="disable affine")
+    parser.add_argument("--polycim-disable-affine", action="store_true", help="disable affine")
     parser.add_argument(
-        "--disable-weight-rewrite", action="store_true", help="disable weight rewrite"
+        "--polycim-disable-weight-rewrite", action="store_true", help="disable weight rewrite"
     )
     parser.add_argument(
-        "--disable-second-stage", action="store_true", help="disable second stage"
+        "--polycim-disable-second-stage", action="store_true", help="disable second stage"
     )
     parser.add_argument("--cimflow", action="store_true", help="run cimflow")
     parser.add_argument("--polycim", action="store_true", help="run polycim")
     parser.add_argument("--verify", action="store_true", help="verify")
 
 
-def run_explore(args):
+def run_operator(args):
     args.output_path = to_abs_path(args.output_path)
     args.config_path = to_abs_path(args.config_path)
     set_raw_config_by_path(args.config_path)
 
-    logger.info("Begin to explore operator.")
+    logger.info("Begin to compile operator.")
     logger.info(show_args(args))
 
     cim_cfg = get_config()
