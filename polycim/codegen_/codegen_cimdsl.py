@@ -561,9 +561,27 @@ class CodeGenerator:
         buffer_name = offsets.get_tuple_name(isl.dim_type.out)
         offsets_str = ",".join(offset_var_list)
         sizes_str = ",".join(size_var_list)
-        strides_str = ",".join(["1" for i in range(len(size_var_list))])
+        # strides_str = ",".join(["1" for i in range(len(size_var_list))])
+
+        # build slice
+        slices = []
+        buffer_name_to_info = self.buffer_manager.get_buffer_name_to_info()
+        buffer_info = buffer_name_to_info[buffer_name]
+        for i, (offset, size) in enumerate(zip(offset_var_list, size_var_list)):
+            if size == "1":
+                slice = offset
+            elif offset == "0" and size == str(buffer_info.shape[i]):
+                slice = ":"
+            elif offset == "0":
+                slice = f":{size}"
+            else:
+                slice = f"{offset}:{offset} + {size}"
+            slices.append(slice)
+        slices_str = ",".join(slices)
+        
         slice_code = CodeStmt(
-            code=f"{slice_var} = Slice({buffer_name}, [{offsets_str}], [{sizes_str}], [{strides_str}]);",
+            # code=f"{slice_var} = Slice({buffer_name}, [{offsets_str}], [{sizes_str}], [{strides_str}]);",
+            code=f"{slice_var} = {buffer_name}[{slices_str}];",
             depth=depth,
         )
         code_list.append(slice_code)

@@ -4,6 +4,12 @@ export CIMCOMPILER_HOME=/home/wangyiou/project/CIMCompiler
 export PYTHONPATH=$PWD
 source log_config.sh
 
+# extract graphs
+if [ ! -d "graphs" ]; then
+    echo "Extracting graphs.tar.gz..."
+    tar -xzvf graphs.tar.gz
+fi
+
 # run test
 pytest -n 4 test
 
@@ -19,7 +25,7 @@ pytest -n 4 test
 # op_name=conv2d_b2o16i8h8w8k3
 # cur_time=$(date +%Y-%m-%d_%H-%M-%S)
 # save_dir=".save/${cur_time}"
-# polycim explore \
+# polycim op \
 # --op-id $op_name \
 # --config-path $PWD/config/cimflow_test/g4r4c32b64.json \
 # --pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
@@ -32,7 +38,7 @@ pytest -n 4 test
 # op_name=C1
 # cur_time=$(date +%Y-%m-%d_%H-%M-%S)
 # save_dir=".save/${cur_time}"
-# polycim explore \
+# polycim op \
 # --op-id $op_name \
 # --config-path $PWD/polycim/exp/iccad25/compiler_configs/c32b64.json \
 # --pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
