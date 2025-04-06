@@ -15,12 +15,13 @@ def count_val(domain):
 
 
 class UtilizationEvaluatePass(BreadthFirstPass):
-    def __init__(self, 
-            args,
-            cim_config: CIMConfig,
-            pad: bool=True,
-            keep_single_best: bool=False,
-        ):
+    def __init__(
+        self,
+        args,
+        cim_config: CIMConfig,
+        pad: bool = True,
+        keep_single_best: bool = False,
+    ):
         super().__init__()
         self.args = args
         self.cim_config = cim_config
@@ -28,7 +29,7 @@ class UtilizationEvaluatePass(BreadthFirstPass):
         self.result_value = dict()
         self.result_op = dict()
         self.keep_single_best = keep_single_best
-        
+
     def get_result(self):
         result = list()
         for key in self.result_op.keys():
@@ -46,12 +47,12 @@ class UtilizationEvaluatePass(BreadthFirstPass):
             # get padding exe time
             box_hull_shape = utils.get_box_hull_shape(domain)
             outer_box_hull_shape = box_hull_shape[:-2]
-            exe_time = reduce(lambda x,y: x*y, outer_box_hull_shape)
+            exe_time = reduce(lambda x, y: x * y, outer_box_hull_shape)
         else:
             # result.append(op3)
             n_dim = domain.dim(isl.dim_type.set)
             outer_domain = domain.project_out(isl.dim_type.set, n_dim - 2, 2)
-            
+
             # Use the execute_with_timeout function
             exe_time = count_val(outer_domain)
             if isinstance(exe_time, Exception):
@@ -67,25 +68,28 @@ class UtilizationEvaluatePass(BreadthFirstPass):
         # schedule_key = tuple(schedule_key)
 
         min_compute_times = self.result_value.get(schedule_key, float("inf"))
-        
+
         if exe_time is not None and exe_time <= min_compute_times:
-            
+
             # if self.delay_apply:
             #     op3 = op2.apply_schedule(coalescing_schedule, skip_simplify=True, name="coalescing")
             #     op3 = op3.apply_schedule(tiling_schedule, skip_simplify=True, name="tiling")
 
             need_macro = count_minimal_needed_macro(operator, self.cim_config)
-            if self.cim_config.n_macro >= need_macro or (not self.args.disable_weight_rewrite):
-                
-                operator.set_attr("UtilizationEvaluatePass", {
-                    "need_macros": need_macro,
-                    "compute_ops": exe_time,
-                    "utilization": self.get_utilization(operator, exe_time),
-                })
+            if self.cim_config.n_macro >= need_macro or (
+                not self.args.disable_weight_rewrite
+            ):
 
+                operator.set_attr(
+                    "UtilizationEvaluatePass",
+                    {
+                        "need_macros": need_macro,
+                        "compute_ops": exe_time,
+                        "utilization": self.get_utilization(operator, exe_time),
+                    },
+                )
 
                 min_compute_ops = self.result_op.get(schedule_key, list())
-
 
                 if exe_time < min_compute_times:
                     self.result_value[schedule_key] = exe_time
@@ -100,13 +104,14 @@ class UtilizationEvaluatePass(BreadthFirstPass):
     def apply_all(self):
         pass
 
-
     def get_utilization(self, op, compute_ops):
         origin_op = op.attr["origin_op"]
         flops = int(str(origin_op.domain.count_val()))
 
         flops_per_cim_compute = flops / compute_ops
-        peak_flops_per_cim_compute = self.cim_config.n_comp * self.cim_config.n_group_vcol
+        peak_flops_per_cim_compute = (
+            self.cim_config.n_comp * self.cim_config.n_group_vcol
+        )
         use_rate_percent = flops_per_cim_compute / peak_flops_per_cim_compute * 100
-        
+
         return use_rate_percent

@@ -1,14 +1,12 @@
-from polycim.config import get_memory_names
 from dataclasses import dataclass
-import copy
+
 import islpy as isl
-from polycim.op.base_operator import (
-    DataMovement, 
-    PartialSumDataMovement,
-    DataMovementOperator,
-    TensorAccessRelation,
-    AccessRelation
-)
+
+from polycim.config import get_memory_names
+from polycim.op.base_operator import (AccessRelation, DataMovement,
+                                      PartialSumDataMovement,
+                                      TensorAccessRelation)
+
 
 @dataclass
 class BufferInfo:
@@ -16,12 +14,14 @@ class BufferInfo:
     shape: list
     memory_name: str
 
+
 def buffer_info_to_dict(buffer_info):
     return {
         "name": buffer_info.name,
         "shape": buffer_info.shape,
-        "memory_name": buffer_info.memory_name
+        "memory_name": buffer_info.memory_name,
     }
+
 
 def get_name_and_shape(access):
 
@@ -43,7 +43,9 @@ def get_name_and_shape(access):
     elif isinstance(access, AccessRelation):
 
         offsets = access.offsets.range()
-        shape = [offsets.dim_max_val(i) + 1 for i in range(offsets.dim(isl.dim_type.set))]
+        shape = [
+            offsets.dim_max_val(i) + 1 for i in range(offsets.dim(isl.dim_type.set))
+        ]
 
         name = access.offsets.get_tuple_name(isl.dim_type.out)
 
@@ -52,6 +54,7 @@ def get_name_and_shape(access):
 
     return name, shape
 
+
 class BufferManager:
     def __init__(self):
         self.buffer_name_to_info = dict()
@@ -59,14 +62,14 @@ class BufferManager:
 
     def add_buffer(self, name, shape, memory_name):
         if name in self.buffer_name_to_info:
-            raise ValueError(f"{name} already exists")  
+            raise ValueError(f"{name} already exists")
         if memory_name not in self.valid_memory_names:
             raise ValueError(f"{memory_name} is not a valid memory name")
         self.buffer_name_to_info[name] = BufferInfo(name, shape, memory_name)
 
     def add_buffer_info(self, buffer_info):
         if buffer_info.name in self.buffer_name_to_info:
-            raise ValueError(f"{buffer_info.name} already exists")  
+            raise ValueError(f"{buffer_info.name} already exists")
         if buffer_info.memory_name not in self.valid_memory_names:
             raise ValueError(f"{buffer_info.memory_name} is not a valid memory name")
         self.buffer_name_to_info[buffer_info.name] = buffer_info
@@ -133,7 +136,11 @@ class BufferManager:
         return self.buffer_name_to_info[name]
 
     def get_buffers_by_memory_name(self, memory_name):
-        return [buffer_info for buffer_info in self.buffer_name_to_info.values() if buffer_info.memory_name == memory_name]
+        return [
+            buffer_info
+            for buffer_info in self.buffer_name_to_info.values()
+            if buffer_info.memory_name == memory_name
+        ]
 
     def get_buffer_by_memory_name(self, memory_name):
         buffers = self.get_buffers_by_memory_name(memory_name)
@@ -147,4 +154,7 @@ class BufferManager:
         return self.buffer_name_to_info
 
     def get_buffer_name_to_info_dict(self):
-        return {name: buffer_info_to_dict(info) for name, info in self.buffer_name_to_info.items()}
+        return {
+            name: buffer_info_to_dict(info)
+            for name, info in self.buffer_name_to_info.items()
+        }

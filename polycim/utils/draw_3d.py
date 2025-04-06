@@ -1,6 +1,4 @@
 import islpy as isl
-import matplotlib.pyplot as plt
-
 from islplot.plotter3d import plot_set_3d
 
 bset_data = isl.Set("{ S[i,j,k]: 0<=i<8 and 0<=j<8 and 0<=k<8 }")

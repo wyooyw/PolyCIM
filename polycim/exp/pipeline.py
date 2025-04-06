@@ -1,30 +1,32 @@
-from polycim.op.base_operator import BasicOperator
 import os
-if int(os.environ.get("NEW_ALGO", 0))==1:
+
+
+if int(os.environ.get("NEW_ALGO", 0)) == 1:
     from affine_transform_new import auto_skewing_pass
 else:
     from polycim.passes.affine_transform_pass import auto_skewing_pass
-from polycim.passes.hardware_mapping_pass import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
-# from hardware_merge_tiling_4d_macro import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
-import islpy as isl
-from polycim.passes.buffer_mapping import (
-    insert_single_buffer_single_level_pass,
-    insert_single_buffer_multi_level_pass,
-    multi_level_buffer_insersion_pass,
-    filter_op_by_memory_access_cost_pass
-)
-from codegen import codegen_pass
-from polycim.passes.loop_padding import loop_padding_pass
-from polycim.passes.tensorize import tensorize_pass
-from polycim.passes.backend import backend_compile_and_profile_pass
-from polycim.passes.multi_level_tiling_pass import pre_tiling_pass, memory_tiling_pass
-import polycim.op.benchmark as benchmark
-import json
-from polycim.config import get_config
-from polycim.utils.draw import extract_frame_info
-import polycim.utils.utils as utils
-from collections import OrderedDict
+
 import time
+from collections import OrderedDict
+
+# from hardware_merge_tiling_4d_macro import hardware_merge_tiling_pass, filter_op_by_execution_time_pass
+from codegen import codegen_pass
+
+import polycim.op.benchmark as benchmark
+import polycim.utils.utils as utils
+from polycim.config import get_config
+from polycim.passes.backend import backend_compile_and_profile_pass
+from polycim.passes.buffer_mapping import (
+    filter_op_by_memory_access_cost_pass,
+    multi_level_buffer_insersion_pass)
+from polycim.passes.hardware_mapping_pass import (
+    filter_op_by_execution_time_pass, hardware_merge_tiling_pass)
+from polycim.passes.loop_padding import loop_padding_pass
+from polycim.passes.multi_level_tiling_pass import (memory_tiling_pass,
+                                                    pre_tiling_pass)
+from polycim.passes.tensorize import tensorize_pass
+from polycim.utils.draw import extract_frame_info
+
 
 def run_pipeline(op, skew, cim_cfg, save_dir):
 
@@ -41,32 +43,37 @@ def run_pipeline(op, skew, cim_cfg, save_dir):
         # new_ops = [op]
         # new_ops = new_ops[1:2]
         # print(len(new_ops))
-        new_ops,_,_,_ = auto_skewing_pass(new_ops, return_detail=True)
+        new_ops, _, _, _ = auto_skewing_pass(new_ops, return_detail=True)
         # for idx,op in enumerate(new_ops):
         #     print(idx)
         #     print(op.history_schedules)
         # exit()
     # new_ops = new_ops[:min(len(new_ops), 8)]
-    new_ops = hardware_merge_tiling_pass(new_ops, macro_row=cim_cfg.n_comp, macro_col=cim_cfg.n_group_vcol)
+    new_ops = hardware_merge_tiling_pass(
+        new_ops, macro_row=cim_cfg.n_comp, macro_col=cim_cfg.n_group_vcol
+    )
     # new_ops = new_ops[:min(len(new_ops), 8)]
-    new_ops, execution_times = filter_op_by_execution_time_pass(new_ops, macro_row=cim_cfg.n_comp, macro_col=cim_cfg.n_group_vcol)
+    new_ops, execution_times = filter_op_by_execution_time_pass(
+        new_ops, macro_row=cim_cfg.n_comp, macro_col=cim_cfg.n_group_vcol
+    )
     min_compute_op = new_ops[0]
     return new_ops[0], execution_times[0]
 
     # N_COMP, N_GROUP, N_GROUP_VCOL
     new_ops = loop_padding_pass(new_ops, padding_inner_size=None)
     new_ops = memory_tiling_pass(new_ops)
-    
+
     new_ops = multi_level_buffer_insersion_pass(new_ops, macro_compute_level=-6)
     new_ops = filter_op_by_memory_access_cost_pass(new_ops)
     new_ops = new_ops[:1] if len(new_ops) >= 1 else []
     new_ops = tensorize_pass(new_ops)
     new_ops = codegen_pass(new_ops)
     result_list = backend_compile_and_profile_pass(new_ops, save_dir)
-    
+
     return result_list
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     op_list = OrderedDict()
     # op_list["C1"] = (
     #     benchmark.get_op_dwconv2d(ic=1, oh=112, ow=112, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
@@ -124,9 +131,11 @@ if __name__=="__main__":
     #     ((1,3),(2,4))
     # )
     op_list["C12"] = (
-        benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2, virtual_axis=False),
+        benchmark.get_op_dwconv2d(
+            ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2, virtual_axis=False
+        ),
         # symmetry_info
-        ((1,3),(2,4))
+        ((1, 3), (2, 4)),
     )
     # op_list["C13"] = (
     #     benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=5, kw=5, stride=1, dilation=2, virtual_axis=False),
@@ -146,12 +155,16 @@ if __name__=="__main__":
         virtual_axis = not skew
         print(f"{name=}")
         begin_time = time.time()
-        min_compute_op, _ = run_pipeline(operator, skew=skew, cim_cfg=cim_cfg, save_dir=".temp_save")
+        min_compute_op, _ = run_pipeline(
+            operator, skew=skew, cim_cfg=cim_cfg, save_dir=".temp_save"
+        )
         end_time = time.time()
         print(f"Time cost: {end_time - begin_time}")
         print("\n")
     exit()
-    operator = benchmark.get_op_dwconv2d(ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2)
+    operator = benchmark.get_op_dwconv2d(
+        ic=1, oh=28, ow=28, kh=3, kw=3, stride=1, dilation=2
+    )
     skew = True
     virtual_axis = not skew
     # operator = benchmark.get_op_dwconv3d(
@@ -165,7 +178,9 @@ if __name__=="__main__":
     cim_cfg = get_config()
     # print(operator.domain)
     # exit()
-    min_compute_op, _ = run_pipeline(operator, skew=skew, cim_cfg=cim_cfg, save_dir=".temp_save")
+    min_compute_op, _ = run_pipeline(
+        operator, skew=skew, cim_cfg=cim_cfg, save_dir=".temp_save"
+    )
     print(min_compute_op)
 
     for schedule in min_compute_op.history_schedules:
@@ -174,15 +189,17 @@ if __name__=="__main__":
 
     union_domain = min_compute_op.domain
     union_schedule = union_domain.identity()
-    code = utils.gen_code(union_domain,union_schedule,None)
+    code = utils.gen_code(union_domain, union_schedule, None)
     # print(code)
     # import pdb; pdb.set_trace()
-    for idx, value in enumerate(extract_frame_info(min_compute_op, cim_cfg, different_weight=True)):
+    for idx, value in enumerate(
+        extract_frame_info(min_compute_op, cim_cfg, different_weight=True)
+    ):
         timestamp, frame_info = value
         print(f"Index: {idx}.    Timestamp: {timestamp}")
         frame_info.print()
         c = input("continue?(y/n):")
-        if c=="n":
+        if c == "n":
             break
         else:
             continue

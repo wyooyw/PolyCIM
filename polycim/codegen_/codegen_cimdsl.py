@@ -1,25 +1,19 @@
-import os
-from dataclasses import dataclass
-
-import islpy as isl
-from tqdm import tqdm
 import math
 
+import islpy as isl
+
 import polycim.utils.utils as utils
-from polycim.op.base_operator import (
-    DataMovement, 
-    PartialSumDataMovement, 
-    DataMovementOperator,
-    TensorAccessRelation
-)
+from polycim.codegen_.codegen import (CodeStmt, alloc_unique_stmt,
+                                      alloc_unique_var)
 from polycim.config import get_config
-from polycim.codegen_.codegen import (
-    CodeStmt, alloc_unique_var, alloc_unique_stmt
-)
+from polycim.op.base_operator import (DataMovement, DataMovementOperator,
+                                      PartialSumDataMovement,
+                                      TensorAccessRelation)
 from polycim.op.buffer_manager import BufferManager
 from polycim.utils.logger import get_logger, level_tqdm
 
 logger = get_logger(__name__)
+
 
 class CodeGenerator:
     def __init__(self, op, name_to_op):
@@ -69,7 +63,8 @@ class CodeGenerator:
                 depth=depth,
             ),
             CodeStmt(
-                code=f"SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, {use_comp});", depth=depth
+                code=f"SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, {use_comp});",
+                depth=depth,
             ),
             CodeStmt(
                 code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 32);",
@@ -90,14 +85,18 @@ class CodeGenerator:
         self.buffer_manager.add_buffers_from_op(self.op)
         buffer_name_to_info = self.buffer_manager.get_buffer_name_to_info()
         code_list = []
-        
-        global_buffer_info = {name[0]:info for name, info in buffer_name_to_info.items() if info.memory_name == "global"}
+
+        global_buffer_info = {
+            name[0]: info
+            for name, info in buffer_name_to_info.items()
+            if info.memory_name == "global"
+        }
         assert len(global_buffer_info) == 4, f"{global_buffer_info=}"
         for t in ["I", "W", "O"]:
             buf_info = global_buffer_info[t]
             shape_str = ",".join([str(s) for s in buf_info.shape])
-            memory_name_big = "__"+buf_info.memory_name.upper()+"__"
-            dtype = "int32" if t=="O" else "int8"
+            memory_name_big = "__" + buf_info.memory_name.upper() + "__"
+            dtype = "int32" if t == "O" else "int8"
             code = CodeStmt(
                 code=f"{buf_info.name} = Buffer(<{shape_str}>, {dtype}, {memory_name_big});",
                 depth=depth,
@@ -110,8 +109,8 @@ class CodeGenerator:
             if name[0] not in ["I", "W", "O"]:
                 continue
             shape_str = ",".join([str(s) for s in info.shape])
-            memory_name_big = "__"+info.memory_name.upper()+"__"
-            dtype = "int32" if name[0]=="O" else "int8"
+            memory_name_big = "__" + info.memory_name.upper() + "__"
+            dtype = "int32" if name[0] == "O" else "int8"
             code = CodeStmt(
                 code=f"{name} = Buffer(<{shape_str}>, {dtype}, {memory_name_big});",
                 depth=depth,
@@ -132,7 +131,7 @@ class CodeGenerator:
     def codegen_cimset(self, depth):
         cim_cfg = get_config()
         mask_num = int(math.ceil(cim_cfg.n_group_vcol / 8)) * 8
-        
+
         self.buffer_manager.add_buffer("cim_mask_global", [mask_num], "global")
         self.buffer_manager.add_buffer("cim_mask_local", [mask_num], "input_memory")
         code_list = [
@@ -151,7 +150,7 @@ class CodeGenerator:
             CodeStmt(
                 code="CIMSet(cim_mask_local);",
                 depth=depth,
-            )
+            ),
         ]
         return code_list
 
@@ -329,7 +328,7 @@ class CodeGenerator:
         # code = CodeStmt(code=f"{new_var} = {old_var};", depth=depth)
         # return [code], new_var
         return [], old_var
-        
+
     def codegen_expression_int(self, expr, depth):
         # new_var = alloc_unique_var()
         int_val = expr.int_get_val()
@@ -455,26 +454,34 @@ class CodeGenerator:
             op.access_O, call_args, depth
         )
         zero_scalar_var = "zero_scalar_buffer"
-        clear_code = CodeStmt(code=f"SIMD(VSET, {slice_var_O}, {zero_scalar_var}, {slice_var_O});", depth=depth)
+        clear_code = CodeStmt(
+            code=f"SIMD(VSET, {slice_var_O}, {zero_scalar_var}, {slice_var_O});",
+            depth=depth,
+        )
         return [*code_list_O, clear_code]
 
     def codegen_call_partial_sum_sum(self, op, call_args, depth):
         assert type(op) == PartialSumDataMovement
 
-        output_call_args = call_args[:op.level] + call_args[op.level+1:]
+        output_call_args = call_args[: op.level] + call_args[op.level + 1 :]
         code_list_O, slice_var_O = self.codegen_tensor_access_from_pw_multi_aff(
             op.access_O, output_call_args, depth
         )
         code_list_I, slice_var_I = self.codegen_tensor_access_from_pw_multi_aff(
             op.access_I, call_args, depth
         )
-        sum_code = CodeStmt(code=f"SIMD(VVADD, {slice_var_O}, {slice_var_I}, {slice_var_O});", depth=depth)
+        sum_code = CodeStmt(
+            code=f"SIMD(VVADD, {slice_var_O}, {slice_var_I}, {slice_var_O});",
+            depth=depth,
+        )
         return [*code_list_O, *code_list_I, sum_code]
-    
+
     def codegen_call_cim_output(self, op, call_args, depth):
         assert type(op) == DataMovement, f"{type(op)=}"
 
-        cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name("pim_output_reg_buffer")
+        cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name(
+            "pim_output_reg_buffer"
+        )
         cim_output_code = CodeStmt(
             code=f"CIMOutput({get_config().n_group_vcol}, 0, {cim_reg_out_buffer.name});",
             depth=depth,
@@ -628,6 +635,7 @@ class CodeGenerator:
             code_str = code_str + code
         return code_str
 
+
 def operator_to_ast(op):
     assert type(op) == Operator
 
@@ -649,7 +657,9 @@ def insert_many_const_dim_in_range(map_, pos, size, si):
     return map_
 
 
-def align_compute_and_assign_schedules(compute_schedule, assign_schedules, levels, type_list):
+def align_compute_and_assign_schedules(
+    compute_schedule, assign_schedules, levels, type_list
+):
     level_to_assign_schedule = dict()
     assign_schedule_to_level = dict()
     for assign_schedule, level, type_ in zip(assign_schedules, levels, type_list):
@@ -706,14 +716,13 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
                 scalar_dim_idx += 1
                 # print(f"{type_=}")
 
-        pass
     # import pdb; pdb.set_trace()
 
     # padding schedule at end
     max_range_size = compute_schedule.dim(isl.dim_type.out)
     for level in sorted_levels:
         assign_schedules_at_level = level_to_assign_schedule[level]
-        for assign_schedule,type_ in assign_schedules_at_level:
+        for assign_schedule, type_ in assign_schedules_at_level:
             range_size = assign_schedule.dim(isl.dim_type.out)
             max_range_size = max(max_range_size, range_size)
 
@@ -724,7 +733,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
     for level in sorted_levels:
         assign_schedules_at_level = level_to_assign_schedule[level]
         for i in range(len(assign_schedules_at_level)):
-            assign_schedule,type_ = assign_schedules_at_level[i]
+            assign_schedule, type_ = assign_schedules_at_level[i]
             cur_range_size = assign_schedule.dim(isl.dim_type.out)
             assign_schedule = insert_many_const_dim_in_range(
                 assign_schedule, cur_range_size, max_range_size - cur_range_size, 0
@@ -762,7 +771,7 @@ def data_movement_operator_to_dsl(op):
         if name == "O":
             data_movement_list = data_movement_list[::-1]
         for idx, data_movement in enumerate(data_movement_list):
-            if name == "O" and idx == 0:#len(data_movement_list) - 1:
+            if name == "O" and idx == 0:  # len(data_movement_list) - 1:
                 stmt_name = "CIMOutput." + alloc_unique_stmt()
                 assign_domain = data_movement.domain.set_tuple_name(stmt_name)
                 assign_schedule = utils.identity_map_from_set(assign_domain)
@@ -785,7 +794,9 @@ def data_movement_operator_to_dsl(op):
                 name_to_op[stmt_name] = (data_movement, "PartialSum.clear")
 
                 stmt_name = "PartialSum.sum" + alloc_unique_stmt()
-                assign_domain = data_movement.domain_partial_sum.set_tuple_name(stmt_name)
+                assign_domain = data_movement.domain_partial_sum.set_tuple_name(
+                    stmt_name
+                )
                 assign_schedule = utils.identity_map_from_set(assign_domain)
                 assign_domain_list.append(assign_domain)
                 assign_schedule_list.append(assign_schedule)

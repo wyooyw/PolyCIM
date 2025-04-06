@@ -1,9 +1,12 @@
-import onnx
-from models.read_file import get_tensor_shape
-import polycim.op.benchmark as benchmark
 import json
 import os
+
+import onnx
+from models.read_file import get_tensor_shape
 from tqdm import tqdm
+
+
+
 def parse_conv_attr(model, node):
     name_to_attr = {attr.name: attr for attr in node.attribute}
     dilations = list(name_to_attr["dilations"].ints)
@@ -21,7 +24,7 @@ def parse_conv_attr(model, node):
     output_tensor = node.output[0]
     output_tensor_shape = list(get_tensor_shape(model.graph, output_tensor))
 
-    if group > 1 and all(s==1 for s in strides):
+    if group > 1 and all(s == 1 for s in strides):
 
         return {
             "type": "conv2d",
@@ -32,11 +35,12 @@ def parse_conv_attr(model, node):
             "strides": str(strides),
             "input_tensor_shape": str(input_tensor_shape),
             "weight_tensor_shape": str(weight_tensor_shape),
-            "output_tensor_shape": str(output_tensor_shape)
+            "output_tensor_shape": str(output_tensor_shape),
         }
 
     else:
         return {}
+
 
 def extract_op_info_from_onnx(onnx_path):
     # 加载ONNX模型
@@ -48,18 +52,19 @@ def extract_op_info_from_onnx(onnx_path):
     # 遍历模型中的每个节点
     for node in model.graph.node:
         # 检查节点是否为卷积算子
-        if node.op_type == 'Conv':
+        if node.op_type == "Conv":
             # 打印卷积算子的属性
             print(f"Node: {node.name}, Op: {node.op_type}")
             op_info = parse_conv_attr(model, node)
             # print(op_info)
-            op_info_list.append(op_info)   
+            op_info_list.append(op_info)
         else:
             skip_op_type.add(node.op_type)
 
     print(f"Skip op type: {skip_op_type}")
 
     return op_info_list
+
 
 def extract_op_info_from_onnx_model_to_json(onnx_path, json_dir):
     op_info_list = extract_op_info_from_onnx(onnx_path)
@@ -71,20 +76,23 @@ def extract_op_info_from_onnx_model_to_json(onnx_path, json_dir):
     with open(json_path, "w") as f:
         json.dump(op_info_list, f, indent=2)
 
+
 def get_onnx_files(directory):
     onnx_files = []
     # os.walk遍历目录及子目录
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.endswith('.onnx'):
+            if file.endswith(".onnx"):
                 # 将文件的完整路径添加到列表中
                 onnx_files.append(os.path.join(root, file))
     return onnx_files
+
 
 def extract_op_info_from_onnx_to_json(onnx_dir, json_dir):
     for onnx_path in tqdm(get_onnx_files(onnx_dir)):
         print(f"{onnx_path=}")
         extract_op_info_from_onnx_model_to_json(onnx_path, json_dir)
+
 
 if __name__ == "__main__":
     extract_op_info_from_onnx_to_json("models/onnx", "models/json")

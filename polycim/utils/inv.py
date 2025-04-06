@@ -1,10 +1,11 @@
 import numpy as np
-from mat_utils import inv_scale_to_integer
-from sympy import Matrix, lcm, nsimplify
-a = np.array([
-    [-1/2,1],
-    [1/2,1],
-])
+
+a = np.array(
+    [
+        [-1 / 2, 1],
+        [1 / 2, 1],
+    ]
+)
 
 # inv_a = inv_scale_to_integer(a)
 # # pretty print inv_a

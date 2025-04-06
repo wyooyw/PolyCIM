@@ -26,11 +26,14 @@ class TensorAccessRelation(AccessRelation):
             self.offsets.convex_hull(), self.sizes.convex_hull(), self.memory_name
         )
 
+
 class Operator:
     def __init__(self):
         pass
 
-    def apply_schedule(self, schedule, reverse_schedule=None, skip_simplify=False, name=None):
+    def apply_schedule(
+        self, schedule, reverse_schedule=None, skip_simplify=False, name=None
+    ):
         raise NotImplementedError
 
 
@@ -73,7 +76,9 @@ class BasicOperator(Operator):
         self.access_O = utils.rename_all_dims_for_basic_map(self.access_O)
         self.access_W = utils.rename_all_dims_for_basic_map(self.access_W)
 
-    def apply_schedule(self, schedule, reverse_schedule=None, skip_simplify=False, name=None):
+    def apply_schedule(
+        self, schedule, reverse_schedule=None, skip_simplify=False, name=None
+    ):
         assert type(schedule) == isl.BasicMap, f"{type(schedule)}"
 
         # transform by scheudle
@@ -86,8 +91,12 @@ class BasicOperator(Operator):
         if reverse_schedule is None:
             reverse_schedule = concrete_schedule.reverse()
         else:
-            assert reverse_schedule.dim(isl.dim_type.in_) == concrete_schedule.dim(isl.dim_type.out)
-            assert reverse_schedule.dim(isl.dim_type.out) == concrete_schedule.dim(isl.dim_type.in_)
+            assert reverse_schedule.dim(isl.dim_type.in_) == concrete_schedule.dim(
+                isl.dim_type.out
+            )
+            assert reverse_schedule.dim(isl.dim_type.out) == concrete_schedule.dim(
+                isl.dim_type.in_
+            )
             reverse_schedule = reverse_schedule.intersect_domain(domain)
 
         access_I = reverse_schedule.apply_range(self.access_I)
@@ -208,6 +217,7 @@ class DataMovement(Operator):
             self.type_,
         )
 
+
 class PartialSumDataMovement(DataMovement):
     def __init__(self, domain, domain_partial_sum, access_I, access_O, level, type_):
         super().__init__(domain, access_I, access_O, level, type_)
@@ -242,7 +252,7 @@ class DataMovementOperator:
             history_schedules = list()
         if attr is None:
             attr = dict()
-            
+
         assert type(domain) in (isl.BasicSet, isl.Set)
         assert type(access_I) in (
             isl.BasicMap,

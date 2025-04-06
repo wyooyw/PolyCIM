@@ -1,13 +1,15 @@
-from pipeline import run_pipeline
-import polycim.op.benchmark as benchmark
-import os
 import json
-from functools import reduce
-from polycim.config import get_config, get_memory_base
-import tempfile
 import os
-from jinja2 import Environment, FileSystemLoader, StrictUndefined
+import tempfile
 from dataclasses import dataclass
+from functools import reduce
+
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
+from pipeline import run_pipeline
+
+import polycim.op.benchmark as benchmark
+from polycim.config import get_config, get_memory_base
+
 
 def get_final_code(result):
     final_code = os.path.join(result.save_path, "final_code.json")
@@ -16,21 +18,17 @@ def get_final_code(result):
             final_code = json.load(f)
     else:
         final_code = None
-    
+
     return final_code
+
 
 def get_code_set_regs(reg_and_value_list):
     code_list = []
-    for reg,value in reg_and_value_list:
-        code_li = {
-            "class": 0b10,
-            "type": 0b11,
-            "opcode": 0,
-            "rd": reg,
-            "imm": value
-        }
+    for reg, value in reg_and_value_list:
+        code_li = {"class": 0b10, "type": 0b11, "opcode": 0, "rd": reg, "imm": value}
         code_list.append(code_li)
     return code_list
+
 
 def get_code_single_send(src_addr, dst_core, data_size, unqiue_id):
     """
@@ -47,12 +45,14 @@ def get_code_single_send(src_addr, dst_core, data_size, unqiue_id):
     reg_data_size = 2
     reg_unique_id = 3
 
-    code_set_regs = get_code_set_regs([
-        (reg_src_addr, src_addr),
-        (reg_dst_core, dst_core),
-        (reg_data_size, data_size),
-        (reg_unique_id, unqiue_id)
-    ])
+    code_set_regs = get_code_set_regs(
+        [
+            (reg_src_addr, src_addr),
+            (reg_dst_core, dst_core),
+            (reg_data_size, data_size),
+            (reg_unique_id, unqiue_id),
+        ]
+    )
 
     """
     指令字段划分：
@@ -75,13 +75,11 @@ def get_code_single_send(src_addr, dst_core, data_size, unqiue_id):
         "rd1": reg_dst_core,
         "rd2": 0,
         "reg_id": reg_unique_id,
-        "reg_len": reg_data_size
+        "reg_len": reg_data_size,
     }
-    code_list = [
-        *code_set_regs,
-        code_send
-    ]
+    code_list = [*code_set_regs, code_send]
     return code_list
+
 
 def get_code_single_receive(dst_addr, src_core, data_size, unqiue_id):
     """
@@ -98,12 +96,14 @@ def get_code_single_receive(dst_addr, src_core, data_size, unqiue_id):
     reg_data_size = 2
     reg_unique_id = 3
 
-    code_set_regs = get_code_set_regs([
-        (reg_dst_addr, dst_addr),
-        (reg_src_core, src_core),
-        (reg_data_size, data_size),
-        (reg_unique_id, unqiue_id)
-    ])
+    code_set_regs = get_code_set_regs(
+        [
+            (reg_dst_addr, dst_addr),
+            (reg_src_core, src_core),
+            (reg_data_size, data_size),
+            (reg_unique_id, unqiue_id),
+        ]
+    )
 
     """
     核间数据接收指令：receive
@@ -127,13 +127,11 @@ def get_code_single_receive(dst_addr, src_core, data_size, unqiue_id):
         "rs2": 0,
         "rd": reg_dst_addr,
         "reg_id": reg_unique_id,
-        "reg_len": reg_data_size
+        "reg_len": reg_data_size,
     }
-    code_list = [
-        *code_set_regs,
-        code_recv
-    ]
+    code_list = [*code_set_regs, code_recv]
     return code_list
+
 
 def get_code_trans(src_addr, dst_addr, data_size):
     """
@@ -154,11 +152,13 @@ def get_code_trans(src_addr, dst_addr, data_size):
     reg_src_addr = 0
     reg_dst_addr = 1
     reg_data_size = 2
-    code_set_regs = get_code_set_regs([
-        (reg_src_addr, src_addr),
-        (reg_dst_addr, dst_addr),
-        (reg_data_size, data_size),
-    ])
+    code_set_regs = get_code_set_regs(
+        [
+            (reg_src_addr, src_addr),
+            (reg_dst_addr, dst_addr),
+            (reg_data_size, data_size),
+        ]
+    )
     code_trans = {
         "class": 0b110,
         "type": 0,
@@ -166,24 +166,22 @@ def get_code_trans(src_addr, dst_addr, data_size):
         "rs1": reg_src_addr,
         "rs2": reg_data_size,
         "rd": reg_dst_addr,
-        "offset": 0
+        "offset": 0,
     }
-    return [
-        *code_set_regs,
-        code_trans
-    ]
+    return [*code_set_regs, code_trans]
+
 
 def get_code_trans_by_memory_type(src_memory_type, dst_memory_type, data_size):
     src_addr = get_memory_base(src_memory_type)
     dst_addr = get_memory_base(dst_memory_type)
     return get_code_trans(src_addr, dst_addr, data_size)
-    
+
 
 def run_network_pipeline(op_list, skew, macro_row, macro_col):
     network_final_code = []
     for op in op_list:
         result = run_pipeline(op, skew=skew, macro_row=macro_row, macro_col=macro_col)
-        assert len(result)==1
+        assert len(result) == 1
         result = result[0]
         final_code = get_final_code(result)
         assert final_code is not None
@@ -191,20 +189,25 @@ def run_network_pipeline(op_list, skew, macro_row, macro_col):
     return network_final_code
 
 
-
 def get_code_read_global(attr):
-    assert "tensor_type" in  attr
-    if attr["tensor_type"]=="weight":
+    assert "tensor_type" in attr
+    if attr["tensor_type"] == "weight":
         dst_memory_type = "weight_memory"
-    elif attr["tensor_type"]=="feature":
+    elif attr["tensor_type"] == "feature":
         dst_memory_type = "input_memory"
     else:
         assert False, attr["tensor_type"]
-        
-    return get_code_trans_by_memory_type("global", dst_memory_type, reduce(lambda x,y:x*y, attr["shape"]))
+
+    return get_code_trans_by_memory_type(
+        "global", dst_memory_type, reduce(lambda x, y: x * y, attr["shape"])
+    )
+
 
 def get_code_write_global(attr):
-    return get_code_trans_by_memory_type("output_memory", "global", reduce(lambda x,y:x*y, attr["shape"]))
+    return get_code_trans_by_memory_type(
+        "output_memory", "global", reduce(lambda x, y: x * y, attr["shape"])
+    )
+
 
 def get_code_add(attr):
     """
@@ -238,18 +241,20 @@ def get_code_add(attr):
     - 22：input 4 address：input 4的起始地址
     """
     print(f"add.attr.shape: {attr['shape']}")
-    data_size = reduce(lambda x,y:x+y, attr["shape"])
+    data_size = reduce(lambda x, y: x + y, attr["shape"])
     print(f"{data_size=}")
     reg_input_1_addr = 1
     reg_input_2_addr = 2
     reg_data_size = 3
     reg_output_addr = 4
-    code_set_regs = get_code_set_regs([
-        (reg_input_1_addr, get_memory_base("input_memory")),
-        (reg_input_2_addr, get_memory_base("input_memory") + data_size),
-        (reg_data_size, data_size),
-        (reg_output_addr, get_memory_base("output_memory")),
-    ])
+    code_set_regs = get_code_set_regs(
+        [
+            (reg_input_1_addr, get_memory_base("input_memory")),
+            (reg_input_2_addr, get_memory_base("input_memory") + data_size),
+            (reg_data_size, data_size),
+            (reg_output_addr, get_memory_base("output_memory")),
+        ]
+    )
     code_add = {
         "class": 0b01,
         "input_num": 0b01,
@@ -257,16 +262,16 @@ def get_code_add(attr):
         "rs1": reg_input_1_addr,
         "rs2": reg_input_2_addr,
         "rs3": reg_data_size,
-        "rd": reg_output_addr
+        "rd": reg_output_addr,
     }
-    return [
-        *code_set_regs,
-        code_add
-    ]
-    
+    return [*code_set_regs, code_add]
+
     # exit()
 
+
 cache_conv2d_result = dict()
+
+
 def get_code_conv2d(attr):
     global cache_conv2d_result
     """
@@ -279,34 +284,54 @@ def get_code_conv2d(attr):
     padding = attr["padding"][0]
     stride = attr["strides"][0]
 
-    out_h = (in_height + 2*padding - kernel_height) // stride + 1
-    out_w = (in_width + 2*padding - kernel_width) // stride + 1
+    out_h = (in_height + 2 * padding - kernel_height) // stride + 1
+    out_w = (in_width + 2 * padding - kernel_width) // stride + 1
 
-    cache_key = (batch, out_channel, in_channel, out_h, out_w, kernel_height, kernel_width, padding, stride)
+    cache_key = (
+        batch,
+        out_channel,
+        in_channel,
+        out_h,
+        out_w,
+        kernel_height,
+        kernel_width,
+        padding,
+        stride,
+    )
     if cache_key in cache_conv2d_result:
         result = cache_conv2d_result[cache_key]
     else:
         temp_dir = tempfile.mkdtemp()
-        operator = benchmark.get_op_conv2d(b=batch, oc=out_channel, ic=in_channel, oh=out_h, ow=out_w, kh=kernel_height, kw=kernel_width, stride=stride, virtual_axis=True)
-        result = run_pipeline(operator, skew=False, cim_cfg=get_config(), save_dir=temp_dir)
+        operator = benchmark.get_op_conv2d(
+            b=batch,
+            oc=out_channel,
+            ic=in_channel,
+            oh=out_h,
+            ow=out_w,
+            kh=kernel_height,
+            kw=kernel_width,
+            stride=stride,
+            virtual_axis=True,
+        )
+        result = run_pipeline(
+            operator, skew=False, cim_cfg=get_config(), save_dir=temp_dir
+        )
         assert len(result) > 0, f"Fail when generating conv2d code. {attr=}"
         cache_conv2d_result[cache_key] = result
-        
+
     # read code from result
     final_code = get_final_code(result[0])
     assert final_code is not None, f"Fail when generating conv2d code. {attr=}"
-    
+
     return final_code
 
+
 def fill_template(src_path, dst_path, context):
-    
 
     src_folder, src_file = os.path.split(src_path)
 
     # 创建 Jinja2 环境和加载器
-    env = Environment(
-        loader=FileSystemLoader(src_folder), undefined=StrictUndefined
-    )
+    env = Environment(loader=FileSystemLoader(src_folder), undefined=StrictUndefined)
 
     # 加载模板
     template = env.get_template(src_file)
@@ -317,30 +342,44 @@ def fill_template(src_path, dst_path, context):
     with open(dst_path, "w") as f:
         f.write(output)
 
+
 @dataclass
 class ProfileResult:
     stats: str
     save_path: int
 
+
 cache_dwconv2d_result = dict()
+
+
 def get_dwcode_conv2d(attr):
     global cache_dwconv2d_result
 
-    template_path = "/home/wangyiou/Desktop/pim_compiler/playground/template/depthwise_conv.cim"
+    template_path = (
+        "/home/wangyiou/Desktop/pim_compiler/playground/template/depthwise_conv.cim"
+    )
     temp_dir = tempfile.mkdtemp()
     code_path = os.path.join(temp_dir, "depthwise_conv.cim")
-    
 
     batch, _, in_height, in_width = attr["X_shape"]
     in_channel, _, kernel_height, kernel_width = attr["W_shape"]
-    
+
     padding = 1
     stride = 1
 
-    out_h = (in_height + 2*padding - kernel_height) // stride + 1
-    out_w = (in_width + 2*padding - kernel_width) // stride + 1
+    out_h = (in_height + 2 * padding - kernel_height) // stride + 1
+    out_w = (in_width + 2 * padding - kernel_width) // stride + 1
 
-    cache_key = (batch, in_channel, out_h, out_w, kernel_height, kernel_width, padding, stride)
+    cache_key = (
+        batch,
+        in_channel,
+        out_h,
+        out_w,
+        kernel_height,
+        kernel_width,
+        padding,
+        stride,
+    )
     if cache_key in cache_dwconv2d_result:
         result = cache_dwconv2d_result[cache_key]
     else:
@@ -353,14 +392,16 @@ def get_dwcode_conv2d(attr):
             "OUTPUT_CHANNEL": in_channel,
             "KERNEL_SIZE": kernel_height,
             "STRIDE": stride,
-            "BATCH": batch
+            "BATCH": batch,
         }
 
         fill_template(template_path, code_path, context)
 
-        backend_compile_cmd = f"input_file={code_path} output_path={temp_dir} bash run.sh "
+        backend_compile_cmd = (
+            f"input_file={code_path} output_path={temp_dir} bash run.sh "
+        )
         os.system(backend_compile_cmd)
-        
+
         result = ProfileResult(stats=None, save_path=temp_dir)
         cache_dwconv2d_result[cache_key] = result
 
@@ -374,8 +415,11 @@ def get_core_row_and_col_from_core_name(core_name):
     core_row, core_col = core_name.split("_")[1:]
     return int(core_row), int(core_col)
 
+
 core_max_row = None
 core_max_col = None
+
+
 def get_max_core_row_col(core_name_list):
     global core_max_row
     global core_max_col
@@ -388,6 +432,7 @@ def get_max_core_row_col(core_name_list):
     core_max_col = col
     return row, col
 
+
 def get_core_id_from_core_name(core_name):
     global core_max_col
     """
@@ -398,8 +443,11 @@ def get_core_id_from_core_name(core_name):
     core_id = int(row) * (core_max_col + 1) + int(col)
     return core_id
 
+
 unique_name_to_unqiue_id = dict()
 max_unique_id = 0
+
+
 def get_unique_id_from_unique_name(unique_name):
     global unique_name_to_unqiue_id
     global max_unique_id
@@ -409,6 +457,7 @@ def get_unique_id_from_unique_name(unique_name):
         unique_name_to_unqiue_id[unique_name] = max_unique_id
         max_unique_id += 1
         return unique_name_to_unqiue_id[unique_name]
+
 
 def parse_instructions(instructions):
     code_list = []
@@ -423,28 +472,31 @@ def parse_instructions(instructions):
             code = get_dwcode_conv2d(instruction["attr"])
         elif instruction["op"] in ("send", "send_ring"):
             code = get_code_single_send(
-                src_addr=get_memory_base("output_memory"), 
-                dst_core=get_core_id_from_core_name(instruction["attr"]["dist_core_name"]), 
-                data_size=reduce(lambda x,y:x*y, instruction["attr"]["shape"]), 
-                unqiue_id=get_unique_id_from_unique_name(instruction["attr"]["name"])
+                src_addr=get_memory_base("output_memory"),
+                dst_core=get_core_id_from_core_name(
+                    instruction["attr"]["dist_core_name"]
+                ),
+                data_size=reduce(lambda x, y: x * y, instruction["attr"]["shape"]),
+                unqiue_id=get_unique_id_from_unique_name(instruction["attr"]["name"]),
             )
         elif instruction["op"] in ("receive", "receive_ring"):
             code = get_code_single_receive(
-                dst_addr=get_memory_base("input_memory"), 
-                src_core=get_core_id_from_core_name(instruction["attr"]["src_core_name"]), 
-                data_size=reduce(lambda x,y:x*y, instruction["attr"]["shape"]), 
-                unqiue_id=get_unique_id_from_unique_name(instruction["attr"]["name"])
+                dst_addr=get_memory_base("input_memory"),
+                src_core=get_core_id_from_core_name(
+                    instruction["attr"]["src_core_name"]
+                ),
+                data_size=reduce(lambda x, y: x * y, instruction["attr"]["shape"]),
+                unqiue_id=get_unique_id_from_unique_name(instruction["attr"]["name"]),
             )
         elif instruction["op"] == "add":
-            code = get_code_add(
-                instruction["attr"]
-            )
+            code = get_code_add(instruction["attr"])
         else:
             assert False, f"{instruction=}"
-        
+
         assert code is not None, f"{instruction=}"
         code_list.extend(code)
     return code_list
+
 
 def parse_noc_tasks(json_path, code_save_path):
     """
@@ -476,7 +528,6 @@ def parse_noc_tasks(json_path, code_save_path):
 
     get_max_core_row_col(list(tasks.keys()))
 
-    
     for core_name, stages in tasks.items():
         print(f"{core_name=}")
         code_list = []
@@ -485,16 +536,16 @@ def parse_noc_tasks(json_path, code_save_path):
             code = parse_instructions(stage["instructions"])
             code_list.extend(code)
         # import pdb; pdb.set_trace()
-            
+
         core_code_save_path = os.path.join(code_save_path, f"{core_name}.json")
         with open(core_code_save_path, "w") as f:
             json.dump(code_list, f, indent=2)
 
-            
     core_names = tasks.keys()
     print(core_names)
 
-if __name__=="__main__":
+
+if __name__ == "__main__":
     # op_list = [
     #     benchmark.get_op_conv2d(b=2, oc=8, ic=4, oh=8, ow=8, kh=3, kw=3, virtual_axis=True),
     #     benchmark.get_op_conv2d(b=2, oc=8, ic=8, oh=8, ow=8, kh=3, kw=3, virtual_axis=True)
@@ -502,4 +553,7 @@ if __name__=="__main__":
     # network_final_code = run_network_pipeline(op_list, skew=False, macro_row=16, macro_col=4)
     # print(network_final_code)
 
-    parse_noc_tasks("/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json", ".save_core_code")
+    parse_noc_tasks(
+        "/home/wangyiou/Desktop/pim_compiler/cim-framework-graph-partitioning/instructions.json",
+        ".save_core_code",
+    )

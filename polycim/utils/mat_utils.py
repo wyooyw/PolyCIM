@@ -1,5 +1,5 @@
 import sympy
-from sympy import Matrix, lcm, nsimplify
+from sympy import Matrix, lcm
 
 
 def scale_to_integer_per_row(A_inv):
