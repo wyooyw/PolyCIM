@@ -1,13 +1,20 @@
-##### codegen.py: 
-- Operator -> Schedule Tree
-- ScheduleTree -> AST
-- AST -> DSL
+## Quick start
 
-base_operator.py
-- Basic operator abstraction
+#### Install
 
-affine_transform.py
-- Automatically find affine transforms that match the hardware reuse pattern.
+```shell
+pip install -e .
+```
 
-hardware_merge_tiling.py
-- Do things in AMOS.
+#### Set environment variable
+
+```shell
+# run.sh
+export CIMCOMPILER_HOME=/path/to/CIMCompiler
+```
+
+#### Run
+
+```shell
+bash run_exp.sh
+```
