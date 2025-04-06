@@ -32,6 +32,12 @@ def get_op_list():
         "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
         "verify_fn": conv2d,
     }
+    op_list["conv2d_b1o326i256h8w8k3s2"] = {
+        "op": benchmark.get_op_conv2d(b=1, oc=32, ic=256, oh=4, ow=4, kh=1, kw=1, stride=2,virtual_axis=False),
+        "symmetry_info": ((3,5),(4,6)),
+        "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
+        "verify_fn": partial(conv2d, stride=2),
+    }
     op_list["test"] = {
         "op": benchmark.get_op_dwconv2d(ic=1, oh=8, ow=8, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),
         "symmetry_info": symmetry_info_for_dwconv2d,
