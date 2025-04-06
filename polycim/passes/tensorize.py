@@ -4,10 +4,13 @@ import islpy as isl
 
 import polycim.utils.utils as utils
 from polycim.config import CIMConfig
-from polycim.op.base_operator import (AccessRelation, DataMovement,
-                                      DataMovementOperator,
-                                      PartialSumDataMovement,
-                                      TensorAccessRelation)
+from polycim.op.base_operator import (
+    AccessRelation,
+    DataMovement,
+    DataMovementOperator,
+    PartialSumDataMovement,
+    TensorAccessRelation,
+)
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
 
 

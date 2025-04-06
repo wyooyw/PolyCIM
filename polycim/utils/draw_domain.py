@@ -3,7 +3,7 @@ from functools import partial
 
 import islpy as isl
 import matplotlib.pyplot as plt
-from islplot.plotter import (plot_map_as_groups, plot_set_points)
+from islplot.plotter import plot_map_as_groups, plot_set_points
 
 from polycim.op.base_operator import BasicOperator
 from polycim.passes.affine_transform_pass import auto_skewing_pass

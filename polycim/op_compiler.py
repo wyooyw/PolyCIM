@@ -1,11 +1,22 @@
 import os
 from dataclasses import dataclass
 
-from polycim.passes import (AffinePass, BackendCompilePass, BufferMappingPass,
-                            CodegenPass, DumpOpPass, FilterSingleOpPass,
-                            HardwareMapping5DPass, HardwareMappingPass,
-                            MappingMultiMacroPass, PreTilingPass, ProfilePass,
-                            TensorizePass, UtilizationEvaluatePass, VerifyPass)
+from polycim.passes import (
+    AffinePass,
+    BackendCompilePass,
+    BufferMappingPass,
+    CodegenPass,
+    DumpOpPass,
+    FilterSingleOpPass,
+    HardwareMapping5DPass,
+    HardwareMappingPass,
+    MappingMultiMacroPass,
+    PreTilingPass,
+    ProfilePass,
+    TensorizePass,
+    UtilizationEvaluatePass,
+    VerifyPass,
+)
 from polycim.passes.base import PassManager
 from polycim.utils.logger import get_logger
 

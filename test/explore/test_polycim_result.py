@@ -7,7 +7,6 @@ import pandas as pd
 import pytest
 
 
-
 def ceil(a, b):
     return int(math.ceil(a / b))
 

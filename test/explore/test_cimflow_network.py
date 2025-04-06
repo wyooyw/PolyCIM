@@ -5,7 +5,6 @@ import tempfile
 import pytest
 
 
-
 @pytest.mark.parametrize(
     "graph_instruction_path, config_path",
     [

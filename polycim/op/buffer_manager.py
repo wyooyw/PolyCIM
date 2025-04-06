@@ -3,9 +3,12 @@ from dataclasses import dataclass
 import islpy as isl
 
 from polycim.config import get_memory_names
-from polycim.op.base_operator import (AccessRelation, DataMovement,
-                                      PartialSumDataMovement,
-                                      TensorAccessRelation)
+from polycim.op.base_operator import (
+    AccessRelation,
+    DataMovement,
+    PartialSumDataMovement,
+    TensorAccessRelation,
+)
 
 
 @dataclass

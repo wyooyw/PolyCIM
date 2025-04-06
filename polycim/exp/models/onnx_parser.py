@@ -6,7 +6,6 @@ from models.read_file import get_tensor_shape
 from tqdm import tqdm
 
 
-
 def parse_conv_attr(model, node):
     name_to_attr = {attr.name: attr for attr in node.attribute}
     dilations = list(name_to_attr["dilations"].ints)

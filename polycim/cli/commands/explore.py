@@ -1,8 +1,6 @@
-
 from polycim.cli.common import show_args, to_abs_path
 from polycim.config import get_config, set_raw_config_by_path
-from polycim.depth_first.pipeline2 import (parse_op_list, run_cimflow,
-                                           run_polycim)
+from polycim.op_compiler import parse_op_list, run_cimflow, run_polycim
 from polycim.utils.logger import get_logger
 
 logger = get_logger(__name__)

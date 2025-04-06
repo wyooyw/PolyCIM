@@ -11,9 +11,9 @@ import numpy as np
 
 import polycim.utils.utils as utils
 from polycim.config import CIMConfig
-from polycim.depth_first.timeout import timeout
 from polycim.op.base_operator import BasicOperator
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
+from polycim.utils.timeout import timeout
 
 
 def get_cim_operator(n_rows, n_cols):

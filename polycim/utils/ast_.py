@@ -181,8 +181,6 @@ def codegen_block(node, depth):
     return total_code_list
 
 
-
-
 def codegen_call(expr, depth):
     call_name = expr.get_op_arg(0).id_get_id().get_name()
     call_args = []

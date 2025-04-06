@@ -4,8 +4,7 @@ import pytest
 
 import polycim.op.benchmark as benchmark
 from polycim.codegen_.codegen_data_layout_convert import data_layout_convert
-from polycim.passes.multi_level_tiling_pass import \
-    multi_level_splitting_var_level
+from polycim.passes.multi_level_tiling_pass import multi_level_splitting_var_level
 
 
 def test_codegen_data_layout_convert_transpose():

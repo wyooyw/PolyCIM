@@ -8,10 +8,14 @@ from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
-from polycim.config import (get_config, get_memory_base, get_memory_size,
-                            set_raw_config_by_path)
-from polycim.depth_first.pipeline2 import run_cimflow
+from polycim.config import (
+    get_config,
+    get_memory_base,
+    get_memory_size,
+    set_raw_config_by_path,
+)
 from polycim.op import benchmark
+from polycim.op_compiler import run_cimflow
 
 
 def get_final_code(final_code):

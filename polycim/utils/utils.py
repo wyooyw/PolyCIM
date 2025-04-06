@@ -13,7 +13,6 @@ def gen_ast(domain, schedule, context=None):
     return build.node_from_schedule_map(schedule)
 
 
-
 def gen_code(domain, schedule, context=None):
     return gen_ast(domain, schedule, context).to_C_str()
 

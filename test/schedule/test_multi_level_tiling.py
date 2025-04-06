@@ -5,8 +5,10 @@ import pytest
 
 from polycim.op.base_operator import BasicOperator
 from polycim.passes.multi_level_tiling_pass import (
-    combine_tilesize_by_symmetry_info, multi_level_splitting_var_level,
-    multi_level_tiling)
+    combine_tilesize_by_symmetry_info,
+    multi_level_splitting_var_level,
+    multi_level_tiling,
+)
 from polycim.utils.utils import get_box_hull_shape
 
 

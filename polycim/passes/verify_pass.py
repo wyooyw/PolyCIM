@@ -6,8 +6,9 @@ from functools import reduce
 import numpy as np
 from cim_compiler.utils.df_layout import tensor_bits_to_int8
 
-from polycim.codegen_.codegen_data_layout_convert import \
-    run_data_layout_convert_executable
+from polycim.codegen_.codegen_data_layout_convert import (
+    run_data_layout_convert_executable,
+)
 from polycim.exp.op_list import get_op_list
 from polycim.passes.base import BreadthFirstPass
 from polycim.utils.logger import get_logger

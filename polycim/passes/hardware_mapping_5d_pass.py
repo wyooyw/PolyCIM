@@ -11,11 +11,11 @@ import numpy as np
 
 import polycim.utils.utils as utils
 from polycim.config import CIMConfig
-from polycim.depth_first.timeout import timeout
 from polycim.op.base_operator import BasicOperator
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
 from polycim.passes.loop_padding import loop_padding_dim
 from polycim.utils.logger import get_logger, level_tqdm
+from polycim.utils.timeout import timeout
 
 logger = get_logger(__name__)
 
