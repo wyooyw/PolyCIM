@@ -6,11 +6,6 @@
         "n_comp": 16,
         "n_bcol": 64
     },
-    "mask": {
-        "n_from": 128,
-        "n_to": 16
-    },
-    "mask_memory_name": "pim_mask_data_reg_buffer",
     "memory_list": [
         {
             "name": "macro",
