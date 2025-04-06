@@ -12,6 +12,7 @@ from polycim.passes import (
     BufferMappingPass,
     ProfilePass,
     VerifyPass,
+    HardwareMapping5DPass,
 )
 from polycim.passes.base import PassManager
 from dataclasses import dataclass
@@ -152,8 +153,8 @@ def pruning_search_space(args, cim_config, op):
     n_op_full = len(result)
     print(f"n_op_full: {n_op_full}")
 
-def simple_run(args, cim_config, op, max_keep=32):
-    pass_manager = PassManager([
+def run_polycim(args, cim_config, op, max_keep=32):
+    pass_list = [
         PreTilingPass(args, schedule_as_key=False),
         AffinePass(args, schedule_as_key=False),
         HardwareMappingPass(args, cim_config),
@@ -165,9 +166,12 @@ def simple_run(args, cim_config, op, max_keep=32):
         TensorizePass(args, cim_config),
         CodegenPass(args, cim_config),
         BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
-        VerifyPass(args),
-        ProfilePass(args),
-    ])
+    ]
+    if args.verify:
+        pass_list.append(VerifyPass(args))
+    pass_list.append(ProfilePass(args))
+
+    pass_manager = PassManager(pass_list)
     result = pass_manager.apply(op)
     
     save_table(result, [
@@ -183,10 +187,33 @@ def simple_run(args, cim_config, op, max_keep=32):
     
     pass_manager.show_time_per_pass()
     print(f"num_ops: {pass_manager.get_num_ops()}")
+
+def run_cimflow(args, cim_config, op, max_keep=32):
+    pass_list = [
+        HardwareMapping5DPass(args, cim_config),
+        BufferMappingPass(args, cim_config),
+        TensorizePass(args, cim_config),
+        CodegenPass(args, cim_config),
+        BackendCompilePass(args, cim_config, n_workers=1, compile_data_layout=args.verify),
+    ]
+    if args.verify:
+        pass_list.append(VerifyPass(args))
     
-def run_op_list(args, op_list, cim_config):
-    op = parse_op_list(op_list)
-    # pretiling_influence_utilization(args, cim_config, op)
-    # utilization_influence_latency(args, cim_config, op, 512)
-    # pruning_search_space(args, cim_config, op)
-    simple_run(args, cim_config, op)
+    pass_manager = PassManager(pass_list)
+    result = pass_manager.apply(op)
+    
+    save_table(result, [
+        Column(name="name", attr_keys=["name"]),
+        Column(name="pre_tile_sizes", attr_keys=["pre_tile_sizes"]),
+        Column(name="affine schedule", attr_keys=["AffinePass", "schedule"]),
+        Column(name="utilization", attr_keys=["UtilizationEvaluatePass", "utilization"]),
+        Column(name="compute_ops", attr_keys=["UtilizationEvaluatePass", "compute_ops"]),
+        Column(name="latency", attr_keys=["ProfilePass", "latency"]),
+        Column(name="energy", attr_keys=["ProfilePass", "total_energy"]),
+        Column(name="check_result", attr_keys=["VerifyPass", "check_result"]),
+        Column(name="cim_compute_ops", attr_keys=["VerifyPass", "inst_stats", "CIMComputeInst"]),
+    ], os.path.join(args.output_path, "result.csv"), format="csv")
+    
+    pass_manager.show_time_per_pass()
+    print(f"num_ops: {pass_manager.get_num_ops()}")
+    return result

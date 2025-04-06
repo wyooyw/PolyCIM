@@ -1,4 +1,5 @@
 {% include 'def_special_regs.cim' %}
+{% include 'simd.cim' %}
 
 // input
 #define INPUT_ROW {{ INPUT_ROW }}
@@ -15,10 +16,11 @@
 
 def main(null<int8>){
     // input, weight, mask and index will be prepared in memory image
+    local_weight = Buffer(<KERNEL_SIZE, KERNEL_SIZE, INPUT_CHANNEL>, int8, __INPUT_MEMORY__);
     local_input = Buffer(<BATCH, INPUT_ROW, INPUT_COL, INPUT_CHANNEL>, int8, __INPUT_MEMORY__);
-    local_weight = Buffer(<KERNEL_SIZE, KERNEL_SIZE, INPUT_CHANNEL>, int8, __WEIGHT_MEMORY__);
-    local_output_i32 = Buffer(<BATCH, OUTPUT_ROW, OUTPUT_ROW, INPUT_CHANNEL>, int32, __OUTPUT_MEMORY__);
+    local_output_i32 = Buffer(<BATCH, OUTPUT_ROW, OUTPUT_COL, INPUT_CHANNEL>, int8, __OUTPUT_MEMORY__);
     local_output_parial_sum = Buffer(<INPUT_CHANNEL>, int32, __OUTPUT_MEMORY__);
+    quantize_local_output_parial_sum = Buffer(<INPUT_CHANNEL>, int8, __OUTPUT_MEMORY__);
     
     SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 8);
     SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 8);
@@ -50,8 +52,9 @@ def main(null<int8>){
                             [1, 1, 1, INPUT_CHANNEL],
                             [1, 1, 1, 1]
                         );
-                        VVMul(use_input, use_weight, use_output_parial_sum);
-                        VVAdd(use_output, use_output_parial_sum, use_output);
+                        SIMD(VVMUL, use_input, use_weight, use_output_parial_sum);
+                        // Assume quantify is used -> quantize_local_output_parial_sum
+                        SIMD(VVADD, use_output, quantize_local_output_parial_sum, use_output);
                     };
                 };
 

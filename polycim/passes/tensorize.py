@@ -83,11 +83,11 @@ def tensorize_cim_compute(op):
     )
 
 
-def vectorize_data_movement(data_movement):
+def vectorize_data_movement(args, data_movement):
     domain = data_movement.domain
     domain_size = domain.dim(isl.dim_type.set)
 
-    args = get_args()
+    # args = get_args()
     if args.data_movement_full_vectorize:
         if data_movement.type_ in ("I", "W"):
             n_access_O_dim = data_movement.access_O.offsets.dim(isl.dim_type.out)
@@ -131,14 +131,14 @@ def vectorize_data_movement(data_movement):
     )
 
 
-def vectorize_data_movement_for_op(op):
+def vectorize_data_movement_for_op(args, op):
     origin_data_movement = op.data_movement
 
     new_data_movement_dict = dict()
     for array_name, data_movement_list in origin_data_movement.items():
         new_data_movement_list = []
         for data_movement in data_movement_list:
-            new_data_movement = vectorize_data_movement(data_movement)
+            new_data_movement = vectorize_data_movement(args, data_movement)
             new_data_movement_list.append(new_data_movement)
         new_data_movement_dict[array_name] = new_data_movement_list
 
@@ -154,12 +154,12 @@ def vectorize_data_movement_for_op(op):
     )
 
 
-def tensorize_pass(op_list):
+def tensorize_pass(args, op_list):
     new_op_list = []
     for op in tqdm(op_list):
 
         new_op = tensorize_cim_compute(op)
-        new_op = vectorize_data_movement_for_op(new_op)
+        new_op = vectorize_data_movement_for_op(args, new_op)
         new_op_list.append(new_op)
     return new_op_list
 
@@ -185,7 +185,7 @@ class TensorizePass(DepthFirstPass):
         self.cim_config = cim_config
 
     def apply(self, operator):
-        new_op = tensorize_pass([operator])[0]
+        new_op = tensorize_pass(self.args, [operator])[0]
 
         result = SchedulePassResult(new_op, TensorizeSchedule())
         return [result]

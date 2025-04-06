@@ -8,11 +8,35 @@ def get_op_list():
     dim_types_for_dwconv2d = ["c", "oh", "ow", "kh", "kw"]
 
     op_list = OrderedDict()
-    op_list["conv2d"] = {
-        "op": benchmark.get_op_conv2d(b=1, oc=2, ic=3, oh=32, ow=32, kh=3, kw=3, stride=1,virtual_axis=False),
+    op_list["conv2d_b1o8i1h8w8k3"] = {
+        "op": benchmark.get_op_conv2d(b=1, oc=8, ic=1, oh=8, ow=8, kh=3, kw=3, stride=1,virtual_axis=False),
         "symmetry_info": ((3,5),(4,6)),
         "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
         "verify_fn": conv2d,
+    }
+    op_list["conv2d_b1o8i8h8w8k3"] = {
+        "op": benchmark.get_op_conv2d(b=1, oc=8, ic=8, oh=8, ow=8, kh=3, kw=3, stride=1,virtual_axis=False),
+        "symmetry_info": ((3,5),(4,6)),
+        "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
+        "verify_fn": conv2d,
+    }
+    op_list["conv2d_b1o16i8h8w8k3"] = {
+        "op": benchmark.get_op_conv2d(b=1, oc=16, ic=8, oh=8, ow=8, kh=3, kw=3, stride=1,virtual_axis=False),
+        "symmetry_info": ((3,5),(4,6)),
+        "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
+        "verify_fn": conv2d,
+    }
+    op_list["conv2d_b2o16i8h8w8k3"] = {
+        "op": benchmark.get_op_conv2d(b=2, oc=16, ic=8, oh=8, ow=8, kh=3, kw=3, stride=1,virtual_axis=False),
+        "symmetry_info": ((3,5),(4,6)),
+        "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
+        "verify_fn": conv2d,
+    }
+    op_list["conv2d_b1o326i256h8w8k3s2"] = {
+        "op": benchmark.get_op_conv2d(b=1, oc=32, ic=256, oh=4, ow=4, kh=1, kw=1, stride=2,virtual_axis=False),
+        "symmetry_info": ((3,5),(4,6)),
+        "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
+        "verify_fn": partial(conv2d, stride=2),
     }
     op_list["test"] = {
         "op": benchmark.get_op_dwconv2d(ic=1, oh=8, ow=8, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False),

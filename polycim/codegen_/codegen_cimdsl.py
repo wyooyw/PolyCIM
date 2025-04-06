@@ -52,7 +52,7 @@ class CodeGenerator:
                 code="SpecialRegSet(SPECIAL_REG_WEIGHT_BIT_WIDTH, 8);", depth=depth
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 8);", depth=depth
+                code="SpecialRegSet(SPECIAL_REG_OUTPUT_BIT_WIDTH, 32);", depth=depth
             ),
             CodeStmt(
                 code=f"SpecialRegSet(SPECIAL_REG_GROUP_SIZE, {cim_cfg.n_macro_per_group});",
@@ -70,15 +70,15 @@ class CodeGenerator:
                 code=f"SpecialRegSet(SPECIAL_REG_GROUP_INPUT_STEP, {use_comp});", depth=depth
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 8);",
+                code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_1_BIT_WIDTH, 32);",
                 depth=depth,
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 8);",
+                code="SpecialRegSet(SPECIAL_REG_SIMD_INPUT_2_BIT_WIDTH, 32);",
                 depth=depth,
             ),
             CodeStmt(
-                code="SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 8);",
+                code="SpecialRegSet(SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH, 32);",
                 depth=depth,
             ),
         ]
@@ -95,8 +95,9 @@ class CodeGenerator:
             buf_info = global_buffer_info[t]
             shape_str = ",".join([str(s) for s in buf_info.shape])
             memory_name_big = "__"+buf_info.memory_name.upper()+"__"
+            dtype = "int32" if t=="O" else "int8"
             code = CodeStmt(
-                code=f"{buf_info.name} = Buffer(<{shape_str}>, int8, {memory_name_big});",
+                code=f"{buf_info.name} = Buffer(<{shape_str}>, {dtype}, {memory_name_big});",
                 depth=depth,
             )
             code_list.append(code)
@@ -108,8 +109,9 @@ class CodeGenerator:
                 continue
             shape_str = ",".join([str(s) for s in info.shape])
             memory_name_big = "__"+info.memory_name.upper()+"__"
+            dtype = "int32" if name[0]=="O" else "int8"
             code = CodeStmt(
-                code=f"{name} = Buffer(<{shape_str}>, int8, {memory_name_big});",
+                code=f"{name} = Buffer(<{shape_str}>, {dtype}, {memory_name_big});",
                 depth=depth,
             )
             code_list.append(code)
@@ -119,7 +121,7 @@ class CodeGenerator:
     def codegen_const_buffer_define(self, depth):
         zero_scalar_buffer_name = "zero_scalar_buffer"
         code = CodeStmt(
-            code=f"{zero_scalar_buffer_name} = Buffer(<1>, int8, __INPUT_MEMORY__);",
+            code=f"{zero_scalar_buffer_name} = Buffer(<1>, int32, __INPUT_MEMORY__);",
             depth=depth,
         )
         self.buffer_manager.add_buffer(zero_scalar_buffer_name, [1], "input_memory")
@@ -431,6 +433,8 @@ class CodeGenerator:
                 call_code = self.codegen_call_partial_sum_clear(op, call_args, depth)
             elif name == "PartialSum.sum":
                 call_code = self.codegen_call_partial_sum_sum(op, call_args, depth)
+            elif name == "CIMOutput":
+                call_code = self.codegen_call_cim_output(op, call_args, depth)
             else:
                 raise NotImplementedError(f"{name=}")
 
@@ -464,7 +468,16 @@ class CodeGenerator:
         )
         sum_code = CodeStmt(code=f"SIMD(VVADD, {slice_var_O}, {slice_var_I}, {slice_var_O});", depth=depth)
         return [*code_list_O, *code_list_I, sum_code]
-        
+    
+    def codegen_call_cim_output(self, op, call_args, depth):
+        assert type(op) == DataMovement, f"{type(op)=}"
+
+        cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name("pim_output_reg_buffer")
+        cim_output_code = CodeStmt(
+            code=f"CIMOutput({get_config().n_group_vcol}, 0, {cim_reg_out_buffer.name});",
+            depth=depth,
+        )
+        return [cim_output_code]
 
     def codegen_call_data_movement(self, op, call_args, depth):
         assert type(op) == DataMovement
@@ -500,14 +513,14 @@ class CodeGenerator:
         )
 
         # cim output
-        cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name("pim_output_reg_buffer")
-        cim_output_code = CodeStmt(
-            code=f"CIMOutput({get_config().n_group_vcol}, 0, {cim_reg_out_buffer.name});",
-            depth=depth,
-        )
+        # cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name("pim_output_reg_buffer")
+        # cim_output_code = CodeStmt(
+        #     code=f"CIMOutput({get_config().n_group_vcol}, 0, {cim_reg_out_buffer.name});",
+        #     depth=depth,
+        # )
 
         # return [*code_list_I, *code_list_O, *code_list_W, compute_code]
-        return [*code_list_I, *code_list_W, compute_code, cim_output_code]
+        return [*code_list_I, *code_list_W, compute_code]
 
     def codegen_tensor_access_from_pw_multi_aff(self, tensor_access, call_args, depth):
         assert type(tensor_access) == TensorAccessRelation
@@ -683,7 +696,7 @@ def align_compute_and_assign_schedules(compute_schedule, assign_schedules, level
         # insert constant dims for assign schedules at current level
         for i in range(len(assign_schedules_at_level)):
             assign_schedule, type_ = assign_schedules_at_level[i]
-            if type_ in ["O", "PartialSum.clear", "PartialSum.sum"]:
+            if type_ in ["O", "PartialSum.clear", "PartialSum.sum", "CIMOutput"]:
                 assign_schedule = insert_const_dim_in_range(
                     assign_schedule, level + idx, scalar_dim_idx
                 )
@@ -743,7 +756,21 @@ def data_movement_operator_to_dsl(op):
     level_list = []
     type_list = []
     for name, data_movement_list in op.data_movement.items():
-        for data_movement in data_movement_list:
+        # import pdb; pdb.set_trace()
+        if name == "O":
+            data_movement_list = data_movement_list[::-1]
+        for idx, data_movement in enumerate(data_movement_list):
+            if name == "O" and idx == 0:#len(data_movement_list) - 1:
+                stmt_name = "CIMOutput." + alloc_unique_stmt()
+                assign_domain = data_movement.domain.set_tuple_name(stmt_name)
+                assign_schedule = utils.identity_map_from_set(assign_domain)
+
+                assign_domain_list.append(assign_domain)
+                assign_schedule_list.append(assign_schedule)
+                level_list.append(data_movement.level)
+                type_list.append("CIMOutput")
+                name_to_op[stmt_name] = (data_movement, "CIMOutput")
+
             if isinstance(data_movement, PartialSumDataMovement):
                 stmt_name = "PartialSum.clear." + alloc_unique_stmt()
                 assign_domain = data_movement.domain.set_tuple_name(stmt_name)

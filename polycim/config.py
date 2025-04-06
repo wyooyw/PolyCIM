@@ -96,6 +96,10 @@ def get_memory_sizes(use_capital_name=False):
         memory_type_to_sizes[name] = memory["addressing"]["size_byte"]
     return memory_type_to_sizes
 
+def get_memory_size(memory_name, use_capital_name=False):
+    memory_type_to_sizes = get_memory_sizes(use_capital_name)
+    return memory_type_to_sizes[memory_name]
+
 def get_memory_base(memory_name):
     config = get_raw_config()
 

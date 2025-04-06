@@ -23,6 +23,7 @@ def parse_args():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='command', required=True)
     parse_explore_args(subparsers)
+    parse_cimflow_network_args(subparsers)
     args = parser.parse_args()
     return args
 
@@ -32,6 +33,8 @@ def main():
     
     if args.command == "explore":
         run_explore(args)
+    elif args.command == "cimflow_network":
+        run_cimflow_network(args)
     else:
         raise ValueError(f"Invalid command: {args.command}")
 

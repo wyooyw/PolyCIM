@@ -92,7 +92,9 @@ def test_result(cim_cfg_path, op_id, cim_count, axis_align):
             "--config-path", compiler_cfg_path, 
             "--pimsim-cfg-path", pimsim_cfg_path, 
             "--output-path", temp_dir, 
-            "--data-movement-full-vectorize"
+            "--data-movement-full-vectorize",
+            "--polycim",
+            "--verify"
         ]
         if axis_align:
             cmd.append("--disable-affine")
@@ -102,9 +104,11 @@ def test_result(cim_cfg_path, op_id, cim_count, axis_align):
         result_path = os.path.join(temp_dir, "result.csv")
         df = pd.read_csv(result_path)
         cim_compute_ops = df.at[0, 'cim_compute_ops']
-
         if cim_count != -1:
             assert cim_compute_ops == cim_count, f"{cim_compute_ops=} != {cim_count=}"
+
+        check_result = bool(df.at[0, "check_result"])
+        assert check_result
 
 if __name__ == "__main__":
     test_result("c32b64.json", "C2", -1, True)
