@@ -42,16 +42,6 @@ def get_raw_config():
     return _raw_config
 
 
-# def get_raw_config():
-#     global config
-#     if config is None:
-#         CONFIG_PATH = os.environ.get("CONFIG_PATH")
-#         config_json_path = os.path.join(CONFIG_PATH)
-#         with open(config_json_path, "r") as f:
-#             config = json.load(f)
-#     return config
-
-
 def get_config():
     config = get_raw_config()
 
