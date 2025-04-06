@@ -1,6 +1,10 @@
 import copy
 import time
+
 from polycim.op.base_operator import Operator
+from polycim.utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Pass:
@@ -10,17 +14,20 @@ class Pass:
     def apply(self, operator):
         raise NotImplementedError
 
+
 class DepthFirstPass(Pass):
-    def __init__(self, 
-            fix_schedule=None, 
-            schedule_as_key=False,
-        ):
+    def __init__(
+        self,
+        fix_schedule=None,
+        schedule_as_key=False,
+    ):
         super().__init__()
         self.fix_schedule = fix_schedule
         self.schedule_as_key = schedule_as_key
 
     def apply(self, operator):
         raise NotImplementedError
+
 
 class BreadthFirstPass(Pass):
     def __init__(self):
@@ -34,6 +41,7 @@ class BreadthFirstPass(Pass):
 
     def get_result(self):
         raise NotImplementedError
+
 
 class EndBreadthFirstPass(BreadthFirstPass):
     def __init__(self):
@@ -49,6 +57,7 @@ class EndBreadthFirstPass(BreadthFirstPass):
     def get_result(self):
         return self.result_list
 
+
 class Schedule:
     def __init__(self):
         pass
@@ -61,6 +70,7 @@ class SchedulePassResult:
     def __init__(self, op: Operator, schedule: Schedule):
         self.op = op
         self.schedule = schedule
+
 
 class ScheduleList:
     def __init__(self, schedule_list=list()):
@@ -80,6 +90,7 @@ class ScheduleList:
     def __eq__(self, other):
         return self.schedule_list == other.schedule_list
 
+
 class PassManager:
     def __init__(self, pass_list):
         self.pass_list = pass_list
@@ -96,7 +107,7 @@ class PassManager:
         #     if not isinstance(pass_, DepthFirstPass):
         #         raise ValueError(f"Invalid pass type: {type(pass_)}")
         # if not isinstance(self.pass_list[-1], BreadthFirstPass):
-            # raise ValueError(f"Invalid pass type: {type(self.pass_list[-1])}")
+        # raise ValueError(f"Invalid pass type: {type(self.pass_list[-1])}")
 
     def update_result(self, result):
         raise NotImplementedError
@@ -107,7 +118,9 @@ class PassManager:
         end_time = time.time()
 
         pass_name = pass_.__class__.__name__
-        self.time_per_pass[pass_name] = self.time_per_pass.get(pass_name, 0) + ( end_time - start_time )
+        self.time_per_pass[pass_name] = self.time_per_pass.get(pass_name, 0) + (
+            end_time - start_time
+        )
         return result
 
     def _apply_all_pass(self, pass_):
@@ -116,26 +129,35 @@ class PassManager:
         end_time = time.time()
 
         pass_name = pass_.__class__.__name__
-        self.time_per_pass[pass_name] = self.time_per_pass.get(pass_name, 0) + ( end_time - start_time )
+        self.time_per_pass[pass_name] = self.time_per_pass.get(pass_name, 0) + (
+            end_time - start_time
+        )
 
     def get_time_per_pass(self, sort_by_time=True):
         if sort_by_time:
             # sort by time
-            sorted_time_per_pass = sorted(self.time_per_pass.items(), key=lambda x: x[1], reverse=True)
+            sorted_time_per_pass = sorted(
+                self.time_per_pass.items(), key=lambda x: x[1], reverse=True
+            )
         else:
             # sort by pass_list
-            sorted_time_per_pass = sorted(self.time_per_pass.items(), key=lambda x: self.pass_list.index(x[0]), reverse=False)
+            sorted_time_per_pass = sorted(
+                self.time_per_pass.items(),
+                key=lambda x: self.pass_list.index(x[0]),
+                reverse=False,
+            )
         return sorted_time_per_pass
 
     def show_time_per_pass(self, sort_by_time=True):
         sorted_time_per_pass = self.get_time_per_pass(sort_by_time)
-        
+
         # add total time and percentage
         total_time = sum(self.time_per_pass.values())
-        print(f"Total time: {total_time:.2f}s")
-        print("Time per pass: ")
+        s = f"Total time: {total_time:.2f}s"
+        s += "Time per pass: "
         for pass_name, time_ in sorted_time_per_pass:
-            print(f"\t{pass_name}: {time_:.2f}s ({time_/total_time*100:.2f}%)")
+            s += f"\t{pass_name}: {time_:.2f}s ({time_/total_time*100:.2f}%)"
+        logger.info(s)
 
     def _apply_until_breadth(self, op, step=0):
         pass_ = self.pass_list[step]
@@ -143,7 +165,9 @@ class PassManager:
             for result in self._apply_pass(op, pass_):
                 new_op, schedule = result.op, result.schedule
                 if pass_.schedule_as_key:
-                    new_op.attr["PassManager::schedule_keys"] = new_op.attr["PassManager::schedule_keys"].add_schedule(schedule)
+                    new_op.attr["PassManager::schedule_keys"] = new_op.attr[
+                        "PassManager::schedule_keys"
+                    ].add_schedule(schedule)
                 self._apply_until_breadth(new_op, step + 1)
         elif isinstance(pass_, BreadthFirstPass):
             self._apply_pass(op, pass_)
@@ -155,13 +179,17 @@ class PassManager:
 
     def apply(self, op):
         op.attr["PassManager::schedule_keys"] = ScheduleList()
-        breadth_pass_indices = [i for i, pass_ in enumerate(self.pass_list) if isinstance(pass_, BreadthFirstPass)]
+        breadth_pass_indices = [
+            i
+            for i, pass_ in enumerate(self.pass_list)
+            if isinstance(pass_, BreadthFirstPass)
+        ]
         if breadth_pass_indices[0] != 0:
             breadth_pass_indices.insert(0, -1)
-        
+
         op_list = [op]
         for i in range(1, len(breadth_pass_indices)):
-            begin_pass_id = breadth_pass_indices[i-1] + 1
+            begin_pass_id = breadth_pass_indices[i - 1] + 1
             stop_pass_id = breadth_pass_indices[i]
             self._apply_op_list_until_breadth(op_list, begin_pass_id)
             stop_pass = self.pass_list[stop_pass_id]

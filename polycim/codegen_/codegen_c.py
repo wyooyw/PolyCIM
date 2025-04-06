@@ -1,10 +1,8 @@
-from polycim.codegen_.codegen import (
-    Codegen,
-    CodeStmt,
-    alloc_unique_var,
-    alloc_unique_stmt
-)
 import islpy as isl
+
+from polycim.codegen_.codegen import Codegen, CodeStmt, alloc_unique_var
+
+
 class CCodeGenerator(Codegen):
     def __init__(self):
         self.var_to_const = {}
@@ -111,7 +109,8 @@ class CCodeGenerator(Codegen):
 
         new_var = alloc_unique_var()
         code = CodeStmt(
-            code=f"int {new_var} = {arg_list[0]} {binary_op} {arg_list[1]};", depth=depth
+            code=f"int {new_var} = {arg_list[0]} {binary_op} {arg_list[1]};",
+            depth=depth,
         )
         return [code], new_var
 
@@ -264,7 +263,7 @@ class CCodeGenerator(Codegen):
     def codegen_if(self, node, depth):
         cond = node.if_get_cond()
         cond_codes, cond_var = self.codegen_expression(cond, depth)
-        
+
         then_body = node.if_get_then_node()
         then_body_codes = self.codegen(then_body, depth + 1)
 
@@ -278,14 +277,15 @@ class CCodeGenerator(Codegen):
         if node.if_has_else():
             else_body = node.if_get_else_node()
             else_body_codes = self.codegen(else_body, depth + 1)
-            total_code_list.extend([
-                CodeStmt(code="else {", depth=depth),
-                *else_body_codes,
-                CodeStmt(code="}", depth=depth),
-            ])
+            total_code_list.extend(
+                [
+                    CodeStmt(code="else {", depth=depth),
+                    *else_body_codes,
+                    CodeStmt(code="}", depth=depth),
+                ]
+            )
 
         return total_code_list
-
 
     def codegen_block(self, node, depth):
         children = node.block_get_children()
@@ -321,9 +321,8 @@ class CCodeGenerator(Codegen):
         #     call_args_str = ",".join(call_args)
         #     call_code = CodeStmt(code=f"{call_name}({call_args_str})", depth=depth)
         #     call_code = [call_code]
-        
-        return call_code
 
+        return call_code
 
     def codegen_tensor_access_from_pw_multi_aff(self, tensor_access, call_args, depth):
         assert type(tensor_access) == TensorAccessRelation
@@ -410,12 +409,12 @@ class CCodeGenerator(Codegen):
             f"if (argc != {len(option_names) + 1}) {{",
             f"std::cerr << \"Usage: \" << argv[0] << \" {' '.join(option_names)}\" << std::endl;",
             "return 1;",
-            "}"
+            "}",
         ]
         argument_check = [
             CodeStmt(code=code_str[0], depth=depth),
-            CodeStmt(code=code_str[1], depth=depth+1),
-            CodeStmt(code=code_str[2], depth=depth+1),
+            CodeStmt(code=code_str[1], depth=depth + 1),
+            CodeStmt(code=code_str[2], depth=depth + 1),
             CodeStmt(code=code_str[3], depth=depth),
         ]
         return argument_check

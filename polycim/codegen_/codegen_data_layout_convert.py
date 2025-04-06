@@ -1,15 +1,18 @@
-import islpy as isl
-import polycim.utils.utils as utils
-from polycim.codegen_.codegen_c import CCodeGenerator
-from polycim.codegen_.codegen import CodeStmt
 import os
-import numpy as np
+import subprocess
 import tempfile
 import time
-import subprocess
+
+import islpy as isl
+import numpy as np
+
+import polycim.utils.utils as utils
+from polycim.codegen_.codegen import CodeStmt
+from polycim.codegen_.codegen_c import CCodeGenerator
 from polycim.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
 
 class DataLayoutConvertCodegen(CCodeGenerator):
     def __init__(self, accrel_lhs, accrel_rhs):
@@ -26,7 +29,7 @@ class DataLayoutConvertCodegen(CCodeGenerator):
         code_list = []
         shape_lhs_str = ",".join([str(s) for s in self.shape_lhs])
         shape_rhs_str = ",".join([str(s) for s in self.shape_rhs])
-        lhs_name = self.accrel_lhs.get_tuple_name(isl.dim_type.out) 
+        lhs_name = self.accrel_lhs.get_tuple_name(isl.dim_type.out)
         rhs_name = self.accrel_rhs.get_tuple_name(isl.dim_type.out)
         code_lhs = CodeStmt(
             code=f"Eigen::Tensor<int, {len(self.shape_lhs)}, Eigen::RowMajor> {lhs_name}({shape_lhs_str});",
@@ -42,7 +45,7 @@ class DataLayoutConvertCodegen(CCodeGenerator):
         return code_list
 
     def codegen_call_fn(self, call_name, call_args, depth):
-        if call_name=="DATA_MOVE":
+        if call_name == "DATA_MOVE":
             return self.codegen_data_move(call_args, depth)
         raise NotImplementedError
 
@@ -53,9 +56,13 @@ class DataLayoutConvertCodegen(CCodeGenerator):
         ast_accrel_rhs = self.get_access_from_pw_multi_aff(
             self.accrel_rhs.as_pw_multi_aff(), call_args
         )
-        lhs_access_code, lhs_access_vars = self.codegen_access_indices(ast_accrel_lhs, depth)
-        rhs_access_code, rhs_access_vars = self.codegen_access_indices(ast_accrel_rhs, depth)
-        lhs_name = self.accrel_lhs.get_tuple_name(isl.dim_type.out) 
+        lhs_access_code, lhs_access_vars = self.codegen_access_indices(
+            ast_accrel_lhs, depth
+        )
+        rhs_access_code, rhs_access_vars = self.codegen_access_indices(
+            ast_accrel_rhs, depth
+        )
+        lhs_name = self.accrel_lhs.get_tuple_name(isl.dim_type.out)
         rhs_name = self.accrel_rhs.get_tuple_name(isl.dim_type.out)
         trans_code = CodeStmt(
             code=f"{lhs_name}({','.join(lhs_access_vars)}) = {rhs_name}({','.join(rhs_access_vars)});",
@@ -107,7 +114,10 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
         file << tensor.data()[i] << "\\n";
     }
 }
-""" % (rhs_dim, lhs_dim)
+""" % (
+            rhs_dim,
+            lhs_dim,
+        )
         codegen_load_and_save = CodeStmt(code=code_str, depth=depth)
         return [codegen_load_and_save]
 
@@ -124,12 +134,16 @@ void save_to_file(Eigen::Tensor<int, %d, Eigen::RowMajor> &tensor, const std::st
     def codegen_str(self, node, indent_unit=4):
         code_includes = self.codegen_includes(0)
         code_helper_functions = self.codegen_helper_functions(0)
-        code_function_load_and_save_from_file = self.codegen_function_load_and_save_from_file(0)
+        code_function_load_and_save_from_file = (
+            self.codegen_function_load_and_save_from_file(0)
+        )
         code_load_from_file = self.codegen_load_from_file(self.name_rhs, 1)
         code_save_to_file = self.codegen_save_to_file(self.name_lhs, 1)
         # special_reg_settings = self.codegen_special_settings(1)
         main_begin, main_end = self.codegen_main_and_end(0)
-        argument_check = self.codegen_argument_check(1, ["<input_file>", "<output_file>"])
+        argument_check = self.codegen_argument_check(
+            1, ["<input_file>", "<output_file>"]
+        )
         buffer_define_code_list = self.codegen_buffer_define(1)
         execute_code_list = self.codegen(node, 1)
         code_str = ""
@@ -159,16 +173,17 @@ def data_layout_convert_codegen_to_file(accrel_lhs, accrel_rhs, save_path):
         f.write(code)
     return code
 
+
 def data_layout_convert_codegen(accrel_lhs, accrel_rhs):
     domain_lhs = accrel_lhs.domain()
     domain_rhs = accrel_rhs.domain()
-    
+
     ndim_lhs = domain_lhs.dim(isl.dim_type.set)
     ndim_rhs = domain_rhs.dim(isl.dim_type.set)
     assert ndim_lhs == ndim_rhs, f"{ndim_lhs=}, {ndim_rhs=}"
     n_dim = ndim_lhs
-    
-    stmt_name="DATA_MOVE"
+
+    stmt_name = "DATA_MOVE"
     domain = domain_lhs.intersect(domain_rhs)
     compute_schedule = utils.identity_map_from_set(domain)
     compute_schedule = compute_schedule.set_tuple_name(isl.dim_type.in_, stmt_name)
@@ -190,8 +205,9 @@ def simplify_access(access):
     access = access.make_disjoint().compute_divs().coalesce().remove_redundancies()
     return access
 
+
 def gcc_compile_data_layout_convert_code(code_path, exe_path):
-    
+
     cmd = ["g++", code_path, "-O3", "-I", "/usr/include/eigen3/", "-o", exe_path]
     logger.info(f"Begin to compile using:\n{cmd}")
 
@@ -199,6 +215,7 @@ def gcc_compile_data_layout_convert_code(code_path, exe_path):
     subprocess.run(cmd, check=True)
     end_time = time.time()
     logger.info(f"Compile finished. Use time: {(end_time - begin_time):.3f}s")
+
 
 def run_data_layout_convert_executable(exe_path, input_path, output_path):
     cmd = [exe_path, input_path, output_path]
@@ -209,6 +226,7 @@ def run_data_layout_convert_executable(exe_path, input_path, output_path):
     end_time = time.time()
 
     logger.info(f"Run finished. Use time: {(end_time - begin_time):.3f}s")
+
 
 def data_layout_convert(accrel_input, accrel_output, input_data):
     accrel_input = simplify_access(accrel_input)
@@ -225,12 +243,14 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
 
     output_shape = utils.get_box_hull_shape(accrel_output.range())
     input_shape = utils.get_box_hull_shape(accrel_input.range())
-    assert tuple(input_data.shape) == tuple(input_shape), f"{input_data.shape=}, {input_shape=}"
+    assert tuple(input_data.shape) == tuple(
+        input_shape
+    ), f"{input_data.shape=}, {input_shape=}"
 
     try:
         code_path = os.path.join(temp_dir_path, "codegen_test.cpp")
         data_layout_convert_codegen_to_file(accrel_output, accrel_input, code_path)
-        
+
         exe_path = os.path.join(temp_dir_path, "codegen_test.out")
         gcc_compile_data_layout_convert_code(code_path, exe_path)
 
@@ -240,13 +260,13 @@ def data_layout_convert(accrel_input, accrel_output, input_data):
         run_data_layout_convert_executable(exe_path, input_path, output_path)
 
         # check the output
-        output_data = np.loadtxt(output_path, dtype=input_data.dtype).reshape(output_shape)
+        output_data = np.loadtxt(output_path, dtype=input_data.dtype).reshape(
+            output_shape
+        )
     finally:
         temp_dir.cleanup()  # Uncomment this line if you want to delete the directory manually later
-        pass
 
     return output_data
-
 
 
 if __name__ == "__main__":
@@ -255,5 +275,3 @@ if __name__ == "__main__":
     input_data = np.arange(16).astype(np.int32).reshape(4, 4)
     output_data = data_layout_convert(accrel_lhs, accrel_rhs, input_data)
     print(f"{output_data=}")
-
-

@@ -3,10 +3,11 @@ from functools import partial
 
 import islpy as isl
 import matplotlib.pyplot as plt
+from islplot.plotter import plot_map_as_groups, plot_set_points
 
-from islplot.plotter import plot_set_points, plot_set_shapes, plot_map_as_groups
 from polycim.op.base_operator import BasicOperator
 from polycim.passes.affine_transform_pass import auto_skewing_pass
+
 
 def count(basic_set):
     cnt = 0
@@ -50,16 +51,16 @@ def simplify_basic_map(isl_basic_map, multi_value=False):
 
 def conv1d_tile(schedule=False):
     operator = BasicOperator(
-        domain = isl.BasicSet("{ [i,k]: 0<=i<4 and 0<=k<3 }"),
-        access_I = isl.BasicMap("{ [i,k] -> I[i+k] }"),
-        access_O = isl.BasicMap("{ [i,k] -> O[i] }"),
-        access_W = isl.BasicMap("{ [i,k] -> W[k] }"),
+        domain=isl.BasicSet("{ [i,k]: 0<=i<4 and 0<=k<3 }"),
+        access_I=isl.BasicMap("{ [i,k] -> I[i+k] }"),
+        access_O=isl.BasicMap("{ [i,k] -> O[i] }"),
+        access_W=isl.BasicMap("{ [i,k] -> W[k] }"),
     )
 
     if schedule:
         schedule_1 = isl.BasicMap("{ [i,k] -> [floor(i/4),(i%4), k] }")
         schedule_2 = isl.BasicMap("{ [io,ii,k] -> [io,ii,ii+k] }")
-        schedule = schedule_1 #.apply_range(schedule_2)  # .apply_range(schedule_3)
+        schedule = schedule_1  # .apply_range(schedule_2)  # .apply_range(schedule_3)
 
         operator = operator.apply_schedule(schedule)
 
@@ -85,16 +86,16 @@ def conv1d_stride2(schedule=False):
 
 def conv1d_dialeted2(schedule=False):
     operator = BasicOperator(
-        domain = isl.BasicSet("{ [i,k]: 0<=i<8 and 0<=k<3 }"),
-        access_I = isl.BasicMap("{ [i,k] -> I[i+2*k] }"),
-        access_O = isl.BasicMap("{ [i,k] -> O[i] }"),
-        access_W = isl.BasicMap("{ [i,k] -> W[k] }")
+        domain=isl.BasicSet("{ [i,k]: 0<=i<8 and 0<=k<3 }"),
+        access_I=isl.BasicMap("{ [i,k] -> I[i+2*k] }"),
+        access_O=isl.BasicMap("{ [i,k] -> O[i] }"),
+        access_W=isl.BasicMap("{ [i,k] -> W[k] }"),
     )
 
     if schedule:
         schedule_1 = isl.BasicMap("{ [i,k] -> [floor(i/2),(i%2), k] }")
         # schedule_2 = isl.BasicMap("{ S[ii,io,k] -> S[io,ii,ii+k] }")
-        schedule = schedule_1 #.apply_range(schedule_2)
+        schedule = schedule_1  # .apply_range(schedule_2)
 
         operator = operator.apply_schedule(schedule)
 
@@ -103,16 +104,16 @@ def conv1d_dialeted2(schedule=False):
 
 def conv1d_stride2_dialeted2(schedule=False):
     operator = BasicOperator(
-        domain = isl.BasicSet("{ [i,k]: 0<=i<8 and 0<=k<6 }"),
-        access_I = isl.BasicMap("{ [i,k] -> I[2*i+2*k] }"),
-        access_O = isl.BasicMap("{ [i,k] -> O[i] }"),
-        access_W = isl.BasicMap("{ [i,k] -> W[k] }")
+        domain=isl.BasicSet("{ [i,k]: 0<=i<8 and 0<=k<6 }"),
+        access_I=isl.BasicMap("{ [i,k] -> I[2*i+2*k] }"),
+        access_O=isl.BasicMap("{ [i,k] -> O[i] }"),
+        access_W=isl.BasicMap("{ [i,k] -> W[k] }"),
     )
 
     if schedule:
         schedule_1 = isl.BasicMap("{ [i,k] -> [(i%2), floor(i/2), k] }")
         # schedule_2 = isl.BasicMap("{ S[io,ii,k] -> S[io,ii,ii+k] }")
-        schedule = schedule_1 #.apply_range(schedule_2)
+        schedule = schedule_1  # .apply_range(schedule_2)
 
         operator = operator.apply_schedule(schedule)
 
@@ -138,9 +139,7 @@ def foreach_outer_iters(domain, level=2):
     record_points_fn = partial(record_points, record=points, tuple_name=tuple_name)
     outer_domain.foreach_point(record_points_fn)
     for point in points:
-        whole_point = point.insert_dims(
-            isl.dim_type.set, n_dim - level, level
-        )
+        whole_point = point.insert_dims(isl.dim_type.set, n_dim - level, level)
         if tuple_name:
             whole_point = whole_point.set_tuple_name(tuple_name)
         subdomain = domain.intersect(whole_point)
@@ -150,14 +149,20 @@ def foreach_outer_iters(domain, level=2):
             subdomain = subdomain.set_tuple_name(tuple_name)
         yield point, whole_point, subdomain
 
+
 def get_access_points(domain, access):
     points = []
     concrete_access = access.intersect_domain(domain)
-    record_fn = partial(record_points, record=points, tuple_name=access.get_tuple_name(isl.dim_type.out))
+    record_fn = partial(
+        record_points, record=points, tuple_name=access.get_tuple_name(isl.dim_type.out)
+    )
     concrete_access.range().foreach_point(record_fn)
     return points
 
-def draw_access_points(access, access_points, padded_outer_point, save_dir, name, figsize=(6, 6)):
+
+def draw_access_points(
+    access, access_points, padded_outer_point, save_dir, name, figsize=(6, 6)
+):
 
     plt.title(name)
     plt.gca().set_aspect(1)
@@ -167,17 +172,18 @@ def draw_access_points(access, access_points, padded_outer_point, save_dir, name
     plt.grid(True)
 
     for idx, access_point in enumerate(access_points):
-        domain_points = (
-            access.reverse().intersect_domain(access_point).range()
-        )
+        domain_points = access.reverse().intersect_domain(access_point).range()
         n_dim = domain_points.dim(isl.dim_type.set)
         domain_points = domain_points.intersect(padded_outer_point)
         domain_points = domain_points.project_out(isl.dim_type.set, 0, n_dim - 2)
         plot_set_points(domain_points, color=color_list[idx], size=10)
 
+
 def draw_operator(save_dir, operator):
     domain = operator.domain
-    domain_sizes = [int(str(domain.dim_max_val(i)))+1 for i in range(domain.dim(isl.dim_type.set))]
+    domain_sizes = [
+        int(str(domain.dim_max_val(i))) + 1 for i in range(domain.dim(isl.dim_type.set))
+    ]
 
     access_I = operator.concrete_access_I()
     access_O = operator.concrete_access_O()
@@ -186,35 +192,40 @@ def draw_operator(save_dir, operator):
     access_O_points = get_access_points(domain, access_O)
 
     for outer_point, padded_outer_point, inner_domain in foreach_outer_iters(domain, 2):
-        plt.figure(figsize=(domain_sizes[-2]*2,domain_sizes[-1]*3))
+        plt.figure(figsize=(domain_sizes[-2] * 2, domain_sizes[-1] * 3))
 
         plt.subplot(1, 2, 1)
         draw_access_points(
-            access=access_I, 
-            access_points=access_I_points, 
-            padded_outer_point=padded_outer_point, 
-            save_dir=save_dir, 
-            name="Inputs"
+            access=access_I,
+            access_points=access_I_points,
+            padded_outer_point=padded_outer_point,
+            save_dir=save_dir,
+            name="Inputs",
         )
 
         plt.subplot(1, 2, 2)
         draw_access_points(
-            access=access_O, 
-            access_points=access_O_points, 
-            padded_outer_point=padded_outer_point, 
-            save_dir=save_dir, 
-            name="Outputs"
+            access=access_O,
+            access_points=access_O_points,
+            padded_outer_point=padded_outer_point,
+            save_dir=save_dir,
+            name="Outputs",
         )
 
         plt.savefig(os.path.join(save_dir, str(outer_point)))
         plt.clf()
 
+
 def remove_dir_contents(dir_path):
-    for root, dirs, files in os.walk(dir_path, topdown=False):  # topdown=False从目录树的底部开始遍历
+    for root, dirs, files in os.walk(
+        dir_path, topdown=False
+    ):  # topdown=False从目录树的底部开始遍历
         for name in files:
             os.remove(os.path.join(root, name))  # 删除文件
         for name in dirs:
             os.rmdir(os.path.join(root, name))  # 删除空目录
+
+
 """
 1D conv
 for i in range(8):
@@ -261,8 +272,10 @@ schedule = schedule_1.apply_range(schedule_2).apply_range(schedule_3)
 schedule = schedule.intersect_domain(operator.domain)
 
 domain = operator.domain
-domain_sizes = [int(str(domain.dim_max_val(i)))+1 for i in range(domain.dim(isl.dim_type.set))]
-plt.figure(figsize=(domain_sizes[-2]*2,domain_sizes[-1]*3))
+domain_sizes = [
+    int(str(domain.dim_max_val(i))) + 1 for i in range(domain.dim(isl.dim_type.set))
+]
+plt.figure(figsize=(domain_sizes[-2] * 2, domain_sizes[-1] * 3))
 plt.gca().set_aspect(1)
 plt.tight_layout()
 plt.xticks(list(range(32)))
@@ -273,9 +286,8 @@ plt.savefig("map.png")
 
 exit()
 skewed_operator_list, ori_op_list, schedule_list, base_matrix_list = auto_skewing_pass(
-    op_list=[operator], 
-    max_reuse_factor_for_arrays=(16,16),
-    return_detail=True)
+    op_list=[operator], max_reuse_factor_for_arrays=(16, 16), return_detail=True
+)
 for idx, new_op in enumerate(skewed_operator_list):
     save_dir = f".temp_imgs/{idx}"
     os.makedirs(save_dir, exist_ok=True)

@@ -1,15 +1,16 @@
 from typing import Optional
 
 import islpy as isl
-from tqdm import tqdm
 
 import polycim.utils.utils as utils
-from polycim.cli.arguments import get_args
 from polycim.config import CIMConfig
-from polycim.op.base_operator import (AccessRelation, DataMovement,
-                                      DataMovementOperator,
-                                      PartialSumDataMovement,
-                                      TensorAccessRelation)
+from polycim.op.base_operator import (
+    AccessRelation,
+    DataMovement,
+    DataMovementOperator,
+    PartialSumDataMovement,
+    TensorAccessRelation,
+)
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
 
 
@@ -156,31 +157,31 @@ def vectorize_data_movement_for_op(args, op):
 
 def tensorize_pass(args, op_list):
     new_op_list = []
-    for op in tqdm(op_list):
+    for op in op_list:
 
         new_op = tensorize_cim_compute(op)
         new_op = vectorize_data_movement_for_op(args, new_op)
         new_op_list.append(new_op)
     return new_op_list
 
+
 class TensorizeSchedule(Schedule):
     def __init__(self):
         super().__init__()
-        
+
+
 class TensorizePass(DepthFirstPass):
-    def __init__(self, 
-            args,
-            cim_config: CIMConfig,
-            fix_schedule: Optional[TensorizeSchedule]=None, 
-            schedule_as_key: bool=False,
-        ):
-        super().__init__(
-            fix_schedule=fix_schedule, 
-            schedule_as_key=schedule_as_key
-        )
+    def __init__(
+        self,
+        args,
+        cim_config: CIMConfig,
+        fix_schedule: Optional[TensorizeSchedule] = None,
+        schedule_as_key: bool = False,
+    ):
+        super().__init__(fix_schedule=fix_schedule, schedule_as_key=schedule_as_key)
         assert self.fix_schedule is None
         assert self.schedule_as_key is False
-        
+
         self.args = args
         self.cim_config = cim_config
 

@@ -1,12 +1,18 @@
-import islpy as isl
 from dataclasses import dataclass
+
+import islpy as isl
+
+
 @dataclass
 class CodeStmt:
     code: str
     depth: int
 
+
 unique_name_idx = 0
 char_set = "abcdefghijklmnopqrstuvwxyz"
+
+
 def alloc_unique_var():
     global unique_name_idx
 
@@ -26,6 +32,8 @@ def alloc_unique_var():
 
 unique_stmt_idx = 0
 char_stmt_set = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
 def alloc_unique_stmt():
     global unique_stmt_idx
 

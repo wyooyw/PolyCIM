@@ -1,17 +1,22 @@
 import json
 import os
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from functools import reduce
+from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
+from polycim.config import (
+    get_config,
+    get_memory_base,
+    get_memory_size,
+    set_raw_config_by_path,
+)
 from polycim.op import benchmark
-from polycim.config import get_config, get_memory_base, get_memory_size, set_raw_config_by_path
-from polycim.depth_first.pipeline2 import run_cimflow
-import argparse
-from types import SimpleNamespace
-import subprocess
+from polycim.op_compiler import run_cimflow
+
 
 def get_final_code(final_code):
     # final_code = os.path.join(op.attr["BackendCompilePass"]["code_file"])
@@ -54,7 +59,7 @@ def get_code_single_send(src_addr, dst_core, data_size, unqiue_id):
         "rt": reg_dst_core,
         "rd": reg_src_addr,
         "re": reg_data_size,
-        "rf": reg_unique_id
+        "rf": reg_unique_id,
     }
     code_list = [*code_set_regs, code_send]
     return code_list
@@ -91,7 +96,7 @@ def get_code_single_receive(dst_addr, src_core, data_size, unqiue_id):
         "rt": reg_dst_addr,
         "rd": reg_dst_addr,
         "re": reg_data_size,
-        "rf": reg_unique_id
+        "rf": reg_unique_id,
     }
     code_list = [*code_set_regs, code_recv]
     return code_list
@@ -122,7 +127,7 @@ def get_code_trans(src_addr, dst_addr, data_size):
         "rs": reg_src_addr,
         "rt": reg_data_size,
         "rd": reg_dst_addr,
-        "imm": 0
+        "imm": 0,
     }
     return [*code_set_regs, code_trans]
 
@@ -183,7 +188,7 @@ def get_code_add(attr):
         "rt": reg_input_2_addr,
         "rd": reg_output_addr,
         "re": reg_data_size,
-        "funct": 0b00
+        "funct": 0b00,
     }
     return [*code_set_regs, code_add]
 
@@ -245,18 +250,20 @@ def get_code_conv2d(args, attr, cache_dir):
         # import pdb; pdb.set_trace()
         operator.set_attr("name", "conv")
         result = run_cimflow(
-            args=operator_compile_args,
-            cim_config=get_config(),
-            op=operator
+            args=operator_compile_args, cim_config=get_config(), op=operator
         )
         assert len(result) == 1, f"Fail when generating conv2d code. {attr=}"
         result = result[0]
         if args.verify:
-            assert result.attr["VerifyPass"]["check_result"], f"Fail when generating conv2d code. {attr=}"
+            assert result.attr["VerifyPass"][
+                "check_result"
+            ], f"Fail when generating conv2d code. {attr=}"
         cache_conv2d_result[cache_key] = result
 
     # read code from result
-    final_code = get_final_code(os.path.join(result.attr["BackendCompilePass"]["code_file"]))
+    final_code = get_final_code(
+        os.path.join(result.attr["BackendCompilePass"]["code_file"])
+    )
     assert final_code is not None, f"Fail when generating conv2d code. {attr=}"
 
     return final_code
@@ -291,9 +298,7 @@ cache_dwconv2d_result = dict()
 def get_dwcode_conv2d(args, attr):
     global cache_dwconv2d_result
     POLYCIM_HOME = os.environ.get("POLYCIM_HOME")
-    template_path = (
-        os.path.join(POLYCIM_HOME, "polycim/template/depthwise_conv.cim")
-    )
+    template_path = os.path.join(POLYCIM_HOME, "polycim/template/depthwise_conv.cim")
     temp_dir = tempfile.mkdtemp()
     code_path = os.path.join(temp_dir, "depthwise_conv.cim")
 
@@ -340,12 +345,19 @@ def get_dwcode_conv2d(args, attr):
         #     f"input_file={code_path} output_path={temp_dir} bash run.sh "
         # )
         # os.system(backend_compile_cmd)
-        subprocess.run([
-            "cim-compiler", "compile",
-            "--input-file", code_path,
-            "--output-dir", temp_dir,
-            "--config-file", args.config_path
-        ], check=True)
+        subprocess.run(
+            [
+                "cim-compiler",
+                "compile",
+                "--input-file",
+                code_path,
+                "--output-dir",
+                temp_dir,
+                "--config-file",
+                args.config_path,
+            ],
+            check=True,
+        )
 
         result = ProfileResult(stats=None, save_path=temp_dir)
         cache_dwconv2d_result[cache_key] = result
@@ -465,7 +477,7 @@ def get_special_reg_set_code():
     #define SPECIAL_REG_SIMD_INPUT_4_BIT_WIDTH 19
     #define SPECIAL_REG_SIMD_OUTPUT_BIT_WIDTH 20
     """
-    
+
     code_simd_add1 = {"opcode": 0b101101, "rd": 16, "imm": 8}
     code_simd_add2 = {"opcode": 0b101101, "rd": 17, "imm": 8}
     code_simd_out = {"opcode": 0b101101, "rd": 20, "imm": 8}
@@ -509,7 +521,9 @@ def parse_noc_tasks(args, json_path, code_save_path, cache_dir):
         code_list.extend(get_special_reg_set_code())
 
         for stage_id, stage in stages["stages"].items():
-            code = parse_instructions(args, core_name, stage_id, stage["instructions"], cache_dir)
+            code = parse_instructions(
+                args, core_name, stage_id, stage["instructions"], cache_dir
+            )
             code_list.extend(code)
 
         # padding, forbidden branch code be last codes
@@ -553,22 +567,21 @@ def tidy_json_format(save_path, total_save_files):
     with open(save_path, "w") as f:
         f.write(total_code_str)
 
+
 def parse_cimflow_network_args(subparsers):
-    parser = subparsers.add_parser('cimflow_network')
+    parser = subparsers.add_parser("cimflow_network")
     parser.add_argument("--read-json", "-i", type=str, help="read path")
     parser.add_argument("--save-dir", "-o", type=str, help="save path")
     parser.add_argument("--config-path", "-c", type=str, help="config path")
     parser.add_argument("--verify", action="store_true", help="verify")
+
 
 def run_cimflow_network(args):
     set_raw_config_by_path(args.config_path)
     each_core_save_dir = os.path.join(args.save_dir, "each_core")
     with tempfile.TemporaryDirectory() as cache_dir:
         total_save_files = parse_noc_tasks(
-            args,
-            args.read_json, 
-            each_core_save_dir,
-            cache_dir
+            args, args.read_json, each_core_save_dir, cache_dir
         )
 
     save_file_name = os.path.basename(args.read_json)
@@ -582,6 +595,7 @@ def run_cimflow_network(args):
     print("Finish!")
     print(f"{each_core_save_dir = }")
     print(f"{all_core_code_path = }")
+
 
 # if __name__ == "__main__":
 #     main()

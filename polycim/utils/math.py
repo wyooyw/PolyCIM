@@ -6,10 +6,11 @@ def get_factors(N):
     assert N > 0, f"N={N} must be positive"
 
     factors = []
-    for i in range(1, N+1):
+    for i in range(1, N + 1):
         if N % i == 0:
             factors.append(i)
     return factors
+
 
 def factorize(N, T, depth=1, path=None, results=None):
     """
@@ -17,7 +18,7 @@ def factorize(N, T, depth=1, path=None, results=None):
     """
     if path is None:
         path = []
-    
+
     if results is None:
         results = []
 

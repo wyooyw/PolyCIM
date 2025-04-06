@@ -1,5 +1,5 @@
-import multiprocessing
 import functools
+import multiprocessing
 
 
 def timeout(seconds):
@@ -14,7 +14,9 @@ def timeout(seconds):
                     queue.put(e)  # Put the exception in the queue
 
             queue = multiprocessing.Queue()
-            process = multiprocessing.Process(target=target, args=(queue, *args), kwargs=kwargs)
+            process = multiprocessing.Process(
+                target=target, args=(queue, *args), kwargs=kwargs
+            )
             process.start()
             process.join(timeout=seconds)
 
@@ -26,4 +28,5 @@ def timeout(seconds):
                 return queue.get() if not queue.empty() else None
 
         return wrapper
+
     return decorator

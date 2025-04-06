@@ -3,7 +3,7 @@ class Base:
         self.corrdinate = tuple(corrdinate)
         self.reuse_array_id = reuse_array_id
         self.is_trival = is_trival
-        self.n_non_zero = sum([int(i!=0) for i in corrdinate])
+        self.n_non_zero = sum([int(i != 0) for i in corrdinate])
         self.is_skewed = self.n_non_zero >= 2
 
     def __str__(self):
