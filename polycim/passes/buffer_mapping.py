@@ -1167,7 +1167,7 @@ def buffer_level_combination(
     level_max = None
 
     num_buffer_level = 2
-    names_of_buffer_level = ["input_memory", "pim_input_reg_buffer"]
+    names_of_buffer_level = ["input_memory", "cim_input_reg_buffer"]
     level_min = 1
     level_max = -5
 
@@ -1234,7 +1234,7 @@ def get_macro_level(op, buffer_name, buffer_compute_level):
 
 def multi_level_buffer_insersion_pass(op_list, macro_compute_level):
     num_input_buffer_level = 2
-    input_memory_names = ["input_memory", "pim_input_reg_buffer"]
+    input_memory_names = ["input_memory", "cim_input_reg_buffer"]
     weight_memory_names = ["macro"]
 
     new_ops = []
@@ -1262,11 +1262,11 @@ def memory_access_cost(op):
     bandwidth_factor = {
         # input
         ("global", "input_memory"): 64,
-        ("input_memory", "pim_input_reg_buffer"): 128,
+        ("input_memory", "cim_input_reg_buffer"): 128,
         # weight
         ("global", "macro"): 64,
         # output
-        ("pim_output_reg_buffer", "output_memory"): 128,
+        ("cim_output_reg_buffer", "output_memory"): 128,
         ("output_memory", "output_memory"): 128,
         ("output_memory", "global"): 64,
     }
@@ -1580,9 +1580,9 @@ def buffer_strategy_combination(op, n_macro_iters):
     n_dim = op.domain.dim(isl.dim_type.set)
 
     # Memory names are fixed
-    input_memory_names = ["global", "input_memory", "pim_input_reg_buffer"]
-    output_memory_names = ["global", "output_memory", "pim_output_reg_buffer"]
-    # output_memory_names = ["global", "output_memory", "output_memory", "pim_output_reg_buffer"]
+    input_memory_names = ["global", "input_memory", "cim_input_reg_buffer"]
+    output_memory_names = ["global", "output_memory", "cim_output_reg_buffer"]
+    # output_memory_names = ["global", "output_memory", "output_memory", "cim_output_reg_buffer"]
     weight_memory_names = ["global", "macro"]
 
     # Tiling
@@ -1760,7 +1760,7 @@ def buffer_strategy_combination(op, n_macro_iters):
                 satisfy, fail_memory_list = memory_access_satisfy_constraint(new_op)
                 if satisfy:
                     yield new_op
-                elif "pim_input_reg_buffer" in fail_memory_list or "pim_output_reg_buffer" in fail_memory_list:
+                elif "cim_input_reg_buffer" in fail_memory_list or "cim_output_reg_buffer" in fail_memory_list:
                     break
 
 def multi_level_buffer_insersion(op, n_macro_iters, buffer_strategy):

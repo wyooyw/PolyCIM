@@ -269,7 +269,7 @@
                         }
                     },
                     {
-                        "name": "pim_input_reg_buffer",
+                        "name": "cim_input_reg_buffer",
                         "type": "reg_buffer",
                         "addressing": {
                             "offset_byte": 524800,
@@ -285,7 +285,7 @@
                         }
                     },
                     {
-                        "name": "pim_output_reg_buffer",
+                        "name": "cim_output_reg_buffer",
                         "type": "reg_buffer",
                         "addressing": {
                             "offset_byte": 525824,

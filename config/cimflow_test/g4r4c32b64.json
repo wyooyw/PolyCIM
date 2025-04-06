@@ -40,7 +40,7 @@
             }
         },
         {
-            "name": "pim_input_reg_buffer",
+            "name": "cim_input_reg_buffer",
             "type": "reg_buffer",
             "addressing": {
                 "size_byte": 128,
@@ -49,7 +49,7 @@
             }
         },
         {
-            "name": "pim_output_reg_buffer",
+            "name": "cim_output_reg_buffer",
             "type": "reg_buffer",
             "addressing": {
                 "size_byte": 4096,

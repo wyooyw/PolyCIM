@@ -486,7 +486,7 @@ class CodeGenerator:
         assert type(op) == DataMovement, f"{type(op)=}"
 
         cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name(
-            "pim_output_reg_buffer"
+            "cim_output_reg_buffer"
         )
         cim_output_code = CodeStmt(
             code=f"CIMOutput({get_config().n_group_vcol}, 0, {cim_reg_out_buffer.name});",
@@ -528,7 +528,7 @@ class CodeGenerator:
         )
 
         # cim output
-        # cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name("pim_output_reg_buffer")
+        # cim_reg_out_buffer = self.buffer_manager.get_buffer_by_memory_name("cim_output_reg_buffer")
         # cim_output_code = CodeStmt(
         #     code=f"CIMOutput({get_config().n_group_vcol}, 0, {cim_reg_out_buffer.name});",
         #     depth=depth,
