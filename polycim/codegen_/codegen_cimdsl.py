@@ -1,5 +1,5 @@
 import math
-
+import os
 import islpy as isl
 
 import polycim.utils.utils as utils
@@ -22,9 +22,10 @@ class CodeGenerator:
         self.buffer_manager = BufferManager()
 
     def codegen_includes(self, depth):
+        CIMCOMPILER_HOME = os.environ["CIMCOMPILER_HOME"]
         include_list = [
-            "/home/wangyiou/project/CIMCompiler/cim_compiler/op/common/def_special_regs.cim",
-            "/home/wangyiou/project/CIMCompiler/cim_compiler/op/common/simd.cim",
+            os.path.join(CIMCOMPILER_HOME, "cim_compiler/op/common/def_special_regs.cim"),
+            os.path.join(CIMCOMPILER_HOME, "cim_compiler/op/common/simd.cim"),
         ]
         include_code_list = []
         for include_path in include_list:
