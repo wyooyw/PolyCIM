@@ -1158,6 +1158,7 @@ def buffer_level_combination(
     num_buffer_level,
     level_min=None,
     level_max=None,
+    force_max=False,
 ):
     """
     num_buffer_level = 1
@@ -1188,6 +1189,9 @@ def buffer_level_combination(
         i for i in valid_buffer_positions if i >= level_min and i <= level_max
     ]
 
+    if force_max and level_max not in valid_buffer_positions:
+        valid_buffer_positions.append(level_max)
+
     # if len(valid_buffer_positions) == 1:
     #     return [valid_buffer_positions]
 
@@ -1200,6 +1204,9 @@ def buffer_level_combination(
     else:
         buffer_level_combinations = []
 
+    if force_max:
+        buffer_level_combinations = [buffer_levels for buffer_levels in buffer_level_combinations if buffer_levels[-1] == level_max]
+    
     return buffer_level_combinations
 
 
@@ -1407,6 +1414,7 @@ def memory_access_satisfy_constraint(op):
 
     satisfy = True
     # import pdb; pdb.set_trace()
+    fail_memory_list = set()
     for memory_name, use_size in buffer_type_to_use_size.items():
         size_limit = buffer_type_to_size[memory_name]
         if use_size > size_limit:
@@ -1414,9 +1422,10 @@ def memory_access_satisfy_constraint(op):
             logger.info(
                 f"Memory not satisfy! {memory_name=}, {use_size=}, {size_limit=}"
             )
+            fail_memory_list.add(memory_name)
             # break
     # import pdb; pdb.set_trace()
-    return satisfy
+    return satisfy, fail_memory_list
 
 
 def filter_op_by_memory_access_cost_pass(op_list):
@@ -1598,12 +1607,14 @@ def buffer_strategy_combination(op, n_macro_iters):
                 2,
                 level_min=0,
                 level_max=new_n_dim - n_macro_iters + 1,
+                force_max=True
             )
             W_buffer_level_list = buffer_level_combination(
                 op_reordered, "W", 1, level_min=0, level_max=new_n_dim - n_macro_iters
             )
             O_buffer_level_list = buffer_level_combination(
-                op_reordered, "O", 2, level_min=0, level_max=new_n_dim - n_macro_iters
+                op_reordered, "O", 2, level_min=0, level_max=new_n_dim - n_macro_iters,
+                force_max=True
             )
 
             shape = utils.get_box_hull_shape(op_reordered.domain)
@@ -1612,6 +1623,7 @@ def buffer_strategy_combination(op, n_macro_iters):
             buffer_level_combines = list(
                 itertools.product(I_buffer_level_list, O_buffer_level_list)
             )
+            # import pdb; pdb.set_trace()
             for i_buffer_level, (input_buffer_level, output_buffer_level) in enumerate(
                 buffer_level_combines
             ):
@@ -1627,7 +1639,7 @@ def buffer_strategy_combination(op, n_macro_iters):
 
                 if input_buffer_level[-1] not in (
                     new_n_dim - n_macro_iters + 1,
-                    new_n_dim - n_macro_iters,
+                    # new_n_dim - n_macro_iters,
                 ):
                     # print(f"shape={utils.get_box_hull_shape(op_reordered.domain)}, {input_buffer_level=}, {new_n_dim=}, {n_macro_iters=}")
                     continue
@@ -1745,8 +1757,11 @@ def buffer_strategy_combination(op, n_macro_iters):
                 new_op = multi_level_buffer_insersion(
                     op_reordered, n_macro_iters, buffer_strategy
                 )
-                yield new_op
-
+                satisfy, fail_memory_list = memory_access_satisfy_constraint(new_op)
+                if satisfy:
+                    yield new_op
+                elif "pim_input_reg_buffer" in fail_memory_list or "pim_output_reg_buffer" in fail_memory_list:
+                    break
 
 def multi_level_buffer_insersion(op, n_macro_iters, buffer_strategy):
     n_dim = op.domain.dim(isl.dim_type.set)
@@ -1838,13 +1853,12 @@ def optimal_multi_level_buffer_insersion_search(op):
     begin_time = time.time()
     use_time = 0
     for new_op in buffer_strategy_combination(op, n_macro_iters):
-        if memory_access_satisfy_constraint(new_op):
-            cost = memory_access_cost(new_op)
-            if cost < min_cost:
-                min_cost = cost
-                best_op = new_op
-                logger.info(f"{count=}, {min_cost=}")
-            count += 1
+        cost = memory_access_cost(new_op)
+        if cost < min_cost:
+            min_cost = cost
+            best_op = new_op
+            logger.info(f"{count=}, {min_cost=}")
+        count += 1
         if best_op is not None and time.time() - begin_time > use_time:
             break
     # import pdb; pdb.set_trace()
