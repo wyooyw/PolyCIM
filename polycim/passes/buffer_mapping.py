@@ -36,6 +36,8 @@ from polycim.utils.utils import (
     rename_out_dims_for_basic_map,
 )
 
+from polycim.utils.solve_data_movement import solve_data_movement
+
 logger = get_logger(__name__)
 
 
