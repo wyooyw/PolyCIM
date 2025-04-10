@@ -101,6 +101,8 @@ def _find_base_cache(n_dim, dim_sizes, min_reuse_factor, hyperplanes):
     dims_str = ",".join(dims)
     base = isl.Set(f"{{ [{dims_str}] }}")
 
+    # base should parallel to the intersection of hyperplanes
+    # i.e. base should orthogonal to each normal vector of hyperplanes
     for hyperplane in hyperplanes:
         assert type(hyperplane) == tuple, f"{hyperplane=}"
         assert len(hyperplane) == n_dim, f"{len(hyperplane)=}"
@@ -109,6 +111,7 @@ def _find_base_cache(n_dim, dim_sizes, min_reuse_factor, hyperplanes):
             cons = cons.set_coefficient_val(isl.dim_type.set, i, coef)
         base = base.add_constraint(cons)
 
+    # reuse degree should be at least min_reuse_factor
     for i in range(n_dim):
         bound = dim_sizes[i] - 1  # // min_reuse_factor
 
