@@ -2,7 +2,7 @@ from gurobipy import Model, GRB, quicksum
 import numpy as np
 from collections import defaultdict
 
-def make_decision_variables(model, n_level):
+def make_decision_variables(model, n_level, operand_buffer_mappings):
     # Decision variables
     X = [[model.addVar(vtype=GRB.BINARY, name=f"X_{i}_{j}") for j in range(n_level)] for i in range(n_level)]
     
@@ -15,7 +15,7 @@ def make_decision_variables(model, n_level):
     model.update()
     return X, L
 
-def make_constants(sizes, buffer_sizes, operands_dominate):
+def make_constants(n_level, sizes, buffer_sizes, operands_dominate, operand_base_buffer_size):
     # Construct A^I
     A = dict()
     for operand, dominate in operands_dominate.items():
@@ -24,8 +24,9 @@ def make_constants(sizes, buffer_sizes, operands_dominate):
     log_A = {operand: np.log2(A[operand]) for operand in A.keys()}
     log_S = np.log2(sizes)
     log_B_max = {buffer: np.log2(buffer_sizes[buffer]) for buffer in buffer_sizes.keys()}
+    log_operand_base_buffer_size = {operand: np.log2(operand_base_buffer_size[operand]) for operand in operand_base_buffer_size.keys()}
 
-    return A, log_A, log_S, log_B_max
+    return A, log_A, log_S, log_B_max, log_operand_base_buffer_size
 
 def add_constraints(model, X, L, n_level, operand_buffer_mappings):
     # Constraints for X
@@ -45,7 +46,7 @@ def add_constraints(model, X, L, n_level, operand_buffer_mappings):
             for i in range(n_level):
                 model.addConstr(_last_L[i] >= _L[i])
 
-def set_objective(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, log_B_max):
+def set_objective(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, log_B_max, log_operand_base_buffer_size):
     # Objective function: Traf(I, local)
     obj = 0
     for operand, buffer_list in operand_buffer_mappings.items():
@@ -53,7 +54,7 @@ def set_objective(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, l
             _log_A = log_A[operand]
             _L = L[operand][buffer]
             _log_B_max = log_B_max[buffer]
-            log_B = quicksum(_log_A[j] * X[i][j] * _L[i] for i in range(n_level) for j in range(n_level))
+            log_B = quicksum(_log_A[j] * X[i][j] * _L[i] for i in range(n_level) for j in range(n_level)) + log_operand_base_buffer_size[operand]
             model.addConstr(log_B <= _log_B_max, name="log_B_constraint")
             
             log_T = quicksum(log_S[j] * X[i][j] * (1 - _L[i]) for i in range(n_level) for j in range(n_level))
@@ -63,12 +64,14 @@ def set_objective(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, l
     # Set the objective
     model.setObjective(obj, GRB.MINIMIZE)
 
-def extract_results(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, log_B_max):
+def extract_results(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, log_B_max, log_operand_base_buffer_size):
     X_values = [[X[i][j].X for j in range(n_level)] for i in range(n_level)]
+    X_values = np.array(X_values, dtype=int)
     L_values = defaultdict(dict)
     for operand, buffer_list in operand_buffer_mappings.items():
         for buffer in buffer_list:
             _L_values = [L[operand][buffer][i].X for i in range(n_level)]
+            _L_values = np.array(_L_values, dtype=int)
             L_values[operand][buffer] = _L_values
     
     log_B_values = defaultdict(dict)
@@ -79,6 +82,7 @@ def extract_results(model, X, L, n_level, operand_buffer_mappings, log_A, log_S,
             _log_A = log_A[operand]
             _L_values = L_values[operand][buffer]
             _log_B_value = sum(_log_A[j] * X_values[i][j] * _L_values[i] for i in range(n_level) for j in range(n_level))
+            _log_B_value = _log_B_value + log_operand_base_buffer_size[operand]
             log_B_values[operand][buffer] = _log_B_value
             
             _log_T_value = sum(log_S[j] * X_values[i][j] * (1 - _L_values[i]) for i in range(n_level) for j in range(n_level))
@@ -90,12 +94,27 @@ def extract_results(model, X, L, n_level, operand_buffer_mappings, log_A, log_S,
     Traf_value = model.ObjVal
     return X_values, L_values, log_B_values, log_T_values, log_traffic_values, Traf_value
 
+def show_result(X_values, L_values, log_B_values, log_T_values, log_traffic_values, Traf_value, operand_buffer_mappings):
+    print("X matrix:\n", X_values)
+    print("Traf value:", Traf_value)
+    # for each operand and buffer, print the log_B, log_T, and log_traffic values
+    for operand, buffer_list in operand_buffer_mappings.items():
+        print(f"{operand} buffer list:", buffer_list)
+        for buffer in buffer_list:
+            print(f"    {operand} {buffer} log(B) = {log_B_values[operand][buffer]}, B = {2**log_B_values[operand][buffer]}")
+            print(f"    {operand} {buffer} log(T) = {log_T_values[operand][buffer]}, T = {2**log_T_values[operand][buffer]}")
+            print(f"    {operand} {buffer} log(Traf) = {log_traffic_values[operand][buffer]}, Traf = {2**log_traffic_values[operand][buffer]}")
+
+
 def solve_data_movement(
         n_level, 
         sizes, 
         buffer_sizes, 
         operands_dominate, 
-        operand_buffer_mappings):  
+        operand_buffer_mappings,
+        operand_base_buffer_size,
+        show = False
+    ):  
     """
     Example:
 
@@ -118,26 +137,31 @@ def solve_data_movement(
         }
     )
     """
+    # skip global memory
+    operand_buffer_mappings = {key:value[1:] for key, value in operand_buffer_mappings.items()}
       
     # Create the model
     model = Model("Minimize_Traf")
     model.setParam('OutputFlag', 0)  # Suppress Gurobi output
     
-    X, L = make_decision_variables(model, n_level)
-    A, log_A, log_S, log_B_max = make_constants(sizes, buffer_sizes, operands_dominate)
+    X, L = make_decision_variables(model, n_level, operand_buffer_mappings)
+    A, log_A, log_S, log_B_max, log_operand_base_buffer_size = make_constants(n_level, sizes, buffer_sizes, operands_dominate, operand_base_buffer_size)
     
     # Constraints for X
     add_constraints(model, X, L, n_level, operand_buffer_mappings)
     
     # Objective function: Traf(I, local)
-    set_objective(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, log_B_max)
+    set_objective(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, log_B_max, log_operand_base_buffer_size)
     
     # Solve the problem
     model.optimize()
     
     # Extract the results
-    X_values, L_values, log_B_values, log_T_values, log_traffic_values, Traf_value = extract_results(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, log_B_max)
+    X_values, L_values, log_B_values, log_T_values, log_traffic_values, Traf_value = extract_results(model, X, L, n_level, operand_buffer_mappings, log_A, log_S, log_B_max, log_operand_base_buffer_size)
 
+    if show:
+        show_result(X_values, L_values, log_B_values, log_T_values, log_traffic_values, Traf_value, operand_buffer_mappings)
+   
     return X_values, L_values, log_B_values, log_T_values, log_traffic_values, Traf_value
 
 if __name__ == "__main__":
