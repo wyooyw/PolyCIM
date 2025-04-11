@@ -1880,7 +1880,7 @@ def buffer_strategy_solve(op):
 
     operand_buffer_mappings = {
         "I": ["global", "input_memory", "pim_input_reg_buffer"],
-        "O": ["global", "output_memory", "pim_output_reg_buffer"],
+        "O": ["global", "output_memory"],# , "pim_output_reg_buffer"],
         "W": ["global", "macro"],
     }
     # n_macro_iters: [row, comp, group0,...,groupk, col]
@@ -1973,7 +1973,7 @@ def buffer_strategy_solve(op):
     new_output_buffer_level = [
         buffer_levels["O"][0],
         *share_output_iters_time,
-        buffer_levels["O"][1],
+        new_n_dim - n_macro_iters, # buffer_levels["O"][1],
     ]
     new_output_buffer_reduce_level = [None, *reduce_levels, None]
     new_output_is_partial_sum = [
@@ -1985,9 +1985,9 @@ def buffer_strategy_solve(op):
     new_output_memory_names = [
         operand_buffer_mappings["O"][0],
         *(["output_memory"] * (len(share_output_iters_time))),
-        # *(["output_memory"] * (len(share_output_iters_group))),
         operand_buffer_mappings["O"][1],
-        operand_buffer_mappings["O"][2],
+        # operand_buffer_mappings["O"][2],
+        "pim_output_reg_buffer",
     ]
     # import pdb; pdb.set_trace()
 
