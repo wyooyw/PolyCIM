@@ -36,6 +36,7 @@ def parse_operator_args(subparsers):
     parser.add_argument("--cimflow", action="store_true", help="run cimflow")
     parser.add_argument("--polycim", action="store_true", help="run polycim")
     parser.add_argument("--verify", action="store_true", help="verify")
+    parser.add_argument("--unroll-level", type=int, default=0, help="unroll level")
 
 
 def run_operator(args):

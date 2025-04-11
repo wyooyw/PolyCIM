@@ -12,6 +12,7 @@ class CodegenPass(DepthFirstPass):
         cim_config: CIMConfig,
         fix_schedule: Optional[Schedule] = None,
         schedule_as_key: bool = False,
+        unroll_level: int = 0,
     ):
         super().__init__(fix_schedule=fix_schedule, schedule_as_key=schedule_as_key)
         assert self.fix_schedule is None
@@ -20,9 +21,10 @@ class CodegenPass(DepthFirstPass):
         self.args = args
         self.cim_config = cim_config
         self.cnt = 0
+        self.unroll_level = unroll_level
 
     def apply(self, operator):
 
-        new_op = codegen_pass([operator])[0]
+        new_op = codegen_pass([operator], self.unroll_level)[0]
         result = SchedulePassResult(new_op, Schedule())
         return [result]

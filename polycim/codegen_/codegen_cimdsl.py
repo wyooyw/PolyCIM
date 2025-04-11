@@ -19,10 +19,11 @@ logger = get_logger(__name__)
 
 
 class CodeGenerator:
-    def __init__(self, op, name_to_op):
+    def __init__(self, op, name_to_op, unroll_level):
         self.op = op
         self.name_to_op = name_to_op
         self.buffer_manager = BufferManager()
+        self.unroll_level = unroll_level
 
     def codegen_includes(self, depth):
         CIMCOMPILER_HOME = os.environ["CIMCOMPILER_HOME"]
@@ -389,27 +390,38 @@ class CodeGenerator:
         )
 
         for_code_close = CodeStmt(code="};", depth=depth)
-        body_code_list = self.codegen(body, depth + 1)
+        body_code_list, n_inner_for = self.codegen(body, depth + 1)
+
+        if n_inner_for < self.unroll_level:
+            unroll_code = [CodeStmt(
+                code=f"@unroll",
+                depth=depth,
+            )]
+        else:
+            unroll_code = []
 
         total_code_list = [
             *init_codes,
             *ub_codes,
+            *unroll_code,
             for_code,
             *body_code_list,
             for_code_close,
         ]
-        return total_code_list
+        return total_code_list, n_inner_for+1
 
     def codegen_block(self, node, depth):
         children = node.block_get_children()
         n_ast_node = children.n_ast_node()
         # print(f"block {n_ast_node=}")
         total_code_list = []
+        n_inner_for = 0
         for i in range(children.n_ast_node()):
             child = children.get_at(i)
-            code_list = self.codegen(child, depth)
+            code_list, n_inner_for_ = self.codegen(child, depth)
+            n_inner_for = max(n_inner_for, n_inner_for_)
             total_code_list.extend(code_list)
-        return total_code_list
+        return total_code_list, n_inner_for
 
     def codegen_call(self, expr, depth):
         call_name = expr.get_op_arg(0).id_get_id().get_name()
@@ -624,7 +636,7 @@ class CodeGenerator:
         elif node.get_type() == isl._isl.ast_node_type.block:
             return self.codegen_block(node, depth)
         elif node.get_type() == isl._isl.ast_node_type.user:
-            return self.codegen_user(node, depth)
+            return self.codegen_user(node, depth), 0
         else:
             assert False, f"{node.get_type()=}"
 
@@ -640,7 +652,7 @@ class CodeGenerator:
         cimset_code_list = self.codegen_cimset(1)
         buffer_define_code_list = self.codegen_buffer_define(1)
         const_buffer_define_code_list = self.codegen_const_buffer_define(1)
-        execute_code_list = self.codegen(node, 1)
+        execute_code_list, _ = self.codegen(node, 1)
         code_str = ""
         for code_stmt in (
             includes
@@ -775,7 +787,7 @@ def align_compute_and_assign_schedules(
     return union_schedule
 
 
-def data_movement_operator_to_dsl(op):
+def data_movement_operator_to_dsl(op, unroll_level):
     assert type(op) == DataMovementOperator
 
     name_to_op = dict()
@@ -852,18 +864,18 @@ def data_movement_operator_to_dsl(op):
     )
 
     ast = utils.gen_ast(union_domain, union_schedule, None)
-    code_generator = CodeGenerator(op, name_to_op)
+    code_generator = CodeGenerator(op, name_to_op, unroll_level)
     code = code_generator.codegen_str(ast, 4)
     logger.info(code)
     buffer_manager = code_generator.buffer_manager
     return code, buffer_manager
 
 
-def codegen_pass(op_list):
+def codegen_pass(op_list, unroll_level):
     new_op_list = []
     for idx, op in level_tqdm(enumerate(op_list)):
         if type(op) == DataMovementOperator:
-            dsl, buffer_manager = data_movement_operator_to_dsl(op)
+            dsl, buffer_manager = data_movement_operator_to_dsl(op, unroll_level)
             op.dsl = dsl
             op.buffer_manager = buffer_manager
             new_op_list.append(op)
