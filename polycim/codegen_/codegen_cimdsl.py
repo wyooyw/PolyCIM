@@ -4,14 +4,12 @@ import os
 import islpy as isl
 
 import polycim.utils.utils as utils
-from polycim.codegen_.codegen import CodeStmt, alloc_unique_stmt, alloc_unique_var
+from polycim.codegen_.codegen import (CodeStmt, alloc_unique_stmt,
+                                      alloc_unique_var)
 from polycim.config import get_config
-from polycim.op.base_operator import (
-    DataMovement,
-    DataMovementOperator,
-    PartialSumDataMovement,
-    TensorAccessRelation,
-)
+from polycim.op.base_operator import (DataMovement, DataMovementOperator,
+                                      PartialSumDataMovement,
+                                      TensorAccessRelation)
 from polycim.op.buffer_manager import BufferManager
 from polycim.utils.logger import get_logger, level_tqdm
 
@@ -393,10 +391,12 @@ class CodeGenerator:
         body_code_list, n_inner_for = self.codegen(body, depth + 1)
 
         if n_inner_for < self.unroll_level:
-            unroll_code = [CodeStmt(
-                code=f"@unroll",
-                depth=depth,
-            )]
+            unroll_code = [
+                CodeStmt(
+                    code=f"@unroll",
+                    depth=depth,
+                )
+            ]
         else:
             unroll_code = []
 
@@ -408,7 +408,7 @@ class CodeGenerator:
             *body_code_list,
             for_code_close,
         ]
-        return total_code_list, n_inner_for+1
+        return total_code_list, n_inner_for + 1
 
     def codegen_block(self, node, depth):
         children = node.block_get_children()
@@ -590,7 +590,7 @@ class CodeGenerator:
                 slice = f"{offset}:{offset} + {size}"
             slices.append(slice)
         slices_str = ",".join(slices)
-        
+
         slice_code = CodeStmt(
             # code=f"{slice_var} = Slice({buffer_name}, [{offsets_str}], [{sizes_str}], [{strides_str}]);",
             code=f"{slice_var} = {buffer_name}[{slices_str}];",

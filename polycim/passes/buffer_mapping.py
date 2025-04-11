@@ -10,35 +10,28 @@ import numpy as np
 from tqdm import tqdm
 
 import polycim.utils.utils as utils
-from polycim.codegen_.codegen_data_layout_convert import data_layout_convert_codegen
+from polycim.codegen_.codegen_data_layout_convert import \
+    data_layout_convert_codegen
 from polycim.config import CIMConfig, get_memory_sizes
-from polycim.op.base_operator import (
-    AccessRelation,
-    BasicOperator,
-    DataMovement,
-    DataMovementOperator,
-    PartialSumDataMovement,
-)
+from polycim.op.base_operator import (AccessRelation, BasicOperator,
+                                      DataMovement, DataMovementOperator,
+                                      PartialSumDataMovement)
 from polycim.op.buffer_manager import BufferManager
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
-from polycim.passes.multi_level_tiling_pass import multi_level_splitting_combination, multi_level_splitting_var_level
+from polycim.passes.multi_level_tiling_pass import (
+    multi_level_splitting_combination, multi_level_splitting_var_level)
 from polycim.passes.reorder import reorder_outer
-from polycim.utils.dominate import (
-    get_dominate_iters_of_map,
-    get_dominate_iters_of_pw_multi_aff_per_out,
-    get_dominate_iters_of_pw_multi_aff,
-    get_non_dominate_iters_of_pw_multi_aff,
-)
+from polycim.utils.dominate import (get_dominate_iters_of_map,
+                                    get_dominate_iters_of_pw_multi_aff,
+                                    get_dominate_iters_of_pw_multi_aff_per_out,
+                                    get_non_dominate_iters_of_pw_multi_aff)
 from polycim.utils.logger import get_logger, level_tqdm
-from polycim.utils.utils import (
-    get_box_hull_shape,
-    rename_all_dims_for_basic_map,
-    rename_all_dims_for_basic_set,
-    rename_out_dims_for_basic_map,
-)
-
-from polycim.utils.solve_data_movement import solve_data_movement
 from polycim.utils.math import get_prime_factors
+from polycim.utils.solve_data_movement import solve_data_movement
+from polycim.utils.utils import (get_box_hull_shape,
+                                 rename_all_dims_for_basic_map,
+                                 rename_all_dims_for_basic_set,
+                                 rename_out_dims_for_basic_map)
 
 logger = get_logger(__name__)
 
@@ -1833,6 +1826,7 @@ def multi_level_buffer_insersion(op, n_macro_iters, buffer_strategy):
     # import pdb; pdb.set_trace()
     return new_op
 
+
 def parse_buffer_levels_vec(buffer_levels_vec):
     operand_buffer_levels = {}
     for operand_name, buffer_levels in buffer_levels_vec.items():
@@ -1844,6 +1838,7 @@ def parse_buffer_levels_vec(buffer_levels_vec):
         operand_buffer_levels[operand_name].sort()
     return operand_buffer_levels
 
+
 def buffer_strategy_solve(op):
     n_macro_iters = op.attr["n_macro_iters"]
     n_dim = op.domain.dim(isl.dim_type.set)
@@ -1853,17 +1848,23 @@ def buffer_strategy_solve(op):
     factors_per_dim = [get_prime_factors(s) if s > 1 else [1] for s in outer_shape]
     sizes = [factor for factors in factors_per_dim for factor in factors]
     n_level = len(sizes)
-    dominate_iters_I = get_dominate_iters_of_pw_multi_aff(op.access_I.as_pw_multi_aff(), return_name=False)
-    dominate_iters_O = get_dominate_iters_of_pw_multi_aff(op.access_O.as_pw_multi_aff(), return_name=False)
-    dominate_iters_W = get_dominate_iters_of_pw_multi_aff(op.access_W.as_pw_multi_aff(), return_name=False)
+    dominate_iters_I = get_dominate_iters_of_pw_multi_aff(
+        op.access_I.as_pw_multi_aff(), return_name=False
+    )
+    dominate_iters_O = get_dominate_iters_of_pw_multi_aff(
+        op.access_O.as_pw_multi_aff(), return_name=False
+    )
+    dominate_iters_W = get_dominate_iters_of_pw_multi_aff(
+        op.access_W.as_pw_multi_aff(), return_name=False
+    )
     dominate_iters_I = [i for i in dominate_iters_I if i < n_outer_iters]
     dominate_iters_O = [i for i in dominate_iters_O if i < n_outer_iters]
     dominate_iters_W = [i for i in dominate_iters_W if i < n_outer_iters]
     dominate_onehot_I = []
     dominate_onehot_O = []
     dominate_onehot_W = []
-    
-    for idx,factors in enumerate(factors_per_dim):
+
+    for idx, factors in enumerate(factors_per_dim):
         if idx in dominate_iters_I:
             dominate_onehot_I.extend([1] * len(factors))
         else:
@@ -1880,29 +1881,29 @@ def buffer_strategy_solve(op):
     operand_buffer_mappings = {
         "I": ["global", "input_memory", "pim_input_reg_buffer"],
         "O": ["global", "output_memory", "pim_output_reg_buffer"],
-        "W": ["global", "macro"]
+        "W": ["global", "macro"],
     }
     # n_macro_iters: [row, comp, group0,...,groupk, col]
     operand_base_buffer_size = {
-        "I": reduce(lambda x, y: x * y, shape[n_outer_iters+1:-1]),
-        "O": reduce(lambda x, y: x * y, shape[n_outer_iters+2:]) * 4,
-        "W": reduce(lambda x, y: x * y, shape[n_outer_iters:])
+        "I": reduce(lambda x, y: x * y, shape[n_outer_iters + 1 : -1]),
+        "O": reduce(lambda x, y: x * y, shape[n_outer_iters + 2 :]) * 4,
+        "W": reduce(lambda x, y: x * y, shape[n_outer_iters:]),
     }
     operands_dominate = {
         "I": dominate_onehot_I,
         "O": dominate_onehot_O,
-        "W": dominate_onehot_W
+        "W": dominate_onehot_W,
     }
     buffer_sizes = get_memory_sizes()
 
     results = solve_data_movement(
-        n_level = n_level, 
-        sizes = sizes, 
-        buffer_sizes = buffer_sizes,
-        operands_dominate = operands_dominate,
-        operand_buffer_mappings = operand_buffer_mappings,
-        operand_base_buffer_size = operand_base_buffer_size,
-        show = True
+        n_level=n_level,
+        sizes=sizes,
+        buffer_sizes=buffer_sizes,
+        operands_dominate=operands_dominate,
+        operand_buffer_mappings=operand_buffer_mappings,
+        operand_base_buffer_size=operand_base_buffer_size,
+        show=True,
     )
     permute_matrix = results[0]
     buffer_levels_vec = results[1]
@@ -1923,12 +1924,8 @@ def buffer_strategy_solve(op):
     share_output_iter = get_non_dominate_iters_of_pw_multi_aff(
         op.access_O.as_pw_multi_aff(), return_name=False
     )
-    share_output_iters_group = [
-        i for i in share_output_iter if i >= n_outer_iters
-    ]
-    share_output_iters_time = [
-        i for i in share_output_iter if i < n_outer_iters
-    ]
+    share_output_iters_group = [i for i in share_output_iter if i >= n_outer_iters]
+    share_output_iters_time = [i for i in share_output_iter if i < n_outer_iters]
     scalar_iters = get_scalar_iters(op.domain)
 
     # filter some output iters
@@ -1956,9 +1953,7 @@ def buffer_strategy_solve(op):
         assert False, f"{share_output_iters_group=}"
 
     if len(share_output_iters_group) > 0:
-        assert (
-            len(share_output_iters_group) == 1
-        ), f"{share_output_iters_group=}"
+        assert len(share_output_iters_group) == 1, f"{share_output_iters_group=}"
         share_output_iters_time.append(iter_row)
         reduce_levels.append(share_output_iters_group[0])
 
@@ -2000,10 +1995,9 @@ def buffer_strategy_solve(op):
         output_reduce_level=new_output_buffer_reduce_level,
     )
     logger.debug(f"\t{buffer_strategy=}")
-    op = multi_level_buffer_insersion(
-        op, n_macro_iters, buffer_strategy
-    )
+    op = multi_level_buffer_insersion(op, n_macro_iters, buffer_strategy)
     return op
+
 
 def get_reorder_schedule(permute_matrix, n_macro_iters):
     assert len(permute_matrix.shape) == 2
@@ -2016,10 +2010,12 @@ def get_reorder_schedule(permute_matrix, n_macro_iters):
         range_dim = permute_matrix[i].nonzero()[0][0]
         range_names.append(f"i{range_dim}")
     range_names.extend([f"i{i}" for i in range(n_permute_dim, n_dim)])
-    reorder_schedule = isl.BasicMap(f"{{ [{','.join(domain_names)}] -> [{','.join(range_names)}] }}")
+    reorder_schedule = isl.BasicMap(
+        f"{{ [{','.join(domain_names)}] -> [{','.join(range_names)}] }}"
+    )
 
     return reorder_schedule
-    
+
 
 def optimal_multi_level_buffer_insersion_search(op, use_solver=True):
 

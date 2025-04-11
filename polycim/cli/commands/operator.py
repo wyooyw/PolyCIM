@@ -26,12 +26,18 @@ def parse_operator_args(subparsers):
     parser.add_argument(
         "--polycim-disable-pretile", action="store_true", help="disable pretile"
     )
-    parser.add_argument("--polycim-disable-affine", action="store_true", help="disable affine")
     parser.add_argument(
-        "--polycim-disable-weight-rewrite", action="store_true", help="disable weight rewrite"
+        "--polycim-disable-affine", action="store_true", help="disable affine"
     )
     parser.add_argument(
-        "--polycim-disable-second-stage", action="store_true", help="disable second stage"
+        "--polycim-disable-weight-rewrite",
+        action="store_true",
+        help="disable weight rewrite",
+    )
+    parser.add_argument(
+        "--polycim-disable-second-stage",
+        action="store_true",
+        help="disable second stage",
     )
     parser.add_argument("--cimflow", action="store_true", help="run cimflow")
     parser.add_argument("--polycim", action="store_true", help="run polycim")

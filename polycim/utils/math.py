@@ -11,6 +11,7 @@ def get_factors(N):
             factors.append(i)
     return factors
 
+
 def get_prime_factors(N):
     """
     get all prime factors of N
@@ -36,6 +37,7 @@ def get_prime_factors(N):
         prime_factors.append(N)
 
     return prime_factors
+
 
 def factorize(N, T, depth=1, path=None, results=None):
     """

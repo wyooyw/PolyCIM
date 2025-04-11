@@ -2,8 +2,7 @@ import polycim.op.benchmark as benchmark
 import polycim.utils.utils as utils
 from polycim.passes.hardware_mapping_pass import (
     get_coalescing_schedule_from_mapping,
-    get_reverse_coalescing_schedule_from_mapping,
-)
+    get_reverse_coalescing_schedule_from_mapping)
 
 
 def test_coalescing():
