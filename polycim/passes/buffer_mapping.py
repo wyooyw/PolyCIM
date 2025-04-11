@@ -1894,12 +1894,20 @@ def buffer_strategy_solve(op):
         "O": dominate_onehot_O,
         "W": dominate_onehot_W,
     }
+    buffer_bandwidth = {
+        "input_memory": 64,
+        "output_memory": 128,
+        "pim_input_reg_buffer": 128,
+        "pim_output_reg_buffer": 128,
+        "macro": 64,
+    }
     buffer_sizes = get_memory_sizes()
 
     results = solve_data_movement(
         n_level=n_level,
         sizes=sizes,
         buffer_sizes=buffer_sizes,
+        buffer_bandwidth=buffer_bandwidth,
         operands_dominate=operands_dominate,
         operand_buffer_mappings=operand_buffer_mappings,
         operand_base_buffer_size=operand_base_buffer_size,
