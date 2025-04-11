@@ -11,6 +11,31 @@ def get_factors(N):
             factors.append(i)
     return factors
 
+def get_prime_factors(N):
+    """
+    get all prime factors of N
+    """
+    assert isinstance(N, int), f"N={N} must be an integer"
+    assert N > 1, f"N={N} must be greater than 1"
+
+    prime_factors = []
+    # Check for number of 2s that divide N
+    while N % 2 == 0:
+        prime_factors.append(2)
+        N = N // 2
+
+    # N must be odd at this point, so a skip of 2 (i.e., i = i + 2) can be used
+    for i in range(3, int(N**0.5) + 1, 2):
+        # While i divides N, append i and divide N
+        while N % i == 0:
+            prime_factors.append(i)
+            N = N // i
+
+    # This condition is to check if N is a prime number greater than 2
+    if N > 2:
+        prime_factors.append(N)
+
+    return prime_factors
 
 def factorize(N, T, depth=1, path=None, results=None):
     """

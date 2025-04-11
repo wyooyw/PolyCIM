@@ -21,11 +21,12 @@ from polycim.op.base_operator import (
 )
 from polycim.op.buffer_manager import BufferManager
 from polycim.passes.base import DepthFirstPass, Schedule, SchedulePassResult
-from polycim.passes.multi_level_tiling_pass import multi_level_splitting_combination
+from polycim.passes.multi_level_tiling_pass import multi_level_splitting_combination, multi_level_splitting_var_level
 from polycim.passes.reorder import reorder_outer
 from polycim.utils.dominate import (
     get_dominate_iters_of_map,
     get_dominate_iters_of_pw_multi_aff_per_out,
+    get_dominate_iters_of_pw_multi_aff,
     get_non_dominate_iters_of_pw_multi_aff,
 )
 from polycim.utils.logger import get_logger, level_tqdm
@@ -37,6 +38,7 @@ from polycim.utils.utils import (
 )
 
 from polycim.utils.solve_data_movement import solve_data_movement
+from polycim.utils.math import get_prime_factors
 
 logger = get_logger(__name__)
 
@@ -1831,27 +1833,217 @@ def multi_level_buffer_insersion(op, n_macro_iters, buffer_strategy):
     # import pdb; pdb.set_trace()
     return new_op
 
+def parse_buffer_levels_vec(buffer_levels_vec):
+    operand_buffer_levels = {}
+    for operand_name, buffer_levels in buffer_levels_vec.items():
+        operand_buffer_levels[operand_name] = []
+        for buffer, vec in buffer_levels.items():
+            vec = vec.reshape(-1)
+            buffer_level = vec.shape[0] - np.sum(vec)
+            operand_buffer_levels[operand_name].append(buffer_level)
+        operand_buffer_levels[operand_name].sort()
+    return operand_buffer_levels
 
-def optimal_multi_level_buffer_insersion_search(op):
+def buffer_strategy_solve(op):
     n_macro_iters = op.attr["n_macro_iters"]
-    count = 0
-    min_cost = float("inf")
-    best_op = None
-    begin_time = time.time()
-    use_time = 0
-    for new_op in buffer_strategy_combination(op, n_macro_iters):
-        if memory_access_satisfy_constraint(new_op):
-            cost = memory_access_cost(new_op)
-            if cost < min_cost:
-                min_cost = cost
-                best_op = new_op
-                logger.info(f"{count=}, {min_cost=}")
-            count += 1
-        if best_op is not None and time.time() - begin_time > use_time:
-            break
+    n_dim = op.domain.dim(isl.dim_type.set)
+    n_outer_iters = n_dim - n_macro_iters
+    shape = utils.get_box_hull_shape(op.domain)
+    outer_shape = shape[:n_outer_iters]
+    factors_per_dim = [get_prime_factors(s) if s > 1 else [1] for s in outer_shape]
+    sizes = [factor for factors in factors_per_dim for factor in factors]
+    n_level = len(sizes)
+    dominate_iters_I = get_dominate_iters_of_pw_multi_aff(op.access_I.as_pw_multi_aff(), return_name=False)
+    dominate_iters_O = get_dominate_iters_of_pw_multi_aff(op.access_O.as_pw_multi_aff(), return_name=False)
+    dominate_iters_W = get_dominate_iters_of_pw_multi_aff(op.access_W.as_pw_multi_aff(), return_name=False)
+    dominate_iters_I = [i for i in dominate_iters_I if i < n_outer_iters]
+    dominate_iters_O = [i for i in dominate_iters_O if i < n_outer_iters]
+    dominate_iters_W = [i for i in dominate_iters_W if i < n_outer_iters]
+    dominate_onehot_I = []
+    dominate_onehot_O = []
+    dominate_onehot_W = []
+    
+    for idx,factors in enumerate(factors_per_dim):
+        if idx in dominate_iters_I:
+            dominate_onehot_I.extend([1] * len(factors))
+        else:
+            dominate_onehot_I.extend([0] * len(factors))
+        if idx in dominate_iters_O:
+            dominate_onehot_O.extend([1] * len(factors))
+        else:
+            dominate_onehot_O.extend([0] * len(factors))
+        if idx in dominate_iters_W:
+            dominate_onehot_W.extend([1] * len(factors))
+        else:
+            dominate_onehot_W.extend([0] * len(factors))
+
+    operand_buffer_mappings = {
+        "I": ["global", "input_memory", "pim_input_reg_buffer"],
+        "O": ["global", "output_memory", "pim_output_reg_buffer"],
+        "W": ["global", "macro"]
+    }
+    # n_macro_iters: [row, comp, group0,...,groupk, col]
+    operand_base_buffer_size = {
+        "I": reduce(lambda x, y: x * y, shape[n_outer_iters+1:-1]),
+        "O": reduce(lambda x, y: x * y, shape[n_outer_iters+2:]) * 4,
+        "W": reduce(lambda x, y: x * y, shape[n_outer_iters:])
+    }
+    operands_dominate = {
+        "I": dominate_onehot_I,
+        "O": dominate_onehot_O,
+        "W": dominate_onehot_W
+    }
+    buffer_sizes = get_memory_sizes()
+
+    results = solve_data_movement(
+        n_level = n_level, 
+        sizes = sizes, 
+        buffer_sizes = buffer_sizes,
+        operands_dominate = operands_dominate,
+        operand_buffer_mappings = operand_buffer_mappings,
+        operand_base_buffer_size = operand_base_buffer_size,
+        show = True
+    )
+    permute_matrix = results[0]
+    buffer_levels_vec = results[1]
+
+    buffer_levels = parse_buffer_levels_vec(buffer_levels_vec)
+
+    tiling_factors = [*factors_per_dim, *[[i] for i in shape[n_outer_iters:]]]
+    op = multi_level_splitting_var_level(op, tiling_factors)
+
+    reorder_schedule = get_reorder_schedule(permute_matrix, n_macro_iters)
+    op = op.apply_schedule(reorder_schedule, skip_simplify=True)
+
+    # insert buffer
+    new_n_dim = op.domain.dim(isl.dim_type.set)
+
+    # output partial sum
+    n_outer_iters = new_n_dim - n_macro_iters
+    share_output_iter = get_non_dominate_iters_of_pw_multi_aff(
+        op.access_O.as_pw_multi_aff(), return_name=False
+    )
+    share_output_iters_group = [
+        i for i in share_output_iter if i >= n_outer_iters
+    ]
+    share_output_iters_time = [
+        i for i in share_output_iter if i < n_outer_iters
+    ]
+    scalar_iters = get_scalar_iters(op.domain)
+
+    # filter some output iters
+    share_output_iters_time = list(
+        filter(lambda x: x not in scalar_iters, share_output_iters_time)
+    )
+    share_output_iters_group = list(
+        filter(lambda x: x not in scalar_iters, share_output_iters_group)
+    )
+
+    iter_row = new_n_dim - n_macro_iters
+    iter_comp = new_n_dim - n_macro_iters + 1
+    iter_col = new_n_dim - 1
+    share_output_iters_group = list(
+        filter(
+            lambda x: x != iter_comp and x != iter_col and x != iter_row,
+            share_output_iters_group,
+        )
+    )
+
+    # convert share_output_iters_group to share_output_iters_time\
+    reduce_levels = [None] * len(share_output_iters_time)
+    # share_output_iters_group = sorted(share_output_iters_group)
+    if len(share_output_iters_group) > 0:
+        assert False, f"{share_output_iters_group=}"
+
+    if len(share_output_iters_group) > 0:
+        assert (
+            len(share_output_iters_group) == 1
+        ), f"{share_output_iters_group=}"
+        share_output_iters_time.append(iter_row)
+        reduce_levels.append(share_output_iters_group[0])
+
+    assert len(share_output_iters_time) <= 2, f"{share_output_iters_time=}"
+    assert len(share_output_iters_time) == len(
+        set(share_output_iters_time)
+    ), f"{share_output_iters_time=}"
+    share_output_iters_time = sorted(share_output_iters_time)
+    new_output_buffer_level = [
+        buffer_levels["O"][0],
+        *share_output_iters_time,
+        buffer_levels["O"][1],
+    ]
+    new_output_buffer_reduce_level = [None, *reduce_levels, None]
+    new_output_is_partial_sum = [
+        False,
+        *([True] * len(share_output_iters_time)),
+        # *([True] * len(share_output_iters_group)),
+        False,
+    ]
+    new_output_memory_names = [
+        operand_buffer_mappings["O"][0],
+        *(["output_memory"] * (len(share_output_iters_time))),
+        # *(["output_memory"] * (len(share_output_iters_group))),
+        operand_buffer_mappings["O"][1],
+        operand_buffer_mappings["O"][2],
+    ]
     # import pdb; pdb.set_trace()
-    # if best_op is None:
-    #     raise ValueError("Can't find valid buffer strategy")
+
+    # Buffer strategy
+    buffer_strategy = BufferStrategy(
+        input_memory_names=operand_buffer_mappings["I"],
+        output_memory_names=new_output_memory_names,
+        weight_memory_names=operand_buffer_mappings["W"],
+        input_buffer_level=buffer_levels["I"],
+        output_buffer_level=new_output_buffer_level,
+        weight_buffer_level=buffer_levels["W"],
+        output_is_partial_sum=new_output_is_partial_sum,
+        output_reduce_level=new_output_buffer_reduce_level,
+    )
+    logger.debug(f"\t{buffer_strategy=}")
+    op = multi_level_buffer_insersion(
+        op, n_macro_iters, buffer_strategy
+    )
+    return op
+
+def get_reorder_schedule(permute_matrix, n_macro_iters):
+    assert len(permute_matrix.shape) == 2
+    assert permute_matrix.shape[0] == permute_matrix.shape[1]
+    n_permute_dim = permute_matrix.shape[0]
+    n_dim = n_permute_dim + n_macro_iters
+    domain_names = [f"i{i}" for i in range(n_dim)]
+    range_names = []
+    for i in range(n_permute_dim):
+        range_dim = permute_matrix[i].nonzero()[0][0]
+        range_names.append(f"i{range_dim}")
+    range_names.extend([f"i{i}" for i in range(n_permute_dim, n_dim)])
+    reorder_schedule = isl.BasicMap(f"{{ [{','.join(domain_names)}] -> [{','.join(range_names)}] }}")
+
+    return reorder_schedule
+    
+
+def optimal_multi_level_buffer_insersion_search(op, use_solver=True):
+
+    if use_solver:
+        best_op = buffer_strategy_solve(op)
+    else:
+        n_macro_iters = op.attr["n_macro_iters"]
+        count = 0
+        min_cost = float("inf")
+        best_op = None
+        begin_time = time.time()
+        use_time = 0
+        for new_op in buffer_strategy_combination(op, n_macro_iters):
+            if memory_access_satisfy_constraint(new_op):
+                cost = memory_access_cost(new_op)
+                if cost < min_cost:
+                    min_cost = cost
+                    best_op = new_op
+                    logger.info(f"{count=}, {min_cost=}")
+                count += 1
+            if best_op is not None and time.time() - begin_time > use_time:
+                break
+    if best_op is None:
+        raise ValueError("Can't find valid buffer strategy")
 
     return best_op
 
