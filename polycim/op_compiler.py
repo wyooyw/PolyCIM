@@ -8,6 +8,8 @@ from polycim.passes import (AffinePass, BackendCompilePass, BufferMappingPass,
                             TensorizePass, UtilizationEvaluatePass, VerifyPass)
 from polycim.passes.base import PassManager
 from polycim.utils.logger import get_logger
+from dataclasses import dataclass, asdict
+
 
 logger = get_logger(__name__)
 
@@ -32,7 +34,8 @@ def parse_op_list(op_list):
 @dataclass
 class Column:
     name: str
-    attr_keys: list[str]  # use op.attr[key1][key2]... to get the value
+    attr_keys: list[str] = None  # use op.attr[key1][key2]... to get the value
+    constant_value: str = None
 
 
 def save_table(op_list, columns, output_path, format="csv"):
@@ -51,14 +54,20 @@ def save_table(op_list, columns, output_path, format="csv"):
     for op in op_list:
         row = []
         for col in columns:
-            # 通过属性键列表逐层获取属性值
-            value = op.attr
-            for key in col.attr_keys:
-                try:
-                    value = value[key]
-                except (KeyError, TypeError):
-                    value = None
-                    break
+            if col.constant_value:
+                value = col.constant_value
+            elif col.attr_keys:
+                # 通过属性键列表逐层获取属性值
+                value = op.attr
+                for key in col.attr_keys:
+                    try:
+                        value = value[key]
+                    except (KeyError, TypeError):
+                        value = None
+                        break
+            else:
+                import pdb; pdb.set_trace()
+                assert False
             row.append(value)
         rows.append(row)
 
@@ -212,26 +221,48 @@ def run_polycim(args, cim_config, op, max_keep=32):
 
     pass_manager = PassManager(pass_list)
     result = pass_manager.apply(op)
+    # for op in result:
+    #     op.attr["unroll_level"] = args.unroll_level
+    show_columns = [
+        Column(name="name", attr_keys=["name"]),
+        Column(name="pre_tile_sizes", attr_keys=["pre_tile_sizes"]),
+        Column(name="affine schedule", attr_keys=["AffinePass", "schedule"]),
+        Column(name="h2s mapping", attr_keys=["HardwareMappingPass", "h2s_mapping"]),
+        Column(name="coalescing schedule", attr_keys=["HardwareMappingPass", "coalescing_schedule"]),
+        Column(name="post-tiling schedule", attr_keys=["HardwareMappingPass", "tiling_schedule"]),
+        Column(
+            name="utilization", attr_keys=["UtilizationEvaluatePass", "utilization"]
+        ),
+        Column(
+            name="compute_ops", attr_keys=["UtilizationEvaluatePass", "compute_ops"]
+        ),
+        Column(name="check_result", attr_keys=["VerifyPass", "check_result"]),
+        Column(
+            name="cim_compute_ops",
+            attr_keys=["VerifyPass", "inst_stats", "CIMComputeInst"],
+        ),
+        Column(name="latency", attr_keys=["ProfilePass", "latency"]),
+        Column(name="data_movement_cost_value", attr_keys=["BufferMappingPass", "cost"]),
+        Column(name="data_movement_search_time", attr_keys=["BufferMappingPass", "time"]),
+    ]
+    
+    cim_config_dict = asdict(cim_config)
+    keys = sorted(list(cim_config_dict.keys()))
+    for key in keys:
+        show_columns.append(
+            Column(name=f"cim_config.{key}", constant_value=str(cim_config_dict[key]))
+        )
+
+    args_config_dict = vars(args)
+    keys = sorted(list(args_config_dict.keys()))
+    for key in keys:
+        show_columns.append(
+            Column(name=f"args.{key}", constant_value=str(args_config_dict[key])),
+        )
 
     save_table(
         result,
-        [
-            Column(name="name", attr_keys=["name"]),
-            Column(name="pre_tile_sizes", attr_keys=["pre_tile_sizes"]),
-            Column(name="affine schedule", attr_keys=["AffinePass", "schedule"]),
-            Column(
-                name="utilization", attr_keys=["UtilizationEvaluatePass", "utilization"]
-            ),
-            Column(
-                name="compute_ops", attr_keys=["UtilizationEvaluatePass", "compute_ops"]
-            ),
-            Column(name="latency", attr_keys=["ProfilePass", "latency"]),
-            Column(name="check_result", attr_keys=["VerifyPass", "check_result"]),
-            Column(
-                name="cim_compute_ops",
-                attr_keys=["VerifyPass", "inst_stats", "CIMComputeInst"],
-            ),
-        ],
+        show_columns,
         os.path.join(args.output_path, "result.csv"),
         format="csv",
     )
