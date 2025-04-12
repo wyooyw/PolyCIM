@@ -2025,23 +2025,33 @@ def get_reorder_schedule(permute_matrix, n_macro_iters):
     return reorder_schedule
 
 
-def optimal_multi_level_buffer_insersion_search(op, use_solver=True):
+def optimal_multi_level_buffer_insersion_search(args, op):
 
-    if use_solver:
+    if args.data_movement_solver:
         best_op = buffer_strategy_solve(op)
+        assert memory_access_satisfy_constraint(best_op)
+        cost = memory_access_cost(best_op)
+        best_op.attr["BufferMappingPass"] = {
+            "cost": cost
+        }
     else:
+        assert args.data_movement_search
         n_macro_iters = op.attr["n_macro_iters"]
         count = 0
         min_cost = float("inf")
         best_op = None
         begin_time = time.time()
-        use_time = 0
+        use_time = args.data_movement_search_time
         for new_op in buffer_strategy_combination(op, n_macro_iters):
             if memory_access_satisfy_constraint(new_op):
                 cost = memory_access_cost(new_op)
                 if cost < min_cost:
                     min_cost = cost
                     best_op = new_op
+                    best_op.attr["BufferMappingPass"] = {
+                        "cost": cost,
+                        "time": time.time() - begin_time,
+                    }
                     logger.info(f"{count=}, {min_cost=}")
                 count += 1
             if best_op is not None and time.time() - begin_time > use_time:
@@ -2074,7 +2084,7 @@ class BufferMappingPass(DepthFirstPass):
 
     def apply(self, operator):
 
-        new_op = optimal_multi_level_buffer_insersion_search(operator)
+        new_op = optimal_multi_level_buffer_insersion_search(self.args, operator)
         if new_op is None:
             return []
 

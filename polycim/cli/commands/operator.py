@@ -42,8 +42,16 @@ def parse_operator_args(subparsers):
     parser.add_argument("--cimflow", action="store_true", help="run cimflow")
     parser.add_argument("--polycim", action="store_true", help="run polycim")
     parser.add_argument("--verify", action="store_true", help="verify")
+    parser.add_argument("--profile", action="store_true", help="profile")
+    parser.add_argument("--backend-compile", action="store_true", help="backend_compile")
+    parser.add_argument("--stage2", action="store_true", help="stage 2")
     parser.add_argument("--unroll-level", type=int, default=0, help="unroll level")
 
+    parser.add_argument("--data-movement-solver", action="store_true", help="data movement solver")
+    parser.add_argument("--data-movement-search", action="store_true", help="data movement search")
+    parser.add_argument("--data-movement-search-time", type=int, default=0, help="data movement search time")
+
+    parser.add_argument("--disable-hardware-mapping-coalescing", action="store_true", help="hardware mapping coalescing")
 
 def run_operator(args):
     args.output_path = to_abs_path(args.output_path)
@@ -69,6 +77,16 @@ def run_operator(args):
     # curr_time_str = curr_time_str + f"_{cim_cfg.n_comp}x{cim_cfg.n_group_vcol*8}"
 
     op = parse_op_list(op_list)
+
+    if args.verify or args.profile:
+        args.backend_compile = True
+
+    if args.backend_compile:
+        args.stage2 = True
+
+    if (not args.data_movement_solver) and (not args.data_movement_search):
+        args.data_movement_solver = True
+        
     # import pdb; pdb.set_trace()
     if args.polycim:
         run_polycim(args, cim_cfg, op)

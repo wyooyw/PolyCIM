@@ -194,14 +194,21 @@ def run_polycim(args, cim_config, op, max_keep=32):
         FilterSingleOpPass(n_keep=1),
         DumpOpPass(args, cim_config),
         MappingMultiMacroPass(args, cim_config),
-        BufferMappingPass(args, cim_config),
-        TensorizePass(args, cim_config),
-        CodegenPass(args, cim_config, unroll_level=args.unroll_level),
-        BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True),
     ]
+    if args.stage2:
+        pass_list.extend([
+            BufferMappingPass(args, cim_config),
+            TensorizePass(args, cim_config),
+            CodegenPass(args, cim_config, unroll_level=args.unroll_level)
+        ])
+    if args.backend_compile:
+        pass_list.append(BackendCompilePass(args, cim_config, n_workers=4, compile_data_layout=True))
     if args.verify:
+        assert args.backend_compile
         pass_list.append(VerifyPass(args))
-    pass_list.append(ProfilePass(args))
+    if args.profile:
+        assert args.backend_compile
+        pass_list.append(ProfilePass(args))
 
     pass_manager = PassManager(pass_list)
     result = pass_manager.apply(op)
