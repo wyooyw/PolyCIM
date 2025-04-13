@@ -141,9 +141,10 @@ class PassManager:
             )
         else:
             # sort by pass_list
+            pass_name_list = [pass_.__class__.__name__ for pass_ in self.pass_list]
             sorted_time_per_pass = sorted(
                 self.time_per_pass.items(),
-                key=lambda x: self.pass_list.index(x[0]),
+                key=lambda x: pass_name_list.index(x[0]),
                 reverse=False,
             )
         return sorted_time_per_pass
@@ -153,10 +154,10 @@ class PassManager:
 
         # add total time and percentage
         total_time = sum(self.time_per_pass.values())
-        s = f"Total time: {total_time:.2f}s"
-        s += "Time per pass: "
+        s = f"Total time: {total_time:.2f}s\n"
+        s += "Time per pass: \n"
         for pass_name, time_ in sorted_time_per_pass:
-            s += f"\t{pass_name}: {time_:.2f}s ({time_/total_time*100:.2f}%)"
+            s += f"\t{pass_name}: {time_:.2f}s ({time_/total_time*100:.2f}%)\n"
         logger.info(s)
 
     def _apply_until_breadth(self, op, step=0):
