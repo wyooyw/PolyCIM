@@ -2,7 +2,7 @@ import json
 import os
 
 import onnx
-from models.read_file import get_tensor_shape
+from polycim.exp.models.read_file import get_tensor_shape
 from tqdm import tqdm
 
 
@@ -23,22 +23,22 @@ def parse_conv_attr(model, node):
     output_tensor = node.output[0]
     output_tensor_shape = list(get_tensor_shape(model.graph, output_tensor))
 
-    if group > 1 and all(s == 1 for s in strides):
+    # if group > 1 and all(s == 1 for s in strides):
 
-        return {
-            "type": "conv2d",
-            "dilations": str(dilations),
-            "group": str(group),
-            "kernel_shape": str(kernel_shape),
-            "pads": str(pads),
-            "strides": str(strides),
-            "input_tensor_shape": str(input_tensor_shape),
-            "weight_tensor_shape": str(weight_tensor_shape),
-            "output_tensor_shape": str(output_tensor_shape),
-        }
+    return {
+        "type": "conv2d",
+        "dilations": str(dilations),
+        "group": str(group),
+        "kernel_shape": str(kernel_shape),
+        "pads": str(pads),
+        "strides": str(strides),
+        "input_tensor_shape": str(input_tensor_shape),
+        "weight_tensor_shape": str(weight_tensor_shape),
+        "output_tensor_shape": str(output_tensor_shape),
+    }
 
-    else:
-        return {}
+    # else:
+    #     return {}
 
 
 def extract_op_info_from_onnx(onnx_path):
@@ -61,7 +61,6 @@ def extract_op_info_from_onnx(onnx_path):
             skip_op_type.add(node.op_type)
 
     print(f"Skip op type: {skip_op_type}")
-
     return op_info_list
 
 
@@ -94,7 +93,7 @@ def extract_op_info_from_onnx_to_json(onnx_dir, json_dir):
 
 
 if __name__ == "__main__":
-    extract_op_info_from_onnx_to_json("models/onnx", "models/json")
+    extract_op_info_from_onnx_to_json("polycim/exp/models/onnx", "polycim/exp/models/json")
     # import onnx
     # from onnx import shape_inference
     # path = "models/onnx/EfficientNet.onnx" #the path of your onnx model

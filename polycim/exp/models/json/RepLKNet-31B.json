@@ -1,5 +1,15 @@
 [
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[3, 3]",
+    "pads": "[1, 1, 1, 1]",
+    "strides": "[2, 2]",
+    "input_tensor_shape": "[1, 3, 224, 224]",
+    "weight_tensor_shape": "[128, 3, 3, 3]",
+    "output_tensor_shape": "[1, 128, 112, 112]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -11,9 +21,39 @@
     "weight_tensor_shape": "[128, 1, 3, 3]",
     "output_tensor_shape": "[1, 128, 112, 112]"
   },
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 128, 112, 112]",
+    "weight_tensor_shape": "[128, 128, 1, 1]",
+    "output_tensor_shape": "[1, 128, 112, 112]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "128",
+    "kernel_shape": "[3, 3]",
+    "pads": "[1, 1, 1, 1]",
+    "strides": "[2, 2]",
+    "input_tensor_shape": "[1, 128, 112, 112]",
+    "weight_tensor_shape": "[128, 1, 3, 3]",
+    "output_tensor_shape": "[1, 128, 56, 56]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 128, 56, 56]",
+    "weight_tensor_shape": "[128, 128, 1, 1]",
+    "output_tensor_shape": "[1, 128, 56, 56]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -25,10 +65,50 @@
     "weight_tensor_shape": "[128, 1, 31, 31]",
     "output_tensor_shape": "[1, 128, 56, 56]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 128, 56, 56]",
+    "weight_tensor_shape": "[128, 128, 1, 1]",
+    "output_tensor_shape": "[1, 128, 56, 56]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 128, 56, 56]",
+    "weight_tensor_shape": "[512, 128, 1, 1]",
+    "output_tensor_shape": "[1, 512, 56, 56]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 56, 56]",
+    "weight_tensor_shape": "[128, 512, 1, 1]",
+    "output_tensor_shape": "[1, 128, 56, 56]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 128, 56, 56]",
+    "weight_tensor_shape": "[128, 128, 1, 1]",
+    "output_tensor_shape": "[1, 128, 56, 56]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -40,12 +120,72 @@
     "weight_tensor_shape": "[128, 1, 31, 31]",
     "output_tensor_shape": "[1, 128, 56, 56]"
   },
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 128, 56, 56]",
+    "weight_tensor_shape": "[128, 128, 1, 1]",
+    "output_tensor_shape": "[1, 128, 56, 56]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 128, 56, 56]",
+    "weight_tensor_shape": "[512, 128, 1, 1]",
+    "output_tensor_shape": "[1, 512, 56, 56]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 56, 56]",
+    "weight_tensor_shape": "[128, 512, 1, 1]",
+    "output_tensor_shape": "[1, 128, 56, 56]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 128, 56, 56]",
+    "weight_tensor_shape": "[256, 128, 1, 1]",
+    "output_tensor_shape": "[1, 256, 56, 56]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "256",
+    "kernel_shape": "[3, 3]",
+    "pads": "[1, 1, 1, 1]",
+    "strides": "[2, 2]",
+    "input_tensor_shape": "[1, 256, 56, 56]",
+    "weight_tensor_shape": "[256, 1, 3, 3]",
+    "output_tensor_shape": "[1, 256, 28, 28]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 256, 28, 28]",
+    "weight_tensor_shape": "[256, 256, 1, 1]",
+    "output_tensor_shape": "[1, 256, 28, 28]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -57,10 +197,50 @@
     "weight_tensor_shape": "[256, 1, 29, 29]",
     "output_tensor_shape": "[1, 256, 28, 28]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 256, 28, 28]",
+    "weight_tensor_shape": "[256, 256, 1, 1]",
+    "output_tensor_shape": "[1, 256, 28, 28]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 256, 28, 28]",
+    "weight_tensor_shape": "[1024, 256, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 28, 28]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 1024, 28, 28]",
+    "weight_tensor_shape": "[256, 1024, 1, 1]",
+    "output_tensor_shape": "[1, 256, 28, 28]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 256, 28, 28]",
+    "weight_tensor_shape": "[256, 256, 1, 1]",
+    "output_tensor_shape": "[1, 256, 28, 28]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -72,12 +252,72 @@
     "weight_tensor_shape": "[256, 1, 29, 29]",
     "output_tensor_shape": "[1, 256, 28, 28]"
   },
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 256, 28, 28]",
+    "weight_tensor_shape": "[256, 256, 1, 1]",
+    "output_tensor_shape": "[1, 256, 28, 28]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 256, 28, 28]",
+    "weight_tensor_shape": "[1024, 256, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 28, 28]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 1024, 28, 28]",
+    "weight_tensor_shape": "[256, 1024, 1, 1]",
+    "output_tensor_shape": "[1, 256, 28, 28]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 256, 28, 28]",
+    "weight_tensor_shape": "[512, 256, 1, 1]",
+    "output_tensor_shape": "[1, 512, 28, 28]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "512",
+    "kernel_shape": "[3, 3]",
+    "pads": "[1, 1, 1, 1]",
+    "strides": "[2, 2]",
+    "input_tensor_shape": "[1, 512, 28, 28]",
+    "weight_tensor_shape": "[512, 1, 3, 3]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -89,10 +329,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -104,10 +384,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -119,10 +439,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -134,10 +494,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -149,10 +549,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -164,10 +604,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -179,10 +659,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -194,10 +714,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -209,10 +769,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -224,10 +824,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -239,10 +879,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -254,10 +934,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -269,10 +989,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -284,10 +1044,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -299,10 +1099,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -314,10 +1154,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -329,10 +1209,50 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -344,12 +1264,72 @@
     "weight_tensor_shape": "[512, 1, 27, 27]",
     "output_tensor_shape": "[1, 512, 14, 14]"
   },
-  {},
-  {},
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[512, 512, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[2048, 512, 1, 1]",
+    "output_tensor_shape": "[1, 2048, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 2048, 14, 14]",
+    "weight_tensor_shape": "[512, 2048, 1, 1]",
+    "output_tensor_shape": "[1, 512, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 512, 14, 14]",
+    "weight_tensor_shape": "[1024, 512, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 14, 14]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1024",
+    "kernel_shape": "[3, 3]",
+    "pads": "[1, 1, 1, 1]",
+    "strides": "[2, 2]",
+    "input_tensor_shape": "[1, 1024, 14, 14]",
+    "weight_tensor_shape": "[1024, 1, 3, 3]",
+    "output_tensor_shape": "[1, 1024, 7, 7]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 1024, 7, 7]",
+    "weight_tensor_shape": "[1024, 1024, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 7, 7]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -361,10 +1341,50 @@
     "weight_tensor_shape": "[1024, 1, 13, 13]",
     "output_tensor_shape": "[1, 1024, 7, 7]"
   },
-  {},
-  {},
-  {},
-  {},
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 1024, 7, 7]",
+    "weight_tensor_shape": "[1024, 1024, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 7, 7]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 1024, 7, 7]",
+    "weight_tensor_shape": "[4096, 1024, 1, 1]",
+    "output_tensor_shape": "[1, 4096, 7, 7]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 4096, 7, 7]",
+    "weight_tensor_shape": "[1024, 4096, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 7, 7]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 1024, 7, 7]",
+    "weight_tensor_shape": "[1024, 1024, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 7, 7]"
+  },
   {
     "type": "conv2d",
     "dilations": "[1, 1]",
@@ -376,7 +1396,37 @@
     "weight_tensor_shape": "[1024, 1, 13, 13]",
     "output_tensor_shape": "[1, 1024, 7, 7]"
   },
-  {},
-  {},
-  {}
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 1024, 7, 7]",
+    "weight_tensor_shape": "[1024, 1024, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 7, 7]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 1024, 7, 7]",
+    "weight_tensor_shape": "[4096, 1024, 1, 1]",
+    "output_tensor_shape": "[1, 4096, 7, 7]"
+  },
+  {
+    "type": "conv2d",
+    "dilations": "[1, 1]",
+    "group": "1",
+    "kernel_shape": "[1, 1]",
+    "pads": "[0, 0, 0, 0]",
+    "strides": "[1, 1]",
+    "input_tensor_shape": "[1, 4096, 7, 7]",
+    "weight_tensor_shape": "[1024, 4096, 1, 1]",
+    "output_tensor_shape": "[1, 1024, 7, 7]"
+  }
 ]
