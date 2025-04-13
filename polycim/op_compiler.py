@@ -260,6 +260,16 @@ def run_polycim(args, cim_config, op, max_keep=32):
             Column(name=f"args.{key}", constant_value=str(args_config_dict[key])),
         )
 
+    time_per_pass = pass_manager.get_time_per_pass(sort_by_time=False)
+    total_time = sum([t for p,t in time_per_pass])
+    for pass_name, time in time_per_pass:
+        show_columns.append(
+            Column(name=f"pass_manager.time.{pass_name}", constant_value=str(time)),
+        )
+    show_columns.append(
+        Column(name="pass_manager.total_time", constant_value=str(total_time)),
+    )
+
     save_table(
         result,
         show_columns,
