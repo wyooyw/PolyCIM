@@ -4,13 +4,19 @@ from functools import partial
 import polycim.op.benchmark as benchmark
 from polycim.op.calculate import conv2d, depth_wise_conv2d, depth_wise_conv3d
 
+op_list = OrderedDict()
+
 
 def get_op_list():
+    global op_list
+    return op_list
+
+def _create_op_list():
+    global op_list
 
     symmetry_info_for_dwconv2d = ((1, 3), (2, 4))
     dim_types_for_dwconv2d = ["c", "oh", "ow", "kh", "kw"]
 
-    op_list = OrderedDict()
     op_list["conv2d_b1o8i1h8w8k3"] = {
         "op": benchmark.get_op_conv2d(
             b=1, oc=8, ic=1, oh=8, ow=8, kh=3, kw=3, stride=1, virtual_axis=False
@@ -76,6 +82,14 @@ def get_op_list():
         "dim_types": ["c", "ox", "oy", "oz", "kx", "ky", "kz"],
         "max_tiling_level": 2,
         "verify_fn": depth_wise_conv3d,
+    }
+    op_list["small_C1"] = {
+        "op": benchmark.get_op_dwconv2d(
+            ic=1, oh=4, ow=4, kh=3, kw=3, stride=1, dilation=1, virtual_axis=False
+        ),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+        "verify_fn": depth_wise_conv2d,
     }
     op_list["C1"] = {
         "op": benchmark.get_op_dwconv2d(
@@ -194,4 +208,18 @@ def get_op_list():
         "max_tiling_level": 2,
         "verify_fn": depth_wise_conv3d,
     }
-    return op_list
+    # return op_list
+
+
+def new_operator(op_def_dict):
+    global op_list
+    
+    for op_id, op_attr_dict in op_def_dict.items():
+        assert op_id not in op_list
+        op = dict()
+        for key, value in op_attr_dict.items():
+            op[key] = eval(value)
+        op_list[op_id] = op
+
+
+_create_op_list()

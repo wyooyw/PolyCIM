@@ -27,7 +27,13 @@ def parse_operator_args(subparsers):
         "--polycim-disable-pretile", action="store_true", help="disable pretile"
     )
     parser.add_argument(
+        "--polycim-disable-pretile-prune", action="store_true", help="disable pretile prune"
+    )
+    parser.add_argument(
         "--polycim-disable-affine", action="store_true", help="disable affine"
+    )
+    parser.add_argument(
+        "--polycim-disable-affine-prune", action="store_true", help="disable affine prune"
     )
     parser.add_argument(
         "--polycim-disable-weight-rewrite",
@@ -52,6 +58,8 @@ def parse_operator_args(subparsers):
     parser.add_argument("--data-movement-search-time", type=int, default=0, help="data movement search time")
 
     parser.add_argument("--disable-hardware-mapping-coalescing", action="store_true", help="hardware mapping coalescing")
+    
+    parser.add_argument("--op-def-json", type=str, default=None, help="operator definition")
 
 def run_operator(args):
     args.output_path = to_abs_path(args.output_path)
@@ -68,7 +76,12 @@ def run_operator(args):
     num_macros = cim_cfg.n_macro
     enable_weight_rewrite = True
 
-    from polycim.exp.op_list import get_op_list
+    from polycim.exp.op_list import get_op_list, new_operator
+    import json
+    if args.op_def_json:
+        with open(args.op_def_json, "r") as f:
+            op_def_json = json.load(f)
+        new_operator(op_def_json)
 
     op_list = get_op_list()
     op_list = {args.op_id: op_list[args.op_id]}
