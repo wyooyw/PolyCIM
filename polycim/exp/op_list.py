@@ -208,6 +208,16 @@ def _create_op_list():
         "max_tiling_level": 2,
         "verify_fn": depth_wise_conv3d,
     }
+
+    op_list["test_for_convnext"] = {
+        "op": benchmark.get_op_conv2d(
+            b=1, oc=192, ic=96, oh=28, ow=28, kh=2, kw=2, stride=2, virtual_axis=False
+        ),
+        "symmetry_info": ((3, 5), (4, 6)),
+        "dim_types": ["b", "oc", "ic", "oh", "ow", "kh", "kw"],
+        "verify_fn": partial(conv2d, stride=2),
+        "not_tiling": [1, 2],
+    }
     # return op_list
 
 

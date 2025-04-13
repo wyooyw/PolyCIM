@@ -173,6 +173,9 @@ class PassManager:
         elif isinstance(pass_, BreadthFirstPass):
             self._apply_pass(op, pass_)
             return
+        else:
+            assert False
+
 
     def _apply_op_list_until_breadth(self, op_list, step=0):
         for op in op_list:

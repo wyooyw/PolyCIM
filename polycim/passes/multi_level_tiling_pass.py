@@ -599,6 +599,8 @@ class PreTilingPass(DepthFirstPass):
             result = SchedulePassResult(new_operator, schedule)
             result_list.append(result)
 
+        # import pdb; pdb.set_trace()
+
         return result_list
 
 

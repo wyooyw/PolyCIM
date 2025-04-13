@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import ast
 
-def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_json_path):
+def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_json_path, options):
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
@@ -24,7 +24,8 @@ def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_js
         "--polycim",
         "--unroll-level", "3",
         "--profile",
-        "--op-def-json", op_def_json_path
+        "--op-def-json", op_def_json_path,
+        *options
     ]
     
     # Save the command to a file
@@ -172,6 +173,7 @@ def parse_conv2d_op(idx, op):
     assert all(pad==pads[0] for pad in pads)
     assert all(stride==strides[0] for stride in strides)
     assert all(dilation==dilations[0] for dilation in dilations)
+    assert kh == kw
     stride = strides[0]
     dilation = dilations[0]
     op_id = f"{idx}_conv2d_b{b}o{oc}i{ic}h{oh}w{ow}k{kh}k{kw}s{stride}d{dilation}"
@@ -181,10 +183,18 @@ def parse_conv2d_op(idx, op):
             "op": f"benchmark.get_op_conv2d(b={b}, oc={oc}, ic={ic}, oh={oh}, ow={ow}, kh={kh}, kw={kw}, stride={stride}, virtual_axis=False)",
             "symmetry_info": "((3, 5), (4, 6))",
             "dim_types": "['b', 'oc', 'ic', 'oh', 'ow', 'kh', 'kw']",
-            "verify_fn": "conv2d",
+            "verify_fn": f"partial(conv2d, stride={stride}, dilation={dilation})",
+            "not_tiling": "[1, 2]",
         }
     }
-    return op_id, op_def
+    option = []
+    # if stride == kh:
+    #     option.append("--polycim-disable-pretile")
+    #     option.append("--polycim-disable-affine")
+    option.append("--polycim-disable-pretile")
+    option.append("--polycim-disable-affine")
+
+    return op_id, op_def, option
 
 def parse_depthwise_conv2d_op(idx, op):
     input_tensor_shape = ast.literal_eval(op["input_tensor_shape"])
@@ -208,10 +218,18 @@ def parse_depthwise_conv2d_op(idx, op):
             "op": f"benchmark.get_op_dwconv2d(ic={ic}, oh={oh}, ow={ow}, kh={kh}, kw={kw}, stride={stride}, dilation={dilation}, virtual_axis=False)",
             "symmetry_info": "((1, 3), (2, 4))",
             "dim_types": "['c', 'oh', 'ow', 'kh', 'kw']",
-            "verify_fn": "depth_wise_conv2d",
+            "verify_fn": f"partial(depth_wise_conv2d, stride={stride}, dilation={dilation})",
         }
     }
-    return op_id, op_def
+
+    option = []
+    # if stride == kh:
+    #     option.append("--polycim-disable-pretile")
+    #     option.append("--polycim-disable-affine")
+    option.append("--polycim-disable-pretile")
+    option.append("--polycim-disable-affine")
+        
+    return op_id, op_def, option
 
 
 
@@ -222,38 +240,40 @@ def parse_network(network_path, save_dir):
     network_name = os.path.basename(network_path).split(".")[0]
     op_ids = []
     op_defs = dict()
+    options = []
     for idx,op in enumerate(network):
-        if idx >= 4:
-            break
+        # if idx >= 4:
+        #     break
         weight_tensor_shape = eval(op["weight_tensor_shape"])
         out_channel = weight_tensor_shape[0]
         group = int(op["group"])
         is_depthwise = group == out_channel
         is_normal_conv = group == 1
         if is_normal_conv:
-            op_id, op_def = parse_conv2d_op(idx, op)
+            op_id, op_def, option = parse_conv2d_op(idx, op)
         elif is_depthwise:
-            op_id, op_def = parse_depthwise_conv2d_op(idx, op)
+            op_id, op_def, option = parse_depthwise_conv2d_op(idx, op)
         else:
             print(f"Unsupported operation: {op}. skip.")
         assert op_id not in op_ids
         op_defs.update(op_def)
         op_ids.append(op_id)
+        options.append(option)
 
     save_file_path = os.path.join(save_dir, f"op_defs_{network_name}.json")
     with open(save_file_path, "w") as f:
         json.dump(op_defs, f, indent=4)
-    return op_ids, save_file_path
+    return op_ids, save_file_path, options
 
 def main():
     network_name = "convnext_tiny"
     network_path = f"./polycim/exp/models/json/{network_name}.json"
-    base_output_dir = f"./exp_result/performance/{network_name}"  # Base directory for outputs  
-    config_path = "/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/compiler_configs/c32b64.json"
-    pimsim_config_path = "/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/pimsim_configs/c32b64.json"
+    base_output_dir = f"./exp_result/performance/{network_name}_im2col_g8m8c32b64"  # Base directory for outputs  
+    config_path = "/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/compiler_configs/g8m8c32b64.json"
+    pimsim_config_path = "/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/pimsim_configs/g8m8c32b64.json"
     os.makedirs(base_output_dir, exist_ok=True)
     
-    op_ids, op_def_json_path = parse_network(network_path, base_output_dir)
+    op_ids, op_def_json_path, options = parse_network(network_path, base_output_dir)
     # exit()
     n_op = len(op_ids)
     
@@ -269,7 +289,8 @@ def main():
             [pimsim_config_path] * n_op,
             op_ids, 
             output_dirs, 
-            [op_def_json_path] * n_op
+            [op_def_json_path] * n_op,
+            options
         ))
 
     # Collect results into a single CSV

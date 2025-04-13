@@ -695,6 +695,7 @@ class HardwareMappingPass(DepthFirstPass):
         )
 
     def apply(self, operator):
+        print("HardwareMappingPass.apply")
         mapping = get_mapping_from_bases(operator.attr["AffinePass"]["bases"])
         operator.history_schedules.append({"s2h_mapping": mapping})
         if self.args.disable_hardware_mapping_coalescing:
