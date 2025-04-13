@@ -15,6 +15,7 @@ class CIMConfig:
     n_group: int
     n_macro_per_group: int
     n_macro: int
+    n_bcol: int
 
 
 _raw_config = None
@@ -66,6 +67,7 @@ def get_config():
         n_group=n_group,
         n_macro_per_group=n_macro_per_group,
         n_macro=n_macro,
+        n_bcol=n_bcol
     )
 
 
