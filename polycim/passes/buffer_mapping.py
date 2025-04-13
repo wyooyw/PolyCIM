@@ -1792,13 +1792,13 @@ def multi_level_buffer_insersion(op, n_macro_iters, buffer_strategy):
     new_op = new_op.convex_hull()
     new_op.attr["n_tensorize_cim_compute_level"] = n_macro_iters - 1
 
-    # print(f"shape={utils.get_box_hull_shape(new_op.domain)}")
-    # print("output:")
-    # for data_movement in new_op.data_movement["O"]:
-    #     print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
-    #     print(f"{data_movement.level=}")
-    #     print(f"{data_movement.access_O=}")
-    #     print(f"{data_movement.access_I=}\n")
+    print(f"shape={utils.get_box_hull_shape(new_op.domain)}")
+    print("output:")
+    for data_movement in new_op.data_movement["W"]:
+        # print(f"is partial sum: {isinstance(data_movement, PartialSumDataMovement)}")
+        print(f"{data_movement.level=}")
+        print(f"{data_movement.access_O=}")
+        print(f"{data_movement.access_I=}\n")
     # exit()
     # import pdb; pdb.set_trace()
 
@@ -1838,6 +1838,45 @@ def parse_buffer_levels_vec(buffer_levels_vec):
         operand_buffer_levels[operand_name].sort()
     return operand_buffer_levels
 
+def get_share_output_iters(op, n_macro_iters):
+    # insert buffer
+    new_n_dim = op.domain.dim(isl.dim_type.set)
+
+    # output partial sum
+    n_outer_iters = new_n_dim - n_macro_iters
+    share_output_iter = get_non_dominate_iters_of_pw_multi_aff(
+        op.access_O.as_pw_multi_aff(), return_name=False
+    )
+    share_output_iters_group = [i for i in share_output_iter if i >= n_outer_iters]
+    share_output_iters_time = [i for i in share_output_iter if i < n_outer_iters]
+    scalar_iters = get_scalar_iters(op.domain)
+
+    # filter some output iters
+    share_output_iters_time = list(
+        filter(lambda x: x not in scalar_iters, share_output_iters_time)
+    )
+    share_output_iters_group = list(
+        filter(lambda x: x not in scalar_iters, share_output_iters_group)
+    )
+    # sort
+    share_output_iters_time = sorted(share_output_iters_time)
+    share_output_iters_group = sorted(share_output_iters_group)
+    return share_output_iters_time, share_output_iters_group
+
+def compress_factors_per_dim(factors_per_dim):
+    sizes = [factor for factors in factors_per_dim for factor in factors]
+    n_level = len(sizes)
+    while n_level > 10:
+        n_factor_per_dim = [len(factors) for factors in factors_per_dim]
+        max_n_factor = max(n_factor_per_dim)
+        max_n_factor_idx = n_factor_per_dim.index(max_n_factor)
+        assert len(factors_per_dim[max_n_factor_idx]) > 1, f"{factors_per_dim[max_n_factor_idx]=}"
+        factors_per_dim[max_n_factor_idx] = [
+            factors_per_dim[max_n_factor_idx][0] * factors_per_dim[max_n_factor_idx][1],
+            *factors_per_dim[max_n_factor_idx][2:]
+        ]
+        n_level -= 1
+    return factors_per_dim
 
 def buffer_strategy_solve(op):
     n_macro_iters = op.attr["n_macro_iters"]
@@ -1845,7 +1884,20 @@ def buffer_strategy_solve(op):
     n_outer_iters = n_dim - n_macro_iters
     shape = utils.get_box_hull_shape(op.domain)
     outer_shape = shape[:n_outer_iters]
-    factors_per_dim = [get_prime_factors(s) if s > 1 else [1] for s in outer_shape]
+
+    factors_per_dim = []
+    share_output_iters_time, _ = get_share_output_iters(op, n_macro_iters)
+    for dim, size in enumerate(outer_shape):
+        if dim in share_output_iters_time:
+            factors_per_dim.append([size])
+        elif size > 1:
+            factors_per_dim.append(get_prime_factors(size))
+        else:
+            factors_per_dim.append([1])
+
+    factors_per_dim = compress_factors_per_dim(factors_per_dim)
+    
+
     sizes = [factor for factors in factors_per_dim for factor in factors]
     n_level = len(sizes)
     dominate_iters_I = get_dominate_iters_of_pw_multi_aff(
@@ -1877,7 +1929,7 @@ def buffer_strategy_solve(op):
             dominate_onehot_W.extend([1] * len(factors))
         else:
             dominate_onehot_W.extend([0] * len(factors))
-
+    # import pdb; pdb.set_trace()
     operand_buffer_mappings = {
         "I": ["global", "input_memory", "pim_input_reg_buffer"],
         "O": ["global", "output_memory"],# , "pim_output_reg_buffer"],
@@ -1903,6 +1955,19 @@ def buffer_strategy_solve(op):
     }
     buffer_sizes = get_memory_sizes()
 
+    reduce_levels = []
+    share_output_iters_time = list(share_output_iters_time)
+    for dim in share_output_iters_time:
+        factors_per_dim_before = factors_per_dim[:dim]
+        factors = [factor for factors in factors_per_dim_before for factor in factors]
+        reduce_level = len(factors)
+        reduce_levels.append(reduce_level)
+    
+    mean_output_size = buffer_sizes["output_memory"] / (1 + len(reduce_levels))
+    buffer_sizes["output_memory"] = mean_output_size
+    reduce_sizes = [mean_output_size] * len(reduce_levels)
+    reduce_bandwidth = [32] * len(reduce_levels)
+    
     results = solve_data_movement(
         n_level=n_level,
         sizes=sizes,
@@ -1911,6 +1976,11 @@ def buffer_strategy_solve(op):
         operands_dominate=operands_dominate,
         operand_buffer_mappings=operand_buffer_mappings,
         operand_base_buffer_size=operand_base_buffer_size,
+        reduce_levels=reduce_levels,
+        reduce_operand="O",
+        reduce_sizes=reduce_sizes,
+        reduce_bandwidth=reduce_bandwidth,
+        force_innermose_operand="W",
         show=True,
     )
     permute_matrix = results[0]
@@ -1920,29 +1990,15 @@ def buffer_strategy_solve(op):
 
     tiling_factors = [*factors_per_dim, *[[i] for i in shape[n_outer_iters:]]]
     op = multi_level_splitting_var_level(op, tiling_factors)
-
+    
     reorder_schedule = get_reorder_schedule(permute_matrix, n_macro_iters)
     op = op.apply_schedule(reorder_schedule, skip_simplify=True)
 
     # insert buffer
     new_n_dim = op.domain.dim(isl.dim_type.set)
-
-    # output partial sum
     n_outer_iters = new_n_dim - n_macro_iters
-    share_output_iter = get_non_dominate_iters_of_pw_multi_aff(
-        op.access_O.as_pw_multi_aff(), return_name=False
-    )
-    share_output_iters_group = [i for i in share_output_iter if i >= n_outer_iters]
-    share_output_iters_time = [i for i in share_output_iter if i < n_outer_iters]
-    scalar_iters = get_scalar_iters(op.domain)
-
-    # filter some output iters
-    share_output_iters_time = list(
-        filter(lambda x: x not in scalar_iters, share_output_iters_time)
-    )
-    share_output_iters_group = list(
-        filter(lambda x: x not in scalar_iters, share_output_iters_group)
-    )
+    
+    share_output_iters_time, share_output_iters_group = get_share_output_iters(op, n_macro_iters)
 
     iter_row = new_n_dim - n_macro_iters
     iter_comp = new_n_dim - n_macro_iters + 1
@@ -1964,7 +2020,7 @@ def buffer_strategy_solve(op):
         assert len(share_output_iters_group) == 1, f"{share_output_iters_group=}"
         share_output_iters_time.append(iter_row)
         reduce_levels.append(share_output_iters_group[0])
-
+    # import pdb; pdb.set_trace()
     assert len(share_output_iters_time) <= 2, f"{share_output_iters_time=}"
     assert len(share_output_iters_time) == len(
         set(share_output_iters_time)
@@ -1989,7 +2045,7 @@ def buffer_strategy_solve(op):
         # operand_buffer_mappings["O"][2],
         "pim_output_reg_buffer",
     ]
-    # import pdb; pdb.set_trace()
+    
 
     # Buffer strategy
     buffer_strategy = BufferStrategy(

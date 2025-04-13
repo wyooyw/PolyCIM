@@ -60,7 +60,7 @@ def make_constants(
     return A, log_A, log_S, log_B_max, log_operand_base_buffer_size, log_buffer_bandwidth
 
 
-def add_constraints(model, X, L, n_level, operand_buffer_mappings):
+def add_constraints(model, X, L, n_level, operand_buffer_mappings, force_innermose_operand, operands_dominate):
     # Constraints for X
     for j in range(n_level):
         model.addConstr(quicksum(X[i][j] for i in range(n_level)) == 1)
@@ -78,6 +78,15 @@ def add_constraints(model, X, L, n_level, operand_buffer_mappings):
             for i in range(n_level):
                 model.addConstr(_last_L[i] >= _L[i])
 
+    iters_dominate = np.array(operands_dominate[force_innermose_operand]).nonzero()[0]
+    L_force = list(L[force_innermose_operand].values())
+    # import pdb; pdb.set_trace()
+    assert len(L_force) == 1
+    L_force = L_force[0]
+    for d in iters_dominate:
+        for i in range(0, n_level):
+            model.addConstr(X[i][d] * L_force[i] == 0)
+
 
 def set_objective(
     model,
@@ -85,7 +94,12 @@ def set_objective(
     L,
     n_level,
     operand_buffer_mappings,
+    reduce_levels,
+    reduce_operand,
+    reduce_sizes,
+    reduce_bandwidth,
     log_A,
+    S,
     log_S,
     log_B_max,
     log_operand_base_buffer_size,
@@ -132,8 +146,82 @@ def set_objective(
             _log_traffic = _log_D + log_T
             obj += _log_traffic
 
+
+    # Constraint and objective of SIMD sum.
+    # reduce_levels,
+    # reduce_operand,
+    # reduce_sizes,
+    log_S_plus_1 = np.log2(np.array(S)+1)
+    log_reduce_sizes = np.log2(reduce_sizes)
+    log_reduce_bandwidth = np.log2(reduce_bandwidth)
+    
+    log_reduce_D = dict()
+    for r in reduce_levels:
+        _log_D = model.addVar(vtype=GRB.CONTINUOUS, name=f"reduce_D_{r}")
+        log_reduce_D[r] = _log_D
+
+    reduce_delta = dict()
+    for r in reduce_levels:
+        reduce_delta[r] = model.addVar(vtype=GRB.BINARY, name=f"reduce_delta_{r}")
+
+    model.update()
+    for i,r in enumerate(reduce_levels):
+        R = np.zeros(n_level)
+        R[r] = 1
+        R_new = []
+        for k in range(n_level):
+            R_new.append(
+                quicksum(
+                    X[k][j] * R[j]
+                    for j in range(n_level)
+                )
+            )
+        L_reduce = [R_new[0]]
+        for k in range(1, n_level):
+            L_reduce.append(L_reduce[-1] + R_new[k])
+            
+        _log_A = log_A[reduce_operand]
+        log_B_single = (
+            quicksum(
+                _log_A[j] * X[i][j] * L_reduce[i]
+                for i in range(n_level)
+                for j in range(n_level)
+            )
+            + log_operand_base_buffer_size[reduce_operand]
+        )
+        log_B_scale = log_S_plus_1[r]
+        log_B = log_B_single + log_B_scale
+        _log_B_max = log_reduce_sizes[i]
+        model.addConstr(log_B <= _log_B_max, name="log_B_constraint")
+
+        _log_W = log_reduce_bandwidth[i]
+        x = log_B - _log_W
+        _log_D = log_reduce_D[r]
+        y = _log_D
+        _delta = reduce_delta[r]
+        M = 8192
+        # y = max(x, 0)
+        model.addConstr(x <= M * (1 - _delta), name="")
+        model.addConstr(x >= - M * _delta, name="")
+        model.addConstr(y >= 0, name="")
+        model.addConstr(y >= x - M * _delta, name="")
+        model.addConstr(y <= x + M * _delta, name="")
+        model.addConstr(y <= M * (1 - _delta), name="")
+
+        log_T_in = quicksum(
+            log_S[j] * X[i][j] * (1 - L_reduce[i])
+            for i in range(n_level)
+            for j in range(n_level)
+        )
+        log_T_out = log_S[r]
+        log_T = log_T_in + log_T_out
+        _log_traffic = _log_D + log_T
+        obj += _log_traffic
+
     # Set the objective
     model.setObjective(obj, GRB.MINIMIZE)
+
+    # return obj
 
 
 def extract_results(
@@ -143,10 +231,14 @@ def extract_results(
     n_level,
     operand_buffer_mappings,
     log_A,
+    S,
     log_S,
     log_B_max,
     log_operand_base_buffer_size,
-    log_buffer_bandwidth
+    log_buffer_bandwidth,
+    reduce_levels,
+    reduce_operand,
+    reduce_bandwidth,
 ):
     X_values = [[X[i][j].X for j in range(n_level)] for i in range(n_level)]
     X_values = np.array(X_values, dtype=int)
@@ -186,8 +278,64 @@ def extract_results(
 
             _log_traffic = _log_D_value + _log_T_value
             log_traffic_values[operand][buffer] = _log_traffic
+    
+    log_S_plus_1 = np.log2(np.array(S)+1)
+    log_reduce_bandwidth = np.log2(reduce_bandwidth)
+    log_reduce_B_values = dict()
+    log_reduce_B_single_values = dict()
+    log_reduce_B_scale_values = dict()
+    log_reduce_D_values = dict()
+    log_reduce_T_values = dict()
+    log_reduce_traffic_values = dict()
+    for i,r in enumerate(reduce_levels):
+        R = np.zeros(n_level)
+        R[r] = 1
+        R_new = []
+        for k in range(n_level):
+            R_new.append(
+                sum(
+                    X_values[k][j] * R[j]
+                    for j in range(n_level)
+                )
+            )
+        L_reduce = [R_new[0]]
+        for k in range(1, n_level):
+            L_reduce.append(L_reduce[-1] + R_new[k])
+
+        _log_A = log_A[reduce_operand]
+        log_B_single = (
+            sum(
+                _log_A[j] * X_values[i][j] * L_reduce[i]
+                for i in range(n_level)
+                for j in range(n_level)
+            )
+            + log_operand_base_buffer_size[reduce_operand]
+        )
+        # import pdb; pdb.set_trace()
+        log_B_scale = log_S_plus_1[r]
+        log_B_value = log_B_single + log_B_scale
+        log_reduce_B_single_values[r] = log_B_single
+        log_reduce_B_scale_values[r] = log_B_scale
+        log_reduce_B_values[r] = log_B_value
+
+        log_W = log_reduce_bandwidth[i]
+        log_D_value = max(log_B_value - log_W, 0)
+        log_reduce_D_values[r] = log_D_value
+        
+        log_T_in = sum(
+            log_S[j] * X_values[i][j] * (1 - L_reduce[i])
+            for i in range(n_level)
+            for j in range(n_level)
+        )
+        log_T_out = log_S[r]
+        log_T = log_T_in + log_T_out
+        log_reduce_T_values[r] = log_T
+
+        log_reduce_traffic = log_D_value + log_T
+        log_reduce_traffic_values[r] = log_reduce_traffic
 
     Traf_value = model.ObjVal
+    
     return (
         X_values,
         L_values,
@@ -195,7 +343,15 @@ def extract_results(
         log_D_values,
         log_T_values,
         log_traffic_values,
-        Traf_value
+
+        log_reduce_B_single_values,
+        log_reduce_B_scale_values,
+        log_reduce_B_values,
+        log_reduce_D_values,
+        log_reduce_T_values,
+        log_reduce_traffic_values,
+
+        Traf_value,
     )
 
 
@@ -207,7 +363,15 @@ def show_result(
     log_traffic_values,
     Traf_value,
     operand_buffer_mappings,
-    log_D_values
+    log_D_values,
+
+    reduce_levels,
+    log_reduce_B_single_values,
+    log_reduce_B_scale_values,
+    log_reduce_B_values,
+    log_reduce_D_values,
+    log_reduce_T_values,
+    log_reduce_traffic_values, 
 ):
     print("X matrix:\n", X_values)
     print("Traf value:", Traf_value)
@@ -227,6 +391,15 @@ def show_result(
             print(
                 f"    {operand} {buffer} log(Traf) = {log_traffic_values[operand][buffer]}, Traf = {2**log_traffic_values[operand][buffer]}"
             )
+    print(f"{reduce_levels=}")
+    for i, r in enumerate(reduce_levels):
+        print(f"reduce {i}: ")
+        print(f"    log(B_single) = {log_reduce_B_single_values[r]}, B = {2**log_reduce_B_single_values[r]}")
+        print(f"    log(B_scale) = {log_reduce_B_scale_values[r]}, B = {2**log_reduce_B_scale_values[r]}")
+        print(f"    log(B) = {log_reduce_B_values[r]}, B = {2**log_reduce_B_values[r]}")
+        print(f"    log(D) = {log_reduce_D_values[r]}, D = {2**log_reduce_D_values[r]}")
+        print(f"    log(T) = {log_reduce_T_values[r]}, T = {2**log_reduce_T_values[r]}")
+        print(f"    log(Traf) = {log_reduce_traffic_values[r]}, Traf = {2**log_reduce_traffic_values[r]}")
 
 
 def solve_data_movement(
@@ -237,6 +410,11 @@ def solve_data_movement(
     operands_dominate,
     operand_buffer_mappings,
     operand_base_buffer_size,
+    reduce_levels,
+    reduce_operand,
+    reduce_sizes,
+    reduce_bandwidth,
+    force_innermose_operand,
     show=False,
 ):
     """
@@ -276,7 +454,7 @@ def solve_data_movement(
     )
 
     # Constraints for X
-    add_constraints(model, X, L, n_level, operand_buffer_mappings)
+    add_constraints(model, X, L, n_level, operand_buffer_mappings, force_innermose_operand, operands_dominate)
 
     # Objective function: Traf(I, local)
     set_objective(
@@ -285,7 +463,12 @@ def solve_data_movement(
         L,
         n_level,
         operand_buffer_mappings,
+        reduce_levels,
+        reduce_operand,
+        reduce_sizes,
+        reduce_bandwidth,
         log_A,
+        sizes,
         log_S,
         log_B_max,
         log_operand_base_buffer_size,
@@ -298,7 +481,16 @@ def solve_data_movement(
     model.optimize()
 
     # Extract the results
-    X_values, L_values, log_B_values, log_D_values, log_T_values, log_traffic_values, Traf_value = (
+    (
+        X_values, L_values, log_B_values, log_D_values, log_T_values, log_traffic_values, 
+        log_reduce_B_single_values,
+        log_reduce_B_scale_values,
+        log_reduce_B_values,
+        log_reduce_D_values,
+        log_reduce_T_values,
+        log_reduce_traffic_values, 
+        Traf_value
+    ) = (
         extract_results(
             model,
             X,
@@ -306,10 +498,15 @@ def solve_data_movement(
             n_level,
             operand_buffer_mappings,
             log_A,
+            sizes,
             log_S,
             log_B_max,
             log_operand_base_buffer_size,
-            log_buffer_bandwidth
+            log_buffer_bandwidth,
+
+            reduce_levels,
+            reduce_operand,
+            reduce_bandwidth,
         )
     )
 
@@ -322,7 +519,15 @@ def solve_data_movement(
             log_traffic_values,
             Traf_value,
             operand_buffer_mappings,
-            log_D_values
+            log_D_values,
+
+            reduce_levels,
+            log_reduce_B_single_values,
+            log_reduce_B_scale_values,
+            log_reduce_B_values,
+            log_reduce_D_values,
+            log_reduce_T_values,
+            log_reduce_traffic_values, 
         )
 
     return (
@@ -347,8 +552,8 @@ if __name__ == "__main__":
         "O": [False, False, True, True, True, True],
     }
     operand_buffer_mappings = {
-        "I": ["global", "local", "in_reg"],
-        "O": ["global", "local", "out_reg"],
+        "I": ["local", "in_reg"],
+        "O": ["local", "out_reg"],
     }
     X_values, L_values, log_B_values, log_T_values, log_traffic_values, Traf_value = (
         solve_data_movement(
@@ -372,6 +577,11 @@ if __name__ == "__main__":
                 "I": 1,
                 "O": 1
             },
+            reduce_levels=[2,3],
+            reduce_operand="O",
+            reduce_sizes=[16, 16],
+            reduce_bandwidth=[32, 32],
+            force_innermose_operand="I",
             show=True
         )
     )
