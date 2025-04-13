@@ -44,10 +44,10 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
         origin_operand_shape = json.load(f)
 
     # prepare data
-    cim_mask_shape = buffer_info["cim_mask_global"]["shape"]
-    cim_mask_np = np.ones(cim_mask_shape, dtype=np.int8).reshape(-1, 8)
-    cim_mask_np = tensor_bits_to_int8(cim_mask_np)
-    cim_mask_data = bytearray(cim_mask_np)
+    # cim_mask_shape = buffer_info["cim_mask_global"]["shape"]
+    # cim_mask_np = np.ones(cim_mask_shape, dtype=np.int8).reshape(-1, 8)
+    # cim_mask_np = tensor_bits_to_int8(cim_mask_np)
+    # cim_mask_data = bytearray(cim_mask_np)
 
     input_shape = origin_operand_shape["I"]
     input_np = np.random.randint(-2, 3, size=input_shape, dtype=np.int8)
@@ -76,7 +76,8 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
     I_converted_data = bytearray(I_converted_np)
     W_converted_data = bytearray(W_converted_np)
     global_memory_image_path = os.path.join(data_dir, "global_memory_image.bin")
-    total_data = cim_mask_data + I_converted_data + W_converted_data
+    # total_data = cim_mask_data + I_converted_data + W_converted_data
+    total_data = I_converted_data + W_converted_data
     with open(global_memory_image_path, "wb") as f:
         f.write(total_data)
 

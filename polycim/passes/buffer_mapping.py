@@ -1412,6 +1412,11 @@ def memory_access_satisfy_constraint(op):
 
     buffer_type_to_size = get_memory_sizes()
 
+    # keep space for zero-scalar(4 byte) in input_memory
+    # TODO: Too hack here, need to fix in the future.
+    buffer_type_to_size["input_memory"] -= 4
+
+
     satisfy = True
     # import pdb; pdb.set_trace()
     fail_memory_list = set()

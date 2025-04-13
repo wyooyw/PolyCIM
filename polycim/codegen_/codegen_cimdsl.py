@@ -97,7 +97,7 @@ class CodeGenerator:
             for name, info in buffer_name_to_info.items()
             if info.memory_name == "global"
         }
-        assert len(global_buffer_info) == 4, f"{global_buffer_info=}"
+        assert len(global_buffer_info) == 3, f"{global_buffer_info=}"
         for t in ["I", "W", "O"]:
             buf_info = global_buffer_info[t]
             shape_str = ",".join([str(s) for s in buf_info.shape])
@@ -637,7 +637,7 @@ class CodeGenerator:
         includes = self.codegen_includes(0)
         special_reg_settings = self.codegen_special_settings(1)
         main_begin, main_end = self.codegen_main_and_end(0)
-        cimset_code_list = self.codegen_cimset(1)
+        # cimset_code_list = self.codegen_cimset(1)
         buffer_define_code_list = self.codegen_buffer_define(1)
         const_buffer_define_code_list = self.codegen_const_buffer_define(1)
         execute_code_list = self.codegen(node, 1)
@@ -646,7 +646,7 @@ class CodeGenerator:
             includes
             + main_begin
             + special_reg_settings
-            + cimset_code_list
+            # + cimset_code_list
             + buffer_define_code_list
             + const_buffer_define_code_list
             + execute_code_list
