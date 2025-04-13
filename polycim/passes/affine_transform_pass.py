@@ -655,7 +655,7 @@ def select_bases(self, bases, operator):
 
     # Find all combinations of n_dim bases
     base_combinations = itertools.combinations(bases, n_dim)
-
+    # print(f"{len(bases)=}, {n_dim=}, n_combination={math.comb(len(bases), n_dim)}")
     for i, combination in enumerate(base_combinations):
 
         if satisfies_constraints(self, combination, operator):
@@ -882,12 +882,12 @@ class AffinePass(DepthFirstPass):
         fix_schedule: Optional[AffineSchedule] = None,
         schedule_as_key: bool = False,
         pad: bool = True,
-        prune: bool = True,
+        # prune: bool = True,
     ):
         super().__init__(fix_schedule=fix_schedule, schedule_as_key=schedule_as_key)
         self.args = args
         self.pad = pad
-        self.prune = prune
+        self.prune = not args.polycim_disable_affine_prune
         assert self.fix_schedule is None or isinstance(
             self.fix_schedule, AffineSchedule
         )
