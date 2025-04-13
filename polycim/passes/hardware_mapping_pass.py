@@ -189,6 +189,8 @@ def get_coalescing_schedule_from_mapping(mapping, software_op):
     for h_axis in h_axis_sorted:
         s_axis = mapping[h_axis]
         expression = merge(s_axis, bounds)
+        if len(s_axis) == 0:
+            import pdb; pdb.set_trace()
         schedule_range.append(expression)
     # print(schedule_range)
     # Make the schedule
@@ -199,6 +201,63 @@ def get_coalescing_schedule_from_mapping(mapping, software_op):
 
     return schedule
 
+
+def pick_axis_and_reorder_from_mapping(mapping, software_op):
+    """
+    mapping:  {'h0': ('s1',), 'h1': ('s4', 's5')}
+    scheudle: { [s0, s1, s2, s3, s4, s5] -> [s0, s2, s3, s1, 3s4 + s5] }
+    """
+    new_domain = utils.rename_all_dims_for_basic_set(software_op.domain, "s")
+    domain_iter_names = new_domain.get_var_names(isl.dim_type.set)
+    # print(mapping)
+    # shape = utils.get_box_hull_shape(new_domain)
+    bounds = {
+        iter_name: (
+            int(str(new_domain.dim_min_val(i))),
+            int(str(new_domain.dim_max_val(i))),
+        )
+        for i, iter_name in enumerate(domain_iter_names)
+    }
+
+    picked_mapping = dict()
+    for h_axis, s_axises in mapping.items():
+        max_ub = -1
+        max_s_axis = None
+        for s_axis in s_axises:
+            ub = bounds[s_axis][1]
+            if ub > max_ub:
+                max_ub = ub
+                max_s_axis = s_axis
+        # if max_s_axis is None:
+        #     import pdb; pdb.set_trace()
+        assert max_s_axis is not None
+        picked_mapping[h_axis] = (max_s_axis,)
+    mapping = picked_mapping
+            
+
+    schedule_range = list()
+    # import pdb; pdb.set_trace()
+    # Put the axis not in mapping to the front
+    s_axis_in_mapping = set([item for value in mapping.values() for item in value])
+    s_axis_not_in_mapping = set(bounds.keys()) - s_axis_in_mapping
+    s_axis_not_in_mapping = sort_by_name(s_axis_not_in_mapping)
+    schedule_range.extend(s_axis_not_in_mapping)
+    # import pdb; pdb.set_trace()
+    # s_axis_in_mapping = sort_by_name(s_axis_in_mapping)
+    # schedule_range.extend(s_axis_in_mapping)
+
+    h_axis_sorted = sort_by_name(mapping.keys())
+    for h_axis in h_axis_sorted:
+        s_axis = mapping[h_axis]
+        schedule_range.append(s_axis[0])
+
+    s_axis_sorted = sort_by_name(bounds.keys())
+    schedule = isl.BasicMap(
+        "{ [%s] -> [%s] }" % (",".join(s_axis_sorted), ",".join(schedule_range))
+    )
+    # import pdb; pdb.set_trace()
+
+    return schedule
 
 def get_reverse_coalescing_schedule_from_mapping(mapping, software_op):
     """
@@ -638,10 +697,15 @@ class HardwareMappingPass(DepthFirstPass):
     def apply(self, operator):
         mapping = get_mapping_from_bases(operator.attr["AffinePass"]["bases"])
         operator.history_schedules.append({"s2h_mapping": mapping})
-        coalescing_schedule = get_coalescing_schedule_from_mapping(mapping, operator)
-        reverse_coalescing_schedule = get_reverse_coalescing_schedule_from_mapping(
-            mapping, operator
-        )
+        if self.args.disable_hardware_mapping_coalescing:
+            coalescing_schedule = pick_axis_and_reorder_from_mapping(mapping, operator)
+        else:
+            coalescing_schedule = get_coalescing_schedule_from_mapping(mapping, operator)
+            # reverse_coalescing_schedule = get_reverse_coalescing_schedule_from_mapping(
+            #     mapping, operator
+            # )
+            
+            
         tiling_factor = [self.cim_config.n_comp, self.cim_config.n_group_vcol]
         tiling_schedule = _get_hardware_tiling_schedule(
             coalescing_schedule.range().dim(isl.dim_type.set), tiling_factor
@@ -657,6 +721,14 @@ class HardwareMappingPass(DepthFirstPass):
         if self.fix_schedule is not None:
             assert self.fix_schedule.s2h_mapping == mapping
             assert self.fix_schedule.tiling_factors == tiling_factor
+
+        new_op.set_attr(
+            "HardwareMappingPass", {
+                "coalescing_schedule": str(coalescing_schedule),
+                "tiling_schedule": str(tiling_schedule),
+                "h2s_mapping": str(mapping),
+            }
+        )
 
         result = SchedulePassResult(new_op, schedule)
         return [result]
