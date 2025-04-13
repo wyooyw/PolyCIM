@@ -10,9 +10,15 @@ if [ ! -d "graphs" ]; then
     tar -xzvf graphs.tar.gz
 fi
 
-# run test
-pytest -n 4 test
+python experiment/performance.py
+exit
 
+# python experience/sensitivity_analysis.py
+
+# run test
+# pytest -n 4 test
+# pytest -n 4 test/end2end/test_polycim_op.py
+# python test/end2end/test_polycim_op.py
 # run network
 # cur_time=$(date +%Y-%m-%d_%H-%M-%S)
 # save_dir=".save/${cur_time}"
@@ -35,14 +41,37 @@ pytest -n 4 test
 # --verify
 
 # run op (polycim)
-# op_name=C1
-# cur_time=$(date +%Y-%m-%d_%H-%M-%S)
-# save_dir=".save/${cur_time}"
-# polycim op \
-# --op-id $op_name \
-# --config-path $PWD/polycim/exp/iccad25/compiler_configs/c32b64.json \
+op_name=C15
+cur_time=$(date +%Y-%m-%d_%H-%M-%S)
+save_dir=".save/${cur_time}"
+polycim op \
+--op-id $op_name \
+--config-path $PWD/polycim/exp/iccad25/compiler_configs/c32b64.json \
+--pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
+--output-path $save_dir \
+--data-movement-full-vectorize \
+--polycim \
+--unroll-level 1
+# --polycim-disable-affine-prune
+# --op-def-json $PWD/op_def.json
+# --polycim-disable-affine-prune
+# --polycim-disable-pretile-prune
+
+# --verify \
+# --profile \
+# --polycim-disable-pretile \
+# --polycim-disable-affine
+# --polycim-disable-affine
+
+# --disable-hardware-mapping-coalescing
+# --data-movement-search \
+# --data-movement-search-time 30
+
+# --data-movement-search \
+# --data-movement-search-time 120
+# --data-movement-solver
+
 # --pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
-# --output-path $save_dir \
-# --data-movement-full-vectorize \
-# --polycim \
-# --verify
+
+# --polycim-disable-affine
+
