@@ -534,14 +534,14 @@ class PreTilingPass(DepthFirstPass):
         args,
         fix_schedule: Optional[PreTilingSchedule] = None,
         schedule_as_key: bool = False,
-        prune: bool = True,
+        # prune: bool = True,
     ):
         super().__init__(fix_schedule=fix_schedule, schedule_as_key=schedule_as_key)
         self.args = args
         assert self.fix_schedule is None or isinstance(
             self.fix_schedule, PreTilingSchedule
         )
-        self.prune = prune
+        self.prune = not args.polycim_disable_pretile_prune
 
     def apply(self, operator):
         symmetry_info = operator.attr.get("symmetry_info", None)
