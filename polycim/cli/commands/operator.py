@@ -60,9 +60,12 @@ def parse_operator_args(subparsers):
     parser.add_argument("--disable-hardware-mapping-coalescing", action="store_true", help="hardware mapping coalescing")
     
     parser.add_argument("--op-def-json", type=str, default=None, help="operator definition")
+    parser.add_argument("--profile-use-unrolled-code", action="store_true", help="profile use unrolled code")
 
 def run_operator(args):
+    import os
     args.output_path = to_abs_path(args.output_path)
+    os.makedirs(args.output_path, exist_ok=True)
     args.config_path = to_abs_path(args.config_path)
     set_raw_config_by_path(args.config_path)
 
@@ -78,12 +81,13 @@ def run_operator(args):
 
     from polycim.exp.op_list import get_op_list, new_operator
     import json
+
+    op_list = get_op_list(pad_to_even=(args.polycim and not args.polycim_disable_affine and not args.polycim_disable_pretile))
     if args.op_def_json:
         with open(args.op_def_json, "r") as f:
             op_def_json = json.load(f)
         new_operator(op_def_json)
 
-    op_list = get_op_list()
     op_list = {args.op_id: op_list[args.op_id]}
 
     # curr_time_str = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -99,6 +103,9 @@ def run_operator(args):
 
     if (not args.data_movement_solver) and (not args.data_movement_search):
         args.data_movement_solver = True
+
+    if args.profile and args.profile_use_unrolled_code:
+        args.verify = True
         
     # import pdb; pdb.set_trace()
     if args.polycim:

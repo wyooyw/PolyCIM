@@ -80,7 +80,7 @@ def get_onnx_files(directory):
     # os.walk遍历目录及子目录
     for root, dirs, files in os.walk(directory):
         for file in files:
-            if file.endswith(".onnx"):
+            if file.endswith(".onnx") and "next" in file:
                 # 将文件的完整路径添加到列表中
                 onnx_files.append(os.path.join(root, file))
     return onnx_files

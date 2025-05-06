@@ -1755,6 +1755,8 @@ def multi_level_buffer_insersion(op, n_macro_iters, buffer_strategy):
     group_iters = [n_dim - n_macro_iters + 2 + i for i in range(n_group_iters)]
     comp_iter = [n_dim - n_macro_iters + 1]
     input_layout_inner_dims = group_iters + comp_iter
+    # shape = utils.get_box_hull_shape(op.domain)
+    # import pdb; pdb.set_trace()
 
     n_dim = op.domain.dim(isl.dim_type.set)
     # new_op = op.convex_hull()  # Is this safe?
@@ -1866,7 +1868,9 @@ def get_share_output_iters(op, n_macro_iters):
 def compress_factors_per_dim(factors_per_dim):
     sizes = [factor for factors in factors_per_dim for factor in factors]
     n_level = len(sizes)
-    while n_level > 10:
+    n_dim = len(factors_per_dim)
+    n_level_max = max(n_dim, 8)
+    while n_level > n_level_max:
         n_factor_per_dim = [len(factors) for factors in factors_per_dim]
         max_n_factor = max(n_factor_per_dim)
         max_n_factor_idx = n_factor_per_dim.index(max_n_factor)

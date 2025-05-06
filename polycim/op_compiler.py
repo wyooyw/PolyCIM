@@ -236,6 +236,9 @@ def run_polycim(args, cim_config, op, max_keep=32):
         Column(
             name="compute_ops", attr_keys=["UtilizationEvaluatePass", "compute_ops"]
         ),
+        Column(
+            name="flops", attr_keys=["UtilizationEvaluatePass", "flops"]
+        ),
         Column(name="check_result", attr_keys=["VerifyPass", "check_result"]),
         Column(
             name="cim_compute_ops",

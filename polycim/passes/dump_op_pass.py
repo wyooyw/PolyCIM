@@ -146,17 +146,17 @@ class DumpOpPass(BreadthFirstPass):
             f.write(dump_code)
 
         # save mapping pictures
-        for idx, value in enumerate(
-            extract_frame_info(op, self.cim_config, different_weight=True)
-        ):
-            timestamp, frame_info = value
-            frame_str = f"Index: {idx}.    Timestamp: {timestamp}\n"
-            frame_str += frame_info.get_str(brief=False)
-            picure_save_path = os.path.join(save_dir_solution, f"frame_{idx}.txt")
-            with open(picure_save_path, "w") as f:
-                f.write(frame_str)
-            print(f"mapping pictures to {picure_save_path}")
-            break
+        # for idx, value in enumerate(
+        #     extract_frame_info(op, self.cim_config, different_weight=True)
+        # ):
+        #     timestamp, frame_info = value
+        #     frame_str = f"Index: {idx}.    Timestamp: {timestamp}\n"
+        #     frame_str += frame_info.get_str(brief=False)
+        #     picure_save_path = os.path.join(save_dir_solution, f"frame_{idx}.txt")
+        #     with open(picure_save_path, "w") as f:
+        #         f.write(frame_str)
+        #     print(f"mapping pictures to {picure_save_path}")
+        #     break
 
         # save result
         result_json = self.show_result(min_compute_times, flops, is_print=False)

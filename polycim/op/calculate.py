@@ -34,9 +34,9 @@ def conv2d(input, weight, dilation=1, stride=1):
 
 
 def depth_wise_conv2d(input, weight, dilation=1, stride=1):
-    assert len(input.shape) == 3
+    assert len(input.shape) == 4
     assert len(weight.shape) == 3
-    ic, ih, iw = input.shape
+    b, ic, ih, iw = input.shape
     kc, kh, kw = weight.shape
     assert ic == kc
 
@@ -45,20 +45,22 @@ def depth_wise_conv2d(input, weight, dilation=1, stride=1):
     oh = (ih - effective_kh) // stride + 1
     ow = (iw - effective_kw) // stride + 1
     oc = ic
-    output = np.zeros((oc, oh, ow), dtype=np.int32)
+    output = np.zeros((b, oc, oh, ow), dtype=np.int32)
     # for _oc in range(oc):
-    for _oh in range(oh):
-        for _ow in range(ow):
-            input_window = input[
-                :,
-                _oh : _oh + kh * dilation : dilation,
-                _ow : _ow + kw * dilation : dilation,
-            ]
-            weight_window = weight[:, :, :]
-            output[:, _oh, _ow] += np.sum(
-                input_window.astype(np.int32) * weight_window.astype(np.int32),
-                axis=(1, 2),
-            )
+    for _b in range(b):
+        for _oh in range(oh):
+            for _ow in range(ow):
+                input_window = input[
+                    _b,
+                    :,
+                    _oh : _oh + kh * dilation : dilation,
+                    _ow : _ow + kw * dilation : dilation,
+                ]
+                weight_window = weight[:, :, :]
+                output[_b, :, _oh, _ow] += np.sum(
+                    input_window.astype(np.int32) * weight_window.astype(np.int32),
+                    axis=(1, 2),
+                )
     return output
 
 
@@ -96,6 +98,38 @@ def depth_wise_conv3d(input, weight, dilation=1, stride=1):
                 )
     return output
 
+def group_conv2d(input, weight, dilation=1, stride=1):
+    assert len(input.shape) == 5
+    assert len(weight.shape) == 5
+    b, g, ic, ih, iw = input.shape
+    g, oc, kc, kh, kw = weight.shape
+    assert ic==kc
+
+    effective_kh = kh + (kh - 1) * (dilation - 1)
+    effective_kw = kw + (kw - 1) * (dilation - 1)
+
+    oh = (ih - effective_kh) // stride + 1
+    ow = (iw - effective_kw) // stride + 1
+
+    output = np.zeros((b, g, oc, oh, ow), dtype=np.int32)
+    for _b in range(b):
+        for _g in range(g):
+            for _oc in range(oc):
+                for _oh in range(oh):
+                    for _ow in range(ow):
+                        input_window = input[
+                            _b,
+                            _g,
+                            :,
+                            _oh * stride : _oh * stride + kh * dilation : dilation,
+                            _ow * stride : _ow * stride + kw * dilation : dilation,
+                        ]
+                        weight_window = weight[_g, _oc, :, :, :]
+                        output[_b, _g, _oc, _oh, _ow] = np.sum(
+                            input_window.astype(np.int32) * weight_window.astype(np.int32)
+                        )
+
+    return output
 
 if __name__ == "__main__":
     # Add test for conv2d

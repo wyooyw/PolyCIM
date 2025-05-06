@@ -9,9 +9,15 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import ast
 
-def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_json_path, options):
+def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_json_path, options, use_cache):
+    
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
+
+    if op_id in use_cache:
+        with open(os.path.join(output_dir, f"cache.txt"), "w") as f:
+            f.write(use_cache[op_id])
+        return
 
     # Construct the command
     cmd = [
@@ -22,9 +28,10 @@ def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_js
         "--data-movement-full-vectorize",
         "--pimsim-cfg-path", pimsim_config_path,
         "--polycim",
-        "--unroll-level", "3",
+        "--unroll-level", "1",
         "--profile",
         "--op-def-json", op_def_json_path,
+        # "--profile-use-unrolled-code",
         *options
     ]
     
@@ -44,6 +51,12 @@ def collect_results(base_output_dir, output_dirs):
     # Collect all result.csv files
     all_dfs = []
     for output_dir in output_dirs:
+        if os.path.exists(os.path.join(output_dir, f"cache.txt")):
+            with open(os.path.join(output_dir, f"cache.txt"), "r") as f:
+                cache_op_id = f.read()
+                op_id = output_dir.split("output_")[-1]
+                output_dir = output_dir.replace(f"{op_id}", f"{cache_op_id}")
+        
         result_csv_path = os.path.join(output_dir, "result.csv")
         if os.path.exists(result_csv_path):
             df = pd.read_csv(result_csv_path)
@@ -138,7 +151,8 @@ def draw_bar_chart(csv_path, save_path, labels):
     plt.savefig(save_path, bbox_inches='tight')
     plt.close()
 
-def parse_conv2d_op(idx, op):
+
+def parse_conv2d_op(idx, op, im2col=True, batch=1, cache=None, use_cache=None):
     """
     {
         "type": "conv2d",
@@ -165,6 +179,7 @@ def parse_conv2d_op(idx, op):
     weight_tensor_shape = ast.literal_eval(op["weight_tensor_shape"])
     output_tensor_shape = ast.literal_eval(op["output_tensor_shape"])
     b,ic,ih,iw = input_tensor_shape
+    b = batch
     oc,ic,kh,kw = weight_tensor_shape
     oh,ow = output_tensor_shape[2:]
     pads = ast.literal_eval(op["pads"])
@@ -176,7 +191,13 @@ def parse_conv2d_op(idx, op):
     assert kh == kw
     stride = strides[0]
     dilation = dilations[0]
-    op_id = f"{idx}_conv2d_b{b}o{oc}i{ic}h{oh}w{ow}k{kh}k{kw}s{stride}d{dilation}"
+    op_signature = f"conv2d_b{b}o{oc}i{ic}h{oh}w{ow}k{kh}k{kw}s{stride}d{dilation}"
+    op_id = f"{idx}_{op_signature}"
+
+    if op_signature in cache:
+        use_cache[op_id] = cache[op_signature]
+    else:
+        cache[op_signature] = op_id
 
     op_def = {
         op_id: {
@@ -188,20 +209,21 @@ def parse_conv2d_op(idx, op):
         }
     }
     option = []
-    # if stride == kh:
-    #     option.append("--polycim-disable-pretile")
-    #     option.append("--polycim-disable-affine")
-    option.append("--polycim-disable-pretile")
-    option.append("--polycim-disable-affine")
+    if im2col or stride == kh:
+        option.append("--polycim-disable-pretile")
+        option.append("--polycim-disable-affine")
+    # option.append("--polycim-disable-pretile")
+    # option.append("--polycim-disable-affine")
 
     return op_id, op_def, option
 
-def parse_depthwise_conv2d_op(idx, op):
+def parse_depthwise_conv2d_op(idx, op, im2col, batch=1, cache=None, use_cache=None):
     input_tensor_shape = ast.literal_eval(op["input_tensor_shape"])
     weight_tensor_shape = ast.literal_eval(op["weight_tensor_shape"])
     output_tensor_shape = ast.literal_eval(op["output_tensor_shape"])
     b,ic,ih,iw = input_tensor_shape
-    oc,ic,kh,kw = weight_tensor_shape
+    _,_,kh,kw = weight_tensor_shape
+    b = batch
     oh,ow = output_tensor_shape[2:]
     pads = ast.literal_eval(op["pads"])
     strides = ast.literal_eval(op["strides"])
@@ -211,36 +233,86 @@ def parse_depthwise_conv2d_op(idx, op):
     assert all(dilation==dilations[0] for dilation in dilations)
     stride = strides[0]
     dilation = dilations[0]
-    op_id = f"{idx}_dwconv2d_b{b}i{ic}h{oh}w{ow}k{kh}k{kw}s{stride}d{dilation}"
+    op_signature = f"dwconv2d_b{b}i{ic}h{oh}w{ow}k{kh}k{kw}s{stride}d{dilation}"
+    op_id = f"{idx}_{op_signature}"
+
+    if op_signature in cache:
+        use_cache[op_id] = cache[op_signature]
+    else:
+        cache[op_signature] = op_id
 
     op_def = {
         op_id: {
-            "op": f"benchmark.get_op_dwconv2d(ic={ic}, oh={oh}, ow={ow}, kh={kh}, kw={kw}, stride={stride}, dilation={dilation}, virtual_axis=False)",
-            "symmetry_info": "((1, 3), (2, 4))",
-            "dim_types": "['c', 'oh', 'ow', 'kh', 'kw']",
+            "op": f"benchmark.get_op_dwconv2d(b={b}, ic={ic}, oh={oh}, ow={ow}, kh={kh}, kw={kw}, stride={stride}, dilation={dilation}, virtual_axis=False)",
+            "symmetry_info": "((2, 4), (3, 5))",
+            "dim_types": "['b', 'c', 'oh', 'ow', 'kh', 'kw']",
             "verify_fn": f"partial(depth_wise_conv2d, stride={stride}, dilation={dilation})",
         }
     }
 
     option = []
-    # if stride == kh:
-    #     option.append("--polycim-disable-pretile")
-    #     option.append("--polycim-disable-affine")
-    option.append("--polycim-disable-pretile")
-    option.append("--polycim-disable-affine")
+    if im2col or stride == kh:
+        option.append("--polycim-disable-pretile")
+        option.append("--polycim-disable-affine")
+    # option.append("--polycim-disable-pretile")
+    # option.append("--polycim-disable-affine")
+        
+    return op_id, op_def, option
+
+def parse_group_conv2d_op(idx, op, im2col, batch=1, cache=None, use_cache=None):
+    input_tensor_shape = ast.literal_eval(op["input_tensor_shape"])
+    weight_tensor_shape = ast.literal_eval(op["weight_tensor_shape"])
+    output_tensor_shape = ast.literal_eval(op["output_tensor_shape"])
+    b,ic,ih,iw = input_tensor_shape
+    _,_,kh,kw = weight_tensor_shape
+    b = batch
+    oc,oh,ow = output_tensor_shape[1:]
+    group = int(op["group"])
+    pads = ast.literal_eval(op["pads"])
+    strides = ast.literal_eval(op["strides"])
+    dilations = ast.literal_eval(op["dilations"])
+    assert all(pad==pads[0] for pad in pads)
+    assert all(stride==strides[0] for stride in strides)
+    assert all(dilation==dilations[0] for dilation in dilations)
+    stride = strides[0]
+    dilation = dilations[0]
+    op_signature = f"gconv2d_b{b}o{oc}i{ic}h{oh}w{ow}k{kh}k{kw}s{stride}d{dilation}g{group}"
+    op_id = f"{idx}_{op_signature}"
+
+    if op_signature in cache:
+        use_cache[op_id] = cache[op_signature]
+    else:
+        cache[op_signature] = op_id
+
+    op_def = {
+        op_id: {
+            "op": f"benchmark.get_op_group_conv2d(b={b}, group={group}, oc={oc}, ic={ic}, oh={oh}, ow={ow}, kh={kh}, kw={kw}, stride={stride}, virtual_axis=False)",
+            "symmetry_info": "((4, 6), (5, 7))",
+            "dim_types": "['b', 'g', 'oc', 'ic', 'oh', 'ow', 'kh', 'kw']",
+            "verify_fn": f"partial(group_conv2d, stride={stride}, dilation={dilation})",
+        }
+    }
+
+    option = []
+    if im2col or stride == kh:
+        option.append("--polycim-disable-pretile")
+        option.append("--polycim-disable-affine")
+    # option.append("--polycim-disable-pretile")
+    # option.append("--polycim-disable-affine")
         
     return op_id, op_def, option
 
 
 
-
-def parse_network(network_path, save_dir):
+def parse_network(network_path, save_dir, im2col, batch):
     with open(network_path, "r") as f:
         network = json.load(f)
     network_name = os.path.basename(network_path).split(".")[0]
     op_ids = []
     op_defs = dict()
     options = []
+    cache = dict()
+    use_cache = dict()
     for idx,op in enumerate(network):
         # if idx >= 4:
         #     break
@@ -249,10 +321,13 @@ def parse_network(network_path, save_dir):
         group = int(op["group"])
         is_depthwise = group == out_channel
         is_normal_conv = group == 1
+        is_group_wise = 1 < group and group < out_channel
         if is_normal_conv:
-            op_id, op_def, option = parse_conv2d_op(idx, op)
+            op_id, op_def, option = parse_conv2d_op(idx, op, im2col, batch, cache, use_cache)
         elif is_depthwise:
-            op_id, op_def, option = parse_depthwise_conv2d_op(idx, op)
+            op_id, op_def, option = parse_depthwise_conv2d_op(idx, op, im2col, batch, cache, use_cache)
+        elif is_group_wise:
+            op_id, op_def, option = parse_group_conv2d_op(idx, op, im2col, batch, cache, use_cache)
         else:
             print(f"Unsupported operation: {op}. skip.")
         assert op_id not in op_ids
@@ -263,19 +338,26 @@ def parse_network(network_path, save_dir):
     save_file_path = os.path.join(save_dir, f"op_defs_{network_name}.json")
     with open(save_file_path, "w") as f:
         json.dump(op_defs, f, indent=4)
-    return op_ids, save_file_path, options
+    with open(os.path.join(save_dir, f"cache_{network_name}.json"), "w") as f:
+        json.dump(cache, f, indent=4)
+    return op_ids, save_file_path, options, cache, use_cache
 
-def main():
-    network_name = "convnext_tiny"
+def main(im2col, network_name, config, base_output_dir):
+    # im2col=False
+    im2col_str = "_im2col" if im2col else ""
+    batch = 1
+    # network_name = "convnext_tiny"
+    # config = "c32b64"
     network_path = f"./polycim/exp/models/json/{network_name}.json"
-    base_output_dir = f"./exp_result/performance/{network_name}_im2col_g8m8c32b64"  # Base directory for outputs  
-    config_path = "/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/compiler_configs/g8m8c32b64.json"
-    pimsim_config_path = "/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/pimsim_configs/g8m8c32b64.json"
+    base_output_dir = os.path.join(base_output_dir, f"{network_name}_bs{batch}_{config}{im2col_str}")  # Base directory for outputs  
+    config_path = f"/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/compiler_configs/{config}.json"
+    pimsim_config_path = f"/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/pimsim_configs/{config}.json"
     os.makedirs(base_output_dir, exist_ok=True)
     
-    op_ids, op_def_json_path, options = parse_network(network_path, base_output_dir)
+    op_ids, op_def_json_path, options, cache, use_cache = parse_network(network_path, base_output_dir, im2col=im2col, batch=batch)
     # exit()
     n_op = len(op_ids)
+    # import pdb; pdb.set_trace()
     
     # Prepare output directories
     output_dirs = [os.path.join(base_output_dir, f"output_{op_id}") for op_id in op_ids]
@@ -290,16 +372,71 @@ def main():
             op_ids, 
             output_dirs, 
             [op_def_json_path] * n_op,
-            options
+            options,
+            [use_cache] * n_op
         ))
+    # import pdb; pdb.set_trace()
 
     # Collect results into a single CSV
     collect_results(base_output_dir, output_dirs)
 
+def get_total_utilization(df, n_comp, n_group_vcol):
+    total_flops = df['flops'].sum()
+    total_compute_ops = df['compute_ops'].sum()
+    flops_per_cim_compute = total_flops / total_compute_ops
+    peak_flops_per_cim_compute = (
+        n_comp * n_group_vcol
+    )
+    use_rate_percent = flops_per_cim_compute / peak_flops_per_cim_compute * 100
+    return use_rate_percent
+
+def gather_results(im2col_pth, polycim_pth, output_path, n_comp, n_group_vcol):
+    im2col_df = pd.read_csv(im2col_pth)
+    polycim_df = pd.read_csv(polycim_pth)
+    
+    # Calculate the sum of the latency column for each dataframe
+    im2col_latency_sum = im2col_df['latency'].sum()
+    polycim_latency_sum = polycim_df['latency'].sum()
+
+    # total utilization
+    im2col_total_utilization = get_total_utilization(im2col_df, n_comp, n_group_vcol)
+    polycim_total_utilization = get_total_utilization(polycim_df, n_comp, n_group_vcol)
+    
+    # Create a new dataframe with the results
+    results_df = pd.DataFrame({
+        'Method': ['im2col', 'polycim'],
+        'Total Latency': [im2col_latency_sum, polycim_latency_sum],
+        'Total Utilization': [im2col_total_utilization, polycim_total_utilization]
+    })
+
+    
+    # Save the new dataframe to the specified output path
+    results_df.to_csv(output_path, index=False)
+
 if __name__ == "__main__":
-    main()
+    # main(im2col=False, network_name="convnext_tiny", config="c16b32")
+    # main(im2col=False, network_name="convnext_tiny", config="c64b64")
+    # base_output_dir = "./exp_result/performance_network_flops"
+    # for config in ["c32b64"]:
+    #     for network_name in ["mobilenet_v2", "convnext_tiny", "EfficientNet"]:
+    #     # for network_name in [""]:
+    #     # for network_name in ["resnext50_32x4d"]:
+    #         main(im2col=True, network_name=network_name, config=config, base_output_dir=base_output_dir)
+    #         main(im2col=False, network_name=network_name, config=config, base_output_dir=base_output_dir)
     # draw_bar_chart(
     #     csv_path="exp_result/ablation_study_unroll3/result_all.csv",
     #     save_path="exp_result/ablation_study_unroll3/bar_chart.png",
     #     labels=["Baseline", "Disable PreTiling", "Disable Affine", "Disable Coalescing", "Random \nData Movement"]
     # )
+
+    base_name = "convnext_tiny_bs1_c32b64"
+    n_comp = 32
+    n_group_vcol = 64 // 8  
+    gather_results(
+        im2col_pth=f"./exp_result/performance_network_flops/{base_name}_im2col/result_all.csv",
+        polycim_pth=f"./exp_result/performance_network_flops/{base_name}/result_all.csv",
+        output_path=f"./compare_{base_name}.csv",
+        n_comp=n_comp,
+        n_group_vcol=n_group_vcol
+    )
+    

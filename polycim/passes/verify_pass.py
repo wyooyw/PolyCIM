@@ -97,6 +97,7 @@ def verify(temp_dir, cim_cfg_path, op_name, op_id):
             "--code-format",
             "cimflow",
             "--save-stats",
+            "--save-unrolled-code"
         ],
         check=True,
     )

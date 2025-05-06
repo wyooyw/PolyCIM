@@ -86,6 +86,7 @@ class UtilizationEvaluatePass(BreadthFirstPass):
                         "need_macros": need_macro,
                         "compute_ops": exe_time,
                         "utilization": self.get_utilization(operator, exe_time),
+                        "flops": int(str(operator.domain.count_val()))
                     },
                 )
 

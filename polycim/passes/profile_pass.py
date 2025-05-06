@@ -5,11 +5,13 @@ import subprocess
 from polycim.passes.base import BreadthFirstPass
 
 
-def profile(temp_dir, pimsim_cfg_path, op_name, op_id):
+def profile(temp_dir, pimsim_cfg_path, op_name, op_id, use_unrolled_code=False):
     # 1. convert format
     op_dir = os.path.join(temp_dir, op_name, op_id)
-
-    cimflow_code_path = os.path.join(op_dir, "final_code.json")
+    if use_unrolled_code:
+        cimflow_code_path = os.path.join(op_dir, "sim_output", "unrolled_code.json")
+    else:
+        cimflow_code_path = os.path.join(op_dir, "final_code.json")
     legacy_code_path = os.path.join(op_dir, "final_code.legacy.json")
     report_path = os.path.join(op_dir, f"pimsim_report.json")
 
@@ -70,6 +72,7 @@ class ProfilePass(BreadthFirstPass):
                 self.args.pimsim_cfg_path,
                 op.attr["name"],
                 str(i),
+                use_unrolled_code=self.args.profile_use_unrolled_code,
             )
             op.attr["ProfilePass"] = {
                 "latency": report["latency_"],

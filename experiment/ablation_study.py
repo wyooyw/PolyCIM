@@ -95,15 +95,23 @@ def make_configs(demo_config, n_group_list, n_comp_list, n_bcol_list, save_dir):
 def draw_bar_chart(csv_path, save_path, labels):
     # Read the CSV file
     df = pd.read_csv(csv_path)
+
+    min_latency = df['latency'].min()
+    df['latency'] = df['latency'] / min_latency
     
     # Sort the dataframe by latency
     df['labels'] = labels
     df.sort_values(by='latency', inplace=True)
+
+    # print(df)
     
     # Extract the necessary columns
     utilization = df['utilization']
     latency = df['latency']
     sorted_labels = df['labels']
+    print(f"{utilization=}")
+    print(f"{latency=}")
+    print(f"{sorted_labels=}")
     
     # Create a horizontal bar chart with dual y-axes
     y = range(len(sorted_labels))
