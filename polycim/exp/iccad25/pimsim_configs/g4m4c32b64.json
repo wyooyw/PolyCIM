@@ -342,7 +342,7 @@
     "network_config": {
       "bus_width_byte": 8,
       "static_power_mW": 0,
-      "network_config_file_path": "/home/wangyiou/project/github-pim-sim/pim-sim/config/2024dac/flit16dim8.json"
+      "network_config_file_path": "/app/CIMCompiler/pim-sim/config/2024dac/flit16dim8.json"
     }
   },
   "sim_config": {

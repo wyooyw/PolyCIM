@@ -3,8 +3,8 @@
         "n_group": 8,
         "n_macro": 8,
         "n_row": 1,
-        "n_comp": 32,
-        "n_bcol": 64
+        "n_comp": 16,
+        "n_bcol": 32
     },
     "mask": {
         "n_from": 128,
@@ -17,8 +17,7 @@
             "type": "macro",
             "addressing": {
                 "offset_byte": 0,
-                "size_byte": 2048,
-                "comments": "offset: 0 Byte, size: 128 * 1024 Byte"
+                "size_byte": 512
             }
         },
         {
@@ -27,7 +26,7 @@
             "addressing": {
                 "size_byte": 262144,
                 "comments": "offset: 128 * 1024 Byte, size: 64 * 1024 Byte",
-                "offset_byte": 2048
+                "offset_byte": 512
             }
         },
         {
@@ -36,7 +35,7 @@
             "addressing": {
                 "size_byte": 262144,
                 "comments": "offset: 192 * 1024 Byte, size: 64 * 1024 Byte",
-                "offset_byte": 264192
+                "offset_byte": 262656
             }
         },
         {
@@ -45,7 +44,7 @@
             "addressing": {
                 "size_byte": 1024,
                 "comments": "offset: 256 * 1024 Byte, size: 0.5 * 1024 * 2 Byte",
-                "offset_byte": 526336
+                "offset_byte": 524800
             }
         },
         {
@@ -54,7 +53,7 @@
             "addressing": {
                 "size_byte": 4096,
                 "comments": "offset: 257 * 1024 Byte, size: 4 * 1024 Byte",
-                "offset_byte": 527360
+                "offset_byte": 525824
             }
         },
         {
@@ -62,8 +61,8 @@
             "type": "dram",
             "addressing": {
                 "size_byte": 134217728,
-                "comments": "size: 16MB",
-                "offset_byte": 531456
+                "comments": "size: 128MB",
+                "offset_byte": 529920
             }
         }
     ]

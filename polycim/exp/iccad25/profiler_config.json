@@ -1,0 +1,44 @@
+{
+  "profiling": true,
+  "report_to_json": true,
+  "json_flat": true,
+  "json_file": "",
+  "hardware_profiler_config": {
+    "profiling": true,
+    "record_timing_segments": false,
+    "each_core_profiling": false,
+    "report_level_cnt_": 10
+  },
+  "inst_profiler_config": {
+    "single_inst_profiling": false,
+    "inst_type_profiling": false,
+    "inst_group_profiling": false,
+    "inst_groups": [
+      {
+        "name": "conv",
+        "sub_groups": [
+          {
+            "name": "set",
+            "sub_groups":[]
+          },
+          {
+            "name": "load_weight",
+            "sub_groups":[]
+          },
+          {
+            "name": "cim_compute",
+            "sub_groups":[]
+          },
+          {
+            "name": "quantify",
+            "sub_groups":[]
+          },
+          {
+            "name": "result_output",
+            "sub_groups":[]
+          }
+        ]
+      }
+    ]
+  }
+}

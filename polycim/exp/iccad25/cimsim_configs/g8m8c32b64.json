@@ -1,0 +1,229 @@
+{
+  "chip_config": {
+    "core_cnt": 1,
+    "core_config": {
+      "simd_unit_config": {
+        "pipeline": true,
+        "functor_list": [
+          {
+            "name": "int_add",
+            "input_cnt": 2,
+            "data_bit_width": {
+              "input1": 32,
+              "input2": 32,
+              "output": 32
+            },
+            "functor_cnt": 32,
+            "latency_cycle": 1,
+            "static_power_per_functor_mW": 0.000697,
+            "dynamic_power_per_functor_mW": 0.4769
+          },
+          {
+            "name": "vset",
+            "input_cnt": 2,
+            "data_bit_width": {
+              "input1": 32,
+              "input2": 32,
+              "output": 32
+            },
+            "functor_cnt": 32,
+            "latency_cycle": 1,
+            "static_power_per_functor_mW": 0.000697,
+            "dynamic_power_per_functor_mW": 0.4769
+          }
+        ],
+        "instruction_list": [
+          {
+            "name": "vv_add",
+            "input_cnt": 2,
+            "opcode": "0x00",
+            "input1_type": "vector",
+            "input2_type": "vector",
+            "functor_binding_list": [
+              {
+                "input_bit_width": {
+                  "input1": 32,
+                  "input2": 32
+                },
+                "functor_name": "int_add"
+              }
+            ]
+          },
+          {
+            "name": "v_set",
+            "input_cnt": 2,
+            "opcode": "0x09",
+            "input1_type": "vector",
+            "input2_type": "scalar",
+            "functor_binding_list": [
+              {
+                "input_bit_width": {
+                  "input1": 32,
+                  "input2": 32
+                },
+                "functor_name": "vset"
+              }
+            ]
+          }
+        ]
+      },
+      "reduce_unit_config": {
+        "pipeline": true,
+        "functor_list": []
+      },
+      "cim_unit_config": {
+        "macro_total_cnt": 8,
+        "macro_group_size": 1,
+        "macro_size": {
+          "compartment_cnt_per_macro": 32,
+          "element_cnt_per_compartment": 8,
+          "row_cnt_per_element": 1,
+          "_comment": "bit-width-per-weight",
+          "bit_width_per_row": 8
+        },
+        "bit_serial": true,
+        "independent_mult": false,
+        "ipu": {
+          "latency_cycle": 1,
+          "static_power_mW": 0.00701,
+          "dynamic_power_mW": 0.01752
+        },
+        "sram": {
+          "write_latency_cycle": 1,
+          "read_latency_cycle": 1,
+          "_comment": "static_power_mW_per_macro",
+          "static_power_mW": 0.210218667,
+          "write_dynamic_power_per_bit_mW": 0.038486833,
+          "read_dynamic_power_per_bit_mW": 0.038486833
+        },
+        "adder_tree": {
+          "latency_cycle": 2,
+          "pipeline_stage_cnt": 2,
+          "static_power_mW": 0.00911,
+          "dynamic_power_mW": 6.581
+        },
+        "shift_adder": {
+          "latency_cycle": 1,
+          "static_power_mW": 0.00381,
+          "dynamic_power_mW": 0.132
+        },
+        "result_adder": {
+          "latency_cycle": 1,
+          "static_power_mW": 0.000697,
+          "dynamic_power_mW": 0.4769
+        },
+        "value_sparse": false,
+        "bit_sparse": false,
+        "input_bit_sparse": false
+      },
+      "local_memory_unit_config": {
+        "memory_list": [
+          {
+            "name": "input_memory",
+            "type": "ram",
+            "hardware_config": {
+              "size_byte": 262144,
+              "width_byte": 128,
+              "write_latency_cycle": 1,
+              "read_latency_cycle": 1,
+              "static_power_mW": 0.180178667,
+              "write_dynamic_power_mW": 13.20603289,
+              "read_dynamic_power_mW": 13.20603289,
+              "has_image": false
+            }
+          },
+          {
+            "name": "output_memory",
+            "type": "ram",
+            "hardware_config": {
+              "size_byte": 131072,
+              "width_byte": 128,
+              "write_latency_cycle": 1,
+              "read_latency_cycle": 1,
+              "static_power_mW": 0.093829333,
+              "write_dynamic_power_mW": 11.567344,
+              "read_dynamic_power_mW": 11.567344,
+              "has_image": false
+            }
+          },
+          {
+            "name": "pim_input_reg_buffer",
+            "type": "reg_buffer",
+            "hardware_config": {
+              "size_byte": 1024,
+              "read_max_width_byte": 128,
+              "write_max_width_byte": 128,
+              "rw_min_unit_byte": 128,
+              "static_power_mW": 0.3819,
+              "rw_dynamic_power_per_unit_mW": 0.695
+            }
+          },
+          {
+            "name": "pim_output_reg_buffer",
+            "type": "reg_buffer",
+            "hardware_config": {
+              "size_byte": 4096,
+              "read_max_width_byte": 128,
+              "write_max_width_byte": 128,
+              "rw_min_unit_byte": 128,
+              "static_power_mW": 0,
+              "rw_dynamic_power_per_unit_mW": 0
+            }
+          },
+          {
+            "name": "global_memory",
+            "type": "ram",
+            "hardware_config": {
+              "size_byte": 134217728,
+              "width_byte": 64,
+              "write_latency_cycle": 1,
+              "read_latency_cycle": 1,
+              "static_power_mW": 0.0,
+              "write_dynamic_power_mW": 0.0,
+              "read_dynamic_power_mW": 0.0
+            }
+          }
+        ]
+      },
+      "transfer_unit_config": {
+        "pipeline": true
+      }
+    },
+    "network_config": {
+      "bus_width_byte": 16,
+      "network_config_file_path": "/app/CIMCompiler/cim-sim/network_single_core.json"
+    },
+    "address_space_config": [
+      {
+        "name": "cim_unit",
+        "size": 2048
+      },
+      {
+        "name": "input_memory",
+        "size": 262144
+      },
+      {
+        "name": "output_memory",
+        "size": 262144
+      },
+      {
+        "name": "pim_input_reg_buffer",
+        "size": 1024
+      },
+      {
+        "name": "pim_output_reg_buffer",
+        "size": 4096
+      },
+      {
+        "name": "global_memory",
+        "size": 134217728
+      }
+    ]
+  },
+  "sim_config": {
+    "period_ns": 2.0,
+    "sim_mode": "run_one_round",
+    "data_mode": "not_real_data",
+    "sim_time_ms": 1.0
+  }
+}

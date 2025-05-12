@@ -2,7 +2,7 @@ from polycim.cli.common import show_args, to_abs_path
 from polycim.config import get_config, set_raw_config_by_path
 from polycim.op_compiler import parse_op_list, run_cimflow, run_polycim
 from polycim.utils.logger import get_logger
-
+from polycim.utils.tee import Tee
 logger = get_logger(__name__)
 
 
@@ -14,6 +14,9 @@ def parse_operator_args(subparsers):
     )
     parser.add_argument(
         "--pimsim-cfg-path", "-p", type=str, default=None, help="pimsim config path"
+    )
+    parser.add_argument(
+        "--profiler-cfg-path", "-pr", type=str, default=None, help="profiler config path"
     )
     parser.add_argument(
         "--output-path", "-o", required=True, type=str, help="output path"
@@ -106,11 +109,15 @@ def run_operator(args):
 
     if args.profile and args.profile_use_unrolled_code:
         args.verify = True
-        
-    # import pdb; pdb.set_trace()
-    if args.polycim:
-        run_polycim(args, cim_cfg, op)
-    elif args.cimflow:
-        run_cimflow(args, cim_cfg, op)
-    else:
-        assert False
+
+    output_log_path = os.path.join(args.output_path, "log.txt")
+    with Tee(output_log_path):
+        # import pdb; pdb.set_trace()
+        if args.polycim:
+            run_polycim(args, cim_cfg, op)
+        elif args.cimflow:
+            run_cimflow(args, cim_cfg, op)
+        else:
+            assert False
+
+    print(f"Please check results in: {args.output_path}")

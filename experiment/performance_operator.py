@@ -4,13 +4,11 @@ import pandas as pd
 from multiprocessing import Pool
 from itertools import product
 import json
-import seaborn as sns
 import matplotlib.pyplot as plt
-from matplotlib.colors import LogNorm
-import ast
 import numpy as np
+from datetime import datetime
 
-def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_json_path, options):
+def run_polycim_op(config_path, pimsim_config_path, profiler_config_path, op_id, output_dir, op_def_json_path, options):
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
 
@@ -22,6 +20,7 @@ def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_js
         "--output-path", output_dir,
         "--data-movement-full-vectorize",
         "--pimsim-cfg-path", pimsim_config_path,
+        "--profiler-cfg-path", profiler_config_path,
         "--polycim",
         "--unroll-level", "1",
         "--profile",
@@ -153,21 +152,22 @@ def draw_bar_chart(csv_path_list_groups, group_names, save_path, labels):
     plt.savefig(save_path)
     plt.close()
 
-def main(im2col, config_name, base_out_dir):
+def main(op_ids, im2col, config_name, base_out_dir):
     os.makedirs(base_out_dir, exist_ok=True)
     batch = 1
     # network_name = "EfficientNet"
     # network_path = f"./polycim/exp/models/json/{network_name}.json"
+    polycim_home = os.environ["POLYCIM_HOME"]
 
-    im2col_name = "_im2col" if im2col else ""
-    base_output_dir = os.path.join(base_out_dir, f"bs{batch}{im2col_name}_{config_name}")  # Base directory for outputs  
-    config_path = f"/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/compiler_configs/{config_name}.json"
-    pimsim_config_path = f"/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/pimsim_configs/{config_name}.json"
+    # im2col_name = "_im2col" if im2col else "_polycim"
+    base_output_dir = base_out_dir #os.path.join(base_out_dir, f"bs{batch}{im2col_name}_{config_name}")  # Base directory for outputs  
+    config_path = f"{polycim_home}/polycim/exp/iccad25/compiler_configs/{config_name}.json"
+    pimsim_config_path = f"{polycim_home}/polycim/exp/iccad25/cimsim_configs/{config_name}.json"
+    profiler_config_path = f"{polycim_home}/polycim/exp/iccad25/profiler_config.json"
     os.makedirs(base_output_dir, exist_ok=True)
     assert os.path.isfile(config_path), config_path
     assert os.path.isfile(pimsim_config_path), pimsim_config_path
     
-    op_ids = [f"C{i}" for i in range(1, 15)]
     # op_ids, op_def_json_path, options = parse_network(network_path, base_output_dir, im2col=im2col, batch=batch)
     # exit()
     n_op = len(op_ids)
@@ -191,6 +191,7 @@ def main(im2col, config_name, base_out_dir):
         pool.starmap(run_polycim_op, zip(
             [config_path] * n_op, 
             [pimsim_config_path] * n_op,
+            [profiler_config_path] * n_op,
             op_ids, 
             output_dirs, 
             [op_def_json_path] * n_op,
@@ -234,11 +235,28 @@ def gather_result(polycim_pth, im2col_pth, output_path):
     result_df.to_csv(output_path, index=False)
     result_df.to_excel(output_path.replace(".csv", ".xlsx"), index=False)
 
-    
-
 if __name__ == "__main__":
-    # main(True, "c16b32", "./exp_result/performance_operator_unrolled_c3d")
-    # main(False, "c16b32", "./exp_result/performance_operator_unrolled_c3d")
+    time_str = datetime.now().strftime("%m-%d_%H-%M-%S") 
+    output_dir = f"./exp_result/performance_operator/{time_str}"
+    # op_ids = [f"new_C{i}" for i in range(1, 6)]
+    op_ids = [f"new_C{i}" for i in [7,8]]
+    # op_ids = [f"new_C3"]
+
+    
+    for config_name in ["g8m8c16b32", "g8m8c32b64", "g8m8c64b64"]:
+        config_output_dir = os.path.join(output_dir, f"{config_name}")
+        print(f"{config_name=}")
+        # for im2col in [True, False]:
+        im2col_base_output_dir = os.path.join(config_output_dir, f"imcol")
+        main(op_ids, True, config_name, im2col_base_output_dir)
+        polycim_base_output_dir = os.path.join(config_output_dir, f"polycim")
+        main(op_ids, False, config_name, polycim_base_output_dir)
+        
+        gather_result(
+            polycim_pth=os.path.join(polycim_base_output_dir, "result_all.csv"),
+            im2col_pth=os.path.join(im2col_base_output_dir, "result_all.csv"),
+            output_path=os.path.join(config_output_dir, f"compare_{config_name}.csv")
+        )
     # main(True, "c32b64", "./exp_result/performance_operator_unrolled_c3d")
     # main(False, "c32b64", "./exp_result/performance_operator_unrolled_c3d")
     # main(True, "c64b64", "./exp_result/performance_operator_unrolled_c3d")
@@ -269,8 +287,8 @@ if __name__ == "__main__":
     #     output_path="./compare_bs1_c64b64.csv"
     # )
 
-    gather_result(
-        polycim_pth="./exp_result/performance_operator_unrolled_c3d/bs1_c16b32/result_all.csv",
-        im2col_pth="./exp_result/performance_operator_unrolled_c3d/bs1_im2col_c16b32/result_all.csv",
-        output_path="./compare_bs1_c16b32_unrolled.csv"
-    )
+    # gather_result(
+    #     polycim_pth="./exp_result/performance_operator_unrolled_c3d/bs1_c16b32/result_all.csv",
+    #     im2col_pth="./exp_result/performance_operator_unrolled_c3d/bs1_im2col_c16b32/result_all.csv",
+    #     output_path="./compare_bs1_c16b32_unrolled.csv"
+    # )

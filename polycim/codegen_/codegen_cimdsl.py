@@ -152,10 +152,10 @@ class CodeGenerator:
                 code=f"Trans(cim_mask_global, cim_mask_local);",
                 depth=depth,
             ),
-            CodeStmt(
-                code="CIMSet(cim_mask_local);",
-                depth=depth,
-            ),
+            # CodeStmt(
+            #     code="CIMSet(cim_mask_local);",
+            #     depth=depth,
+            # ),
         ]
         return code_list
 
