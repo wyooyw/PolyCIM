@@ -7,6 +7,8 @@ from functools import reduce
 from types import SimpleNamespace
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
+import math
+from cim_compiler.runner.runner import OpRunner
 
 from polycim.config import (
     get_config,
@@ -195,6 +197,79 @@ def get_code_add(attr):
     # exit()
 
 
+def calculate_input_memory(X_shape, W_shape, padding):
+    cim_cfg = get_config()
+
+    # 计算卷积操作的输入内存占用
+    # 这里假设每个元素占用1个单位的内存
+    # 你可以根据实际情况调整计算方法
+    batch, ic, ih, iw = X_shape
+    oc,ic,kh,kw = W_shape
+    out_h = ih - kh + 1 + 2 * padding[0]
+    out_w = iw - kw + 1 + 2 * padding[1]
+    
+    
+    kernel_size = ic * kh * kw
+    kernel_size_pad = math.ceil(kernel_size / (cim_cfg.n_comp * cim_cfg.n_row)) * (cim_cfg.n_comp * cim_cfg.n_row)
+    input_memory = batch * out_h * out_w * kernel_size_pad
+    
+    # input_memory = reduce(lambda x, y: x * y, X_shape) * 3
+
+    return input_memory
+
+@dataclass
+class Conv2dConfig:
+    batch: int
+    in_channel: int
+    out_channel: int
+    in_hw: int
+    out_hw: int
+    ker_hw: int
+    macro_config: int
+    math: int
+    n_weight_duplicate_group: int
+    n_reduce_group: int
+
+def get_code_conv2d_by_dsl(
+        batch,
+        in_channel,
+        out_channel,
+        in_hw,
+        out_hw,
+        ker_hw,
+        args,
+        cache_dir
+):
+    cim_cfg = get_config()
+    kernel_size = in_channel * ker_hw * ker_hw
+    n_reduce_group = math.ceil(kernel_size / (cim_cfg.n_comp * cim_cfg.n_row))
+    n_weight_duplicate_group = cim_cfg.n_group // n_reduce_group
+    op_config = Conv2dConfig(
+        batch=batch,
+        in_channel=in_channel,
+        out_channel=out_channel,
+        in_hw=in_hw,
+        out_hw=out_hw,
+        ker_hw=ker_hw,
+        macro_config=cim_cfg,
+        math=math,
+        n_weight_duplicate_group=n_weight_duplicate_group,
+        n_reduce_group=n_reduce_group
+    )
+    op_path = os.path.join(os.environ["CIMCOMPILER_HOME"], "cim_compiler/op/cimflow/conv2d.cim")
+    op_runner = OpRunner(op_path, op_config, args.config_path)
+    temp_dir = tempfile.mkdtemp(dir=cache_dir)
+    op_runner.run([], [], simulate=False, save_dir=temp_dir)
+    code_path = os.path.join(temp_dir, "compiler_output", "final_code.json")
+    return SimpleNamespace(
+        attr={
+            "BackendCompilePass": {
+                "code_file": code_path
+            }
+        },
+    )
+
+
 cache_conv2d_result = dict()
 
 
@@ -226,39 +301,45 @@ def get_code_conv2d(args, attr, cache_dir):
     if cache_key in cache_conv2d_result:
         result = cache_conv2d_result[cache_key]
     else:
-        # with tempfile.TemporaryDirectory() as temp_dir:
-        temp_dir = tempfile.mkdtemp(dir=cache_dir)
-        operator = benchmark.get_op_conv2d(
-            b=batch,
-            oc=out_channel,
-            ic=in_channel,
-            oh=out_h,
-            ow=out_w,
-            kh=kernel_height,
-            kw=kernel_width,
-            stride=stride,
-            virtual_axis=True,
-        )
-        operator_compile_args = {
-            "config_path": args.config_path,
-            "output_path": temp_dir,
-            "data_movement_full_vectorize": True,
-            "cimflow": True,
-            "verify": args.verify,
-        }
-        operator_compile_args = SimpleNamespace(**operator_compile_args)
-        # import pdb; pdb.set_trace()
-        operator.set_attr("name", "conv")
-        result = run_cimflow(
-            args=operator_compile_args, cim_config=get_config(), op=operator
-        )
-        assert len(result) == 1, f"Fail when generating conv2d code. {attr=}"
-        result = result[0]
-        if args.verify:
-            assert result.attr["VerifyPass"][
-                "check_result"
-            ], f"Fail when generating conv2d code. {attr=}"
-        cache_conv2d_result[cache_key] = result
+        input_memory = calculate_input_memory(attr["X_shape"], attr["W_shape"], attr["padding"])
+        if input_memory > get_memory_size("input_memory"):
+            print(f"input_memory: {input_memory} > input_memory_size: {get_memory_size('input_memory')}")
+            result = get_code_conv2d_by_dsl(args, attr, cache_dir)
+            cache_conv2d_result[cache_key] = result
+        else:
+            # with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = tempfile.mkdtemp(dir=cache_dir)
+            operator = benchmark.get_op_conv2d(
+                b=batch,
+                oc=out_channel,
+                ic=in_channel,
+                oh=out_h,
+                ow=out_w,
+                kh=kernel_height,
+                kw=kernel_width,
+                stride=stride,
+                virtual_axis=True,
+            )
+            operator_compile_args = {
+                "config_path": args.config_path,
+                "output_path": temp_dir,
+                "data_movement_full_vectorize": True,
+                "cimflow": True,
+                "verify": args.verify,
+            }
+            operator_compile_args = SimpleNamespace(**operator_compile_args)
+            # import pdb; pdb.set_trace()
+            operator.set_attr("name", "conv")
+            result = run_cimflow(
+                args=operator_compile_args, cim_config=get_config(), op=operator
+            )
+            assert len(result) == 1, f"Fail when generating conv2d code. {attr=}"
+            result = result[0]
+            if args.verify:
+                assert result.attr["VerifyPass"][
+                    "check_result"
+                ], f"Fail when generating conv2d code. {attr=}"
+            cache_conv2d_result[cache_key] = result
 
     # read code from result
     final_code = get_final_code(
