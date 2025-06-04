@@ -42,7 +42,7 @@ class FrameInfo:
                 else:
                     self.macro_for_print[i1][i2] = "0"
 
-        gap = "{:2}" if brief else "{:12}"
+        gap = "{:2}" if brief else "{:18}"
 
         s = ""
         # Print

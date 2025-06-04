@@ -28,6 +28,7 @@ def profile(temp_dir, pimsim_cfg_path, profiler_cfg_path, op_name, op_id, use_un
             "--dst-file",
             legacy_code_path,
             "--filter-out-invalid-instructions",
+            "--add-single-core-id"
         ],
         check=True,
     )

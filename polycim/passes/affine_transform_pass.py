@@ -951,7 +951,7 @@ class AffinePass(DepthFirstPass):
         return bases
 
     def apply(self, operator):
-        print("AffinePass.apply")
+        # print("AffinePass.apply")
 
         if self.fix_schedule is None:
             # 1. base construction

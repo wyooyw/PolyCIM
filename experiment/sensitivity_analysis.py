@@ -7,6 +7,7 @@ import json
 import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+from datetime import datetime
 
 def run_polycim_op(config_path, op_id, output_dir):
     # Create the output directory if it doesn't exist
@@ -21,7 +22,7 @@ def run_polycim_op(config_path, op_id, output_dir):
         "--data-movement-full-vectorize",
         "--polycim",
         "--unroll-level", "1",
-        "--polycim-disable-affine"
+        # "--polycim-disable-affine"
         # "--verify",
         # "--profile"
     ]
@@ -101,7 +102,7 @@ def draw_heatmap(csv_path, save_path):
     heatmap_data = df.pivot(index="cim_config.n_comp", columns="cim_config.n_bcol", values="utilization")
 
     # Create the heatmap with a reversed colormap
-    plt.figure(figsize=(10, 8))
+    plt.figure(figsize=(8, 4))
     ax = sns.heatmap(heatmap_data, annot=True, fmt=".1f", cmap="YlGnBu_r", cbar_kws={'format': '%.0f%%'},
                      )
 
@@ -112,27 +113,28 @@ def draw_heatmap(csv_path, save_path):
     # Set the labels and title
     plt.xlabel("Number of rows")
     plt.ylabel("Number of columns")
-    plt.title("Utilization Heatmap")
+    # plt.title("Utilization Heatmap")
 
     # Save the heatmap as a PDF file
     plt.savefig(save_path)
     plt.close()
 
-def main():
-    op_id = "C1"  # Example operator ID
-    base_output_dir = "./exp_result/sensitivity_analysis"  # Base directory for outputs
+def main(op_id, config_name, base_output_dir):
+    polycim_home = os.environ["POLYCIM_HOME"]
+
+    base_output_dir = os.path.join(base_output_dir, op_id)
 
     # Define the list of config paths and other parameters
     config_paths = make_configs(
-        demo_config="/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/compiler_configs/c32b64.json",
+        demo_config=os.path.join(polycim_home, "polycim/exp/iccad25/compiler_configs", config_name),
         n_group_list=[1],
         n_comp_list=list(range(16,16 + 16 * 5, 16)),
         n_bcol_list=list(range(32,32 + 32 * 5, 32)),
+        # n_comp_list=[32],
+        # n_bcol_list=[64],
         save_dir=os.path.join(base_output_dir, "configs")
     )
     
-    # result_all_path = "./result_all.csv"  # Path for the final concatenated result
-
     # Prepare output directories
     output_dirs = [os.path.join(base_output_dir, f"output_{i}") for i in range(len(config_paths))]
 
@@ -169,8 +171,17 @@ def main_change_group():
     collect_results(base_output_dir, output_dirs)
 
 if __name__ == "__main__":
-    # main()
+    # time_str = datetime.now().strftime("%m-%d_%H-%M-%S") 
+    # base_output_dir = f"./exp_result/sensitivity_analysis/{time_str}"
+    # op_ids = [f"new_C{i}" for i in range(1, 9)]
+    # # op_ids = [f"new_C1"]
+    # config_name = "c32b64.json"
+    # for op_id in op_ids:
+    #     main(op_id, config_name, base_output_dir)
+
+
+    
     draw_heatmap(
-        csv_path="exp_result/sensitivity_analysis/result_all.csv",
-        save_path="exp_result/sensitivity_analysis/heatmap.pdf"
+        csv_path="exp_result/sensitivity_analysis/05-12_06-21-02/new_C7/result_all.csv",
+        save_path="exp_result/sensitivity_analysis/05-12_06-21-02/new_C7/heatmap.png"
     )

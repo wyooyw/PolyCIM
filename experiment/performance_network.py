@@ -8,8 +8,8 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import ast
-
-def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_json_path, options, use_cache):
+from datetime import datetime
+def run_polycim_op(config_path, pimsim_config_path, profiler_config_path, op_id, output_dir, op_def_json_path, options, use_cache):
     
     # Create the output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
@@ -27,11 +27,12 @@ def run_polycim_op(config_path, pimsim_config_path, op_id, output_dir, op_def_js
         "--output-path", output_dir,
         "--data-movement-full-vectorize",
         "--pimsim-cfg-path", pimsim_config_path,
+        "--profiler-cfg-path", profiler_config_path,
         "--polycim",
         "--unroll-level", "1",
         "--profile",
         "--op-def-json", op_def_json_path,
-        # "--profile-use-unrolled-code",
+        "--profile-use-unrolled-code",
         *options
     ]
     
@@ -346,12 +347,16 @@ def main(im2col, network_name, config, base_output_dir):
     # im2col=False
     im2col_str = "_im2col" if im2col else ""
     batch = 1
+
+    polycim_home = os.environ["POLYCIM_HOME"]
+    
     # network_name = "convnext_tiny"
     # config = "c32b64"
-    network_path = f"./polycim/exp/models/json/{network_name}.json"
+    network_path = os.path.join(polycim_home, f"polycim/exp/models/json/{network_name}.json")
     base_output_dir = os.path.join(base_output_dir, f"{network_name}_bs{batch}_{config}{im2col_str}")  # Base directory for outputs  
-    config_path = f"/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/compiler_configs/{config}.json"
-    pimsim_config_path = f"/home/wangyiou/Desktop/pim_compiler/playground/polycim/exp/iccad25/pimsim_configs/{config}.json"
+    config_path = os.path.join(polycim_home, f"polycim/exp/iccad25/compiler_configs/{config}.json")
+    pimsim_config_path = os.path.join(polycim_home, f"polycim/exp/iccad25/cimsim_configs/{config}.json")
+    profiler_config_path = f"{polycim_home}/polycim/exp/iccad25/profiler_config.json"
     os.makedirs(base_output_dir, exist_ok=True)
     
     op_ids, op_def_json_path, options, cache, use_cache = parse_network(network_path, base_output_dir, im2col=im2col, batch=batch)
@@ -369,6 +374,7 @@ def main(im2col, network_name, config, base_output_dir):
         pool.starmap(run_polycim_op, zip(
             [config_path] * n_op, 
             [pimsim_config_path] * n_op,
+            [profiler_config_path] * n_op,
             op_ids, 
             output_dirs, 
             [op_def_json_path] * n_op,
@@ -414,29 +420,35 @@ def gather_results(im2col_pth, polycim_pth, output_path, n_comp, n_group_vcol):
     results_df.to_csv(output_path, index=False)
 
 if __name__ == "__main__":
-    # main(im2col=False, network_name="convnext_tiny", config="c16b32")
+    # main(im2col=False, network_name="convnext_tiny", config="g8m8c32b64")
     # main(im2col=False, network_name="convnext_tiny", config="c64b64")
-    # base_output_dir = "./exp_result/performance_network_flops"
-    # for config in ["c32b64"]:
+
+
+    # time_str = datetime.now().strftime("%m-%d_%H-%M-%S") 
+    # base_output_dir = f"./exp_result/performance_network/{time_str}"
+    # for config in ["g8m8c64b64"]:
     #     for network_name in ["mobilenet_v2", "convnext_tiny", "EfficientNet"]:
-    #     # for network_name in [""]:
-    #     # for network_name in ["resnext50_32x4d"]:
+    #     # for network_name in ["EfficientNet"]:
     #         main(im2col=True, network_name=network_name, config=config, base_output_dir=base_output_dir)
     #         main(im2col=False, network_name=network_name, config=config, base_output_dir=base_output_dir)
+    
+    
     # draw_bar_chart(
     #     csv_path="exp_result/ablation_study_unroll3/result_all.csv",
     #     save_path="exp_result/ablation_study_unroll3/bar_chart.png",
     #     labels=["Baseline", "Disable PreTiling", "Disable Affine", "Disable Coalescing", "Random \nData Movement"]
     # )
 
-    base_name = "convnext_tiny_bs1_c32b64"
-    n_comp = 32
+    base_output_dir = "exp_result/performance_network/05-12_10-02-29"
+    n_comp = 64
     n_group_vcol = 64 // 8  
-    gather_results(
-        im2col_pth=f"./exp_result/performance_network_flops/{base_name}_im2col/result_all.csv",
-        polycim_pth=f"./exp_result/performance_network_flops/{base_name}/result_all.csv",
-        output_path=f"./compare_{base_name}.csv",
-        n_comp=n_comp,
-        n_group_vcol=n_group_vcol
-    )
+    for base_name in ["convnext_tiny_bs1_g8m8c64b64", "EfficientNet_bs1_g8m8c64b64", "mobilenet_v2_bs1_g8m8c64b64"]:
+        output_path = os.path.join(base_output_dir, f"compare_{base_name}.csv")
+        gather_results(
+            im2col_pth=os.path.join(base_output_dir, f"{base_name}_im2col/result_all.csv"),
+            polycim_pth=os.path.join(base_output_dir, f"{base_name}/result_all.csv"),
+            output_path=output_path,
+            n_comp=n_comp,
+            n_group_vcol=n_group_vcol
+        )
     

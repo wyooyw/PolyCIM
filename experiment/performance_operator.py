@@ -238,12 +238,12 @@ def gather_result(polycim_pth, im2col_pth, output_path):
 if __name__ == "__main__":
     time_str = datetime.now().strftime("%m-%d_%H-%M-%S") 
     output_dir = f"./exp_result/performance_operator/{time_str}"
-    # op_ids = [f"new_C{i}" for i in range(1, 6)]
-    op_ids = [f"new_C{i}" for i in [7,8]]
+    op_ids = [f"new_C{i}" for i in range(1, 9)]
+    # op_ids = [f"new_C{i}" for i in [1,9]]
     # op_ids = [f"new_C3"]
 
     
-    for config_name in ["g8m8c16b32", "g8m8c32b64", "g8m8c64b64"]:
+    for config_name in ["g8m8c32b64", "g8m8c64b64"]:
         config_output_dir = os.path.join(output_dir, f"{config_name}")
         print(f"{config_name=}")
         # for im2col in [True, False]:

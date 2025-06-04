@@ -283,15 +283,15 @@ def _create_op_list(pad_to_even=False):
         "verify_fn": depth_wise_conv2d,
         "not_tiling": [1]
     }
-    # op_list["new_C6"] = {
-    #     "op": benchmark.get_op_group_conv2d(
-    #         b=1, group=4, oc=8, ic=16, oh=28, ow=28, kh=3, kw=3, stride=1, virtual_axis=False
-    #     ),
-    #     "symmetry_info": ((4, 6), (5, 7)),
-    #     "dim_types": ["b", "g", "oc", "ic", "oh", "ow", "kh", "kw"],
-    #     "verify_fn": partial(group_conv2d),
-    #     "not_tiling": [1]
-    # }
+    op_list["new_C6"] = {
+        "op": benchmark.get_op_group_conv2d(
+            b=1, group=32, oc=128, ic=128, oh=56, ow=56, kh=3, kw=3, stride=1, virtual_axis=False
+        ),
+        "symmetry_info": ((4, 6), (5, 7)),
+        "dim_types": ["b", "g", "oc", "ic", "oh", "ow", "kh", "kw"],
+        "verify_fn": partial(group_conv2d),
+        "not_tiling": [1]
+    }
     op_list["new_C7"] = {
         "op": benchmark.get_op_dwconv2d(
             b=1, ic=32, oh=56, ow=56, kh=3, kw=3, stride=1, dilation=2, virtual_axis=False
@@ -312,6 +312,24 @@ def _create_op_list(pad_to_even=False):
         "verify_fn": depth_wise_conv3d,
         "not_tiling": [0]
     }
+
+    op_list["dw5x5"] = {
+        "op": benchmark.get_op_dwconv2d(
+            b=1, ic=32, oh=56, ow=56, kh=5, kw=5, stride=1, dilation=1, virtual_axis=False
+        ),
+        "symmetry_info": symmetry_info_for_dwconv2d,
+        "dim_types": dim_types_for_dwconv2d,
+        "verify_fn": depth_wise_conv2d,
+        "not_tiling": [1]
+    }
+
+    # op_list["2_conv2d_b1o8i32h1w1k1k1s1d1"] = {
+    #     "op": benchmark.get_op_conv2d(b=1, oc=8, ic=32, oh=1, ow=1, kh=1, kw=1, stride=1, virtual_axis=False),
+    #     "symmetry_info": ((3, 5), (4, 6)),
+    #     "dim_types": ['b', 'oc', 'ic', 'oh', 'ow', 'kh', 'kw'],
+    #     "verify_fn": partial(conv2d, stride=1, dilation=1),
+    #     "not_tiling": [1, 2]
+    # }
     # return op_list
 
 

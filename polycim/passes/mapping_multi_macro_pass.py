@@ -43,6 +43,7 @@ def get_candidate_iters(op):
     )
 
     n_dim = op.domain.dim(isl.dim_type.set)
+    all_iters = set(range(n_dim))
     macro_iters = {n_dim - 1, n_dim - 2}
     scalar_iters = get_scalar_iters(op.domain)
     ignore_iters = scalar_iters | macro_iters
@@ -53,7 +54,34 @@ def get_candidate_iters(op):
         candidate_share_weight_iters, key=lambda x: -x
     )
 
-    candidate_iters = candidate_share_weight_iters
+    candidate_share_input_iters = share_input_iters - ignore_iters
+    candidate_share_input_iters = list(candidate_share_input_iters)
+    candidate_share_input_iters = sorted(
+        candidate_share_input_iters, key=lambda x: -x
+    )
+
+    candidate_share_output_iters = share_output_iters - ignore_iters
+    candidate_share_output_iters = list(candidate_share_output_iters)
+    candidate_share_output_iters = sorted(
+        candidate_share_output_iters, key=lambda x: -x
+    )
+
+    candidate_non_share_iters = (
+        all_iters 
+        - share_weight_iters 
+        - share_input_iters 
+        - share_output_iters
+        - ignore_iters
+    )
+    candidate_non_share_iters = list(candidate_non_share_iters)
+    candidate_non_share_iters = sorted(
+        candidate_non_share_iters, key=lambda x: -x
+    )
+    # shape = utils.get_box_hull_shape(op.domain)
+    # import pdb; pdb.set_trace()
+
+    candidate_iters = candidate_non_share_iters + candidate_share_input_iters + candidate_share_weight_iters
+    # import pdb; pdb.set_trace()
 
     return candidate_iters
 
@@ -122,9 +150,14 @@ def make_group_schedule(op, candidate_iters, cim_cfg):
         else:
             raise ValueError(f"factor={factor} is invalid")
     # import pdb; pdb.set_trace()
-    assert (
-        remain_group_factor == 1
-    ), f"Currently, only support use all groups. When meet the situation that remain some group, it should be fixed."
+    # if remain_group_factor == n_group:
+    #     # select a axis to map
+    #     in_group_iters.append(
+    #         Iter(iter_id=0, iter_size=1)
+    #     )
+    # assert (
+    #     remain_group_factor == 1
+    # ), f"Currently, only support use all groups. {remain_group_factor=}. When meet the situation that remain some group, it should be fixed."
 
     in_group_iters = in_group_iters[::-1]
     if len(in_group_iters) == 0:

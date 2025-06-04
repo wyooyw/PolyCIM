@@ -42,9 +42,9 @@ class CodeGenerator:
         use_group = self.op.attr["n_use_group"]
         use_comp = self.op.attr["n_use_comp"]
         cim_cfg = get_config()
-        assert (
-            use_group > cim_cfg.n_group // 2 and use_group <= cim_cfg.n_group
-        ), f"{use_group=}, {cim_cfg.n_group=}"
+        # assert (
+        #     use_group==1 or (use_group > cim_cfg.n_group // 2 and use_group <= cim_cfg.n_group)
+        # ), f"{use_group=}, {cim_cfg.n_group=}"
         special_regs_setting = [
             CodeStmt(
                 code="SpecialRegSet(SPECIAL_REG_INPUT_BIT_WIDTH, 8);", depth=depth

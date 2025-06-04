@@ -1,17 +1,35 @@
 # configs
 export POLYCIM_HOME=$PWD
-export CIMCOMPILER_HOME=/home/wangyiou/project/CIMCompiler
+export CIMCOMPILER_HOME=/app/CIMCompiler/CIMCompiler
 export PYTHONPATH=$PWD
 source log_config.sh
-
+# python3 experiment/performance_operator.py
+# python3 experiment/sensitivity_analysis.py
+# python3 experiment/performance_network.py
+# exit
 # extract graphs
-if [ ! -d "graphs" ]; then
-    echo "Extracting graphs.tar.gz..."
-    tar -xzvf graphs.tar.gz
-fi
+# if [ ! -d "graphs" ]; then
+#     echo "Extracting graphs.tar.gz..."
+#     tar -xzvf graphs.tar.gz
+# fi
 
-python experiment/performance_network.py
-exit
+# polycim op \
+# --op-id 2_conv2d_b1o8i32h1w1k1k1s1d1 \
+# --config-path /app/CIMCompiler/PolyCIM/polycim/exp/iccad25/compiler_configs/g8m8c32b64.json \
+# --output-path ./exp_result/performance_network/05-12_07-52-06/EfficientNet_bs1_g8m8c32b64_im2col/output_2_conv2d_b1o8i32h1w1k1k1s1d1 \
+# --data-movement-full-vectorize \
+# --pimsim-cfg-path /app/CIMCompiler/PolyCIM/polycim/exp/iccad25/cimsim_configs/g8m8c32b64.json \
+# --profiler-cfg-path /app/CIMCompiler/PolyCIM/polycim/exp/iccad25/profiler_config.json \
+# --polycim \
+# --unroll-level 1 \
+# --profile \
+# --profile-use-unrolled-code \
+# --polycim-disable-pretile \
+# --polycim-disable-affine
+
+
+# python experiment/performance_network.py
+# exit
 
 # python experience/sensitivity_analysis.py
 
@@ -50,10 +68,8 @@ exit
 # --pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/c32b64.json \
 # --output-path $save_dir \
 # --data-movement-full-vectorize \
-# --polycim \
+# --polycim
 # --verify
-# --polycim-disable-affine \
-# --polycim-disable-pretile \
 
 # --op-def-json exp_result/performance_network_unrolled/mobilenet_v2_bs1_c32b64/op_defs_mobilenet_v2.json
 # --profile
@@ -61,19 +77,23 @@ exit
 # --profile-use-unrolled-code
 
 # run op (polycim)
-# op_name=0_conv2d_b1o96i3h56w56k4k4s4d1
-# cur_time=$(date +%Y-%m-%d_%H-%M-%S)
-# save_dir=".save/${cur_time}"
-# polycim op \
-# --op-id $op_name \
-# --config-path $PWD/polycim/exp/iccad25/compiler_configs/g8m8c32b64.json \
-# --pimsim-cfg-path $PWD/polycim/exp/iccad25/pimsim_configs/g8m8c32b64.json \
-# --output-path $save_dir \
-# --data-movement-full-vectorize \
-# --polycim \
-# --unroll-level 1 \
+op_name=dw5x5
+cur_time=$(date +%Y-%m-%d_%H-%M-%S)
+save_dir=".save/${cur_time}"
+polycim op \
+--op-id $op_name \
+--config-path $PWD/polycim/exp/iccad25/compiler_configs/g8m8c32b64.json \
+--pimsim-cfg-path $PWD/polycim/exp/iccad25/cimsim_configs/g8m8c32b64.json \
+--profiler-cfg-path $PWD/polycim/exp/iccad25/profiler_config.json \
+--output-path $save_dir \
+--data-movement-full-vectorize \
+--polycim \
+--unroll-level 1 \
+--profile \
+--verify
 # --polycim-disable-pretile \
-# --polycim-disable-affine \
+# --polycim-disable-affine
+
 # --profile \
 # --op-def-json exp_result/performance/convnext_tiny_im2col_g8m8c32b64/op_defs_convnext_tiny.json
 # --polycim-disable-affine-prune

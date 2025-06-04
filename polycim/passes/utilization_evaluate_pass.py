@@ -100,7 +100,8 @@ class UtilizationEvaluatePass(BreadthFirstPass):
                     self.result_value[schedule_key] = exe_time
                     self.result_op[schedule_key].append(operator)
 
-                print(f"min_compute_times={exe_time}, need_macro={need_macro}")
+                # print(f"min_compute_times={exe_time}, need_macro={need_macro}")
+                print(f"min_compute_times={exe_time}")
 
     def apply_all(self):
         pass
